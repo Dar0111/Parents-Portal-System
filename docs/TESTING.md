@@ -776,13 +776,19 @@ Accepted on 25 October 2026" for both; §4.1: Principal Admin saw two ticks,
 accepted (kept). **The cleanup:** **backup 389** (2,863,216 bytes, footer
 present); #7's two acceptance rows (#2015, #2016, `draft-2`) and #7's one
 consumed code row (#536) deleted by id, each in one transaction; the admin's
-two rows (#2017, #2018) and every `activity_logs` row kept. **Finding — not
-from the texts:** after accepting, #7 met the **contact step**: its email
-confirmation, and #3's, had been cleared during this branch's gate (the
-suites and the smoke, 04:52–05:06; #3's row last written 05:06:21, the
-smoke's teardown), so the owner confirmed a mobile number for #7 there
-(kept); #3 is left with no confirmed contact. The cause is not yet traced;
-KNOWN_ISSUES has the row.
+two rows (#2017, #2018) and every `activity_logs` row kept. After accepting,
+#7 met the **contact step** and the owner confirmed a mobile number there
+(kept) — correct: #7 had no confirmed contact. **First reported as the gate
+clearing #3's and #7's emails, then withdrawn the same day:** backups 377,
+382 and 383 (before, between and after the two gates) all hold both emails
+unconfirmed (a script compared the dumps' `users` rows, flags only); the
+"confirmed" reading came from a survey taken at 16:57 on 2026-10-24, inside
+the SMS branch's `smoke:isolated` run, while the smoke's helper had stamped
+the confirmation — its teardown put NULL back at 16:58:14. Both helpers stamp
+only a contact-pending account and put back exactly what they stamped; an
+independent read-only check upheld it. **Never read live contact or
+acceptance state while a suite or the smoke is running** (KNOWN_ISSUES, the
+CLOSED row).
 
 - `npm run test:students` — **97/97** (2026-10-10, feat/privacy, −1: decision 6 — a VALUE for the learner's birthday, gender, address or contact number is 400 "no longer collected" on POST and PUT, null and empty keys are ignored, and no response carries the four; the birthday round-trip check is gone with the field, and the class-change tests edit `last_name` where they edited the contact number. 98/98 before that, was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — **30/30** (2026-10-21, feat/account-create, same count: its throwaway teacher is created with login id, password and name alone — `createTeacherBare` — because `POST /users/teachers` refuses an email or a number since the branch)

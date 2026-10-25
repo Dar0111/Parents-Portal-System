@@ -38,8 +38,9 @@ draft-2 documents before any other signed-in request answers it, so
 
 ## §1 — the consent screen at desktop width (Nino's parent, #7)
 
-**Who:** Nino's parent, **Rosa Alcantara (#7)** — active, a confirmed email,
-no forced password change, and no acceptance on record. **Not** Tala's parent.
+**Who:** Nino's parent, **Rosa Alcantara (#7)** — active, no forced password
+change, and no acceptance on record. **Not** Tala's parent. (This line first
+said "a confirmed email"; #7 had none — corrected after the check, §5.)
 
 1. `http://localhost:3000` → sign in as Nino's parent. The app opens on
    **Before you continue** (the consent screen, `/consent`) and no other page.
@@ -97,7 +98,9 @@ no forced password change, and no acceptance on record. **Not** Tala's parent.
 ## §3 — accept, then Settings
 
 1. Tick all three → **I agree and continue** → the parent's home (the
-   Dashboard). No other step follows: the email is already confirmed.
+   Dashboard). (This step first said no other step follows; #7 had no
+   confirmed contact, so **Confirm your contact** came between the accept
+   and the Dashboard — as run, §5.)
 2. Settings → **Security & policy**: "The school's Data Privacy Notice and
    Terms of Use, and when you accepted each." Under **Data Privacy Notice**:
    "Version draft-2 · Accepted on <today, in words>"; the same under **Terms of
@@ -146,12 +149,13 @@ no forced password change, and no acceptance on record. **Not** Tala's parent.
   admin's sign-ins, `accept_policy` and `create_backup`). The survey after:
   `policy_acceptances` 10 (the eight `draft-1` rows and the admin's two),
   `auth_codes` 0, every other count at its mark.
-- **Finding — the contact step (not the texts).** §3's "no other step
-  follows" was wrong on the day: after accepting, #7 met **Confirm your
-  contact**, because its email confirmation — and #3's — had been cleared
-  during this branch's gate (the suites and the smoke, 04:52–05:06; #3's row
-  last written at 05:06:21, by the smoke's teardown). The owner confirmed a
-  mobile number there (#7 now has a confirmed number and no confirmed email;
-  kept). **#3 (Marwin's parent) has no confirmed contact** and will meet the
-  contact step at the next sign-in. The cause is not yet traced
-  (`docs/KNOWN_ISSUES.md`).
+- **The contact step — correct behaviour, and a corrected premise.** After
+  accepting, #7 met **Confirm your contact**, and the owner confirmed a mobile
+  number there (kept). That was right: **#7 had no confirmed contact** —
+  backups 377, 382 and 383 all hold its email unconfirmed. This sheet's "a
+  confirmed email" (the Who line, §3 step 1) came from a survey taken during
+  the SMS branch's smoke run, while the smoke's helper had temporarily
+  stamped the confirmation; it was never stored. First reported here as a
+  gate clearing both parents' emails — withdrawn the same day
+  (`docs/KNOWN_ISSUES.md`, the CLOSED row). #3 is exactly as backup 383 holds
+  it (an email and a number, neither confirmed).
