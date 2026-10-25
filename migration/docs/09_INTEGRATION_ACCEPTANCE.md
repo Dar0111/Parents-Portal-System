@@ -54,14 +54,75 @@ non-destructive hosted checks.
    **Answered 2026-10-25: confirmed — an id above 2,147,483,647 answers 400**
    (`02` §E).
 3. **NUL in text, the 64 KB TEXT cap, impossible dates in filters** — refuse / keep.
+   **Answered 2026-10-25: refuse all three at the request boundary (MySQL's
+   64 KB cap kept on the same fields) — built, §5.**
 4. **`test:students`' vacuous assertion** — a one-line fix on `main` (`08` §3).
+   **Answered 2026-10-25: fixed on this branch (it reaches `main` with the
+   cutover merge) — §5.**
 
 ## 4. Known limitations of the evidence
 
 - The lost-COMMIT proof's first run reported a row-count change in its committed
   leg without naming the table; two later runs naming the tables showed none
-  (`05` §0h). Not explained.
+  (`05` §0h). Not explained. **Explained and classified 2026-10-25 (§5 item 6):
+  a test defect — the cutoff row a first restore creates.**
 - The browser smoke never interacts (its own rule); a write flow on screen is
   the owner's device check.
 - Everything here ran on the local cluster (ICU `en-US` default collation, PG
   17.10). The hosted project's version, collation and network are Phase L's.
+
+## 5. The owner's answers and the fix round (2026-10-25/26)
+
+The owner answered §3 on 2026-10-25: D-2 kept (the database collation), the
+int4 cap confirmed, NUL / the 64 KB cap / impossible dates in filters refused at
+the request boundary, `test:students` fixed on this branch, the lost-COMMIT
+proof run ten times. One commit per item, each with its tests:
+
+| # | Item | Commit | What it is | Its proof |
+|---|---|---|---|---|
+| 1 | D-2 and the int4 cap | `b347afc` | recorded in `02` §E (the measurement and the option not taken); no code | — |
+| 2 | NUL refused | `c41eabf` | `server/utils/requestLimits.js` `refuseNul`, mounted first on all 20 routers (17 route files): a NUL in the body (keys and values, any depth, iteratively), the query or the address is `400`, naming the field only when its path is a plain name, before `authenticate` | `test:content` +10; the in-memory mutant (refuseNul passing everything) fails exactly those 8 NUL assertions — title, content and the query come back `500` (PostgreSQL's 22021), the ignored fields `201` |
+| 3 | the 64 KB cap | `744b626` | `textTooLong` (65,535 UTF-8 bytes, on the value as stored) on the nine request-writable former TEXT fields (`02` §B) | at the limit and one byte past, in ASCII and in two-byte é: `test:content` +18, `test:messages` +5, `test:excuses` +8, `test:settings` +3, `test:auth` +2; the mutant fails exactly the past-limit assertions and their cascades (PostgreSQL stores the value: `201` / `200`) |
+| 4 | impossible dates in filters | `f9b3461` | `isCalendarDate` (Gregorian, years 0001–9999) at the eleven filter sites | five real days (leap days, year 0001) `200` and eight impossible ones `400` per site: `test:attendance` +14, `test:excuses` +4, `test:content` +4; the mutant fails exactly the 11 impossible-day assertions (`500`, the 22008); agreement with PostgreSQL's `::date` on 5,082 boundary values (11 years × months 00–13 × days 00–32): 0 disagreements, 3,652 real days |
+| 5 | `test:students`' vacuous check | `6ce6920` | the `LIKE` pattern follows the route's template (`%student #<id> to %`), plus a guard that the counter sees the run's own deactivation | `98/98` (+1); against an in-memory route that logs on a no-op, the HEAD version passes 97/97 (vacuous) and the fixed one fails exactly "That no-op writes no update_student_status entry" |
+| 6 | the lost-COMMIT proof's row-count change | `3fac5d4` | **classified: a TEST defect.** A database never restored has no `auth_security_state` row (a fresh setup; MySQL's schema never seeded one either), and the committed restore creates it while writing the cutoff — `0 -> 1`, the "row count changed" of the first run against every new database | ten runs on `parents_portal_fixround_20261025` with the tables named: run 1 (right after the regression, the database's first restore) `auth_security_state 0 -> 1`, runs 2–10 `RESTORE COMMIT DROP OK`; reproduced on demand by deleting the row; the proof now checks that row on its own (unchanged after the aborted leg, exactly `[1]` after the committed one): OK at `0 -> 1` and at `1 -> 1`, and `--mutant setval` still fails the before leg |
+
+**Deleted:** `client/e2e-out` (git-ignored), and the eight local databases
+`parents_portal_phasef_20261025`, `_phasej_`, `_reconstruct_` (+`b`),
+`_rehearse_`, `_restore_` and `_setup_` (+`b`) — each with no connection,
+listed before and after. Kept: `parents_portal_pg`, and the MySQL scratch
+`parents_portal_migsrc_20261025_140024`; the two older MySQL scratches stay for
+the owner. **Created for this round:** `parents_portal_fixround_20261025` (local,
+disposable).
+
+**After the last code edit, on a fresh `db:setup` of
+`parents_portal_fixround_20261025`, one command per suite, the API on 5010 with
+file mail and file SMS:** the nine units at their figures (sanitize 9,
+grade-computation 77, pg-driver 33, school-calendar 34, cors-origins 44,
+auth-middleware 52, socket-auth 51, sms-transport 94, excuse-attendance-rule
+60); the 23 HTTP suites — auth **71**, students **98**, sections 30,
+assignments 62, grading-modes 13, grades 258, attendance **87**, content
+**129**, settings **38**, users 73, backups 63 (`FAIL_PORT=5030`), messages
+**91**, restore 39, excuses **133**, notifications 227, dashboard 78,
+class-record 132, class-summary 59, grade-locks 51, grade-acknowledgements 62,
+recovery 143, profile-photo 70, activity-log 98 — 0 failed, exit 0 (bold: the
+new figures); `test:privacy` **85/85** on the transfer copy. **The browser
+smoke, 20/20 (5.8 min)** on Vite 3010 and the API 5010 against another fresh
+setup of the same database; afterwards acceptances, confirmed contacts,
+notifications and codes at 0 and the login rows +25, the recorded figure.
+
+**The golden master, re-run** (the copy re-transferred from the scratch, READY;
+A = `main` `64200f7` on 5030, B = this branch on 5010): `compare` 84 requests,
+83 the same, 1 by design (`/api/backups`); `golden-values` 90 requests, 86 the
+same, 4 known (the int4 cap's two `400`s, the D-2 tie order asc and desc),
+0 rows left on either side; **the affected requests** (a scratchpad probe, 23
+requests — NUL ×5, the cap ×10 with two at-the-limit controls, dates ×6 with
+two controls), 23 as measured, 0 rows left. **It corrected one record:** `05`
+§0f said MySQL answered an impossible date in a filter with an empty `200`; it
+answers **`500`** (strict mode refuses the comparison) for every case but a
+year-0000 day (`200`). The new `400` improves on both engines rather than
+restoring MySQL's answer. `05` §0f's line, `05` §0f's "this branch does not
+change it" for `test:students` and `08`'s matching proposals are superseded by
+this section (both files are outside this round's whitelist).
+`migration/scripts/port-review-fixes.js`'s NUL sign-in expectation (`401`) is
+superseded too: a NUL login id is now the boundary's `400`.

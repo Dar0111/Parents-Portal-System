@@ -48,6 +48,25 @@ re-checked by `06_STAGING_SUPABASE.md` §4.
 | `SUM(expr IS NULL)` | `'1'` string | needs `SUM((expr IS NULL)::int)` → number; the reader already does `Number(…)` | semantics E |
 | `COUNT(*)` | number | number (int8 parser) | semantics E |
 
+**Request refusals the port adds — the owner's answers of 2026-10-25, built in
+the fix round (`09` §5).** Each is the route's own `400`, `{ success: false,
+message }`, before any query; the MySQL column is what `main` `64200f7`
+answered, MEASURED by the golden master's affected requests (`09` §5):
+
+| Input | MySQL (`64200f7`) | PostgreSQL before the fix round | Now |
+|---|---|---|---|
+| an id above 2,147,483,647 | `404` or an empty `200` | `22003` → `500` | `400` (`utils/validateId.js MAX_ID`) |
+| a NUL (U+0000) anywhere in the body (a key or a value, any depth), the query or the address | stored or searched (`201` / `200`); a NUL sign-in id `401`; `/announcements/%00` `404` | `22021` → `500` (sign-in `401`, Phase E) | `400` naming a plain field, `refuseNul` first on all 20 routers, **before `authenticate`** (`utils/requestLimits.js`) |
+| more than 65,535 UTF-8 bytes in a former TEXT field (announcement / memo content, event description, message body, excuse reason / details / teacher remarks, the rejection reason, every setting value) | `500` (TEXT refused it) | stored | `400` `<field> must be 65,535 bytes or fewer.`, on the value as stored (after the route's trim) |
+| a `date` / `from` / `to` filter of the `YYYY-MM-DD` shape naming no calendar day (attendance ×7, excuse letters ×2, events ×2) | `500` (strict mode refuses the comparison); a year-0000 day `200`, matching nothing | `22008` → `500` | `400` `<name> must be a real date in YYYY-MM-DD format.` (Gregorian, years 0001–9999, agreeing with PostgreSQL's `::date` on 5,082 boundary values) |
+
+The write paths' own dates (`absence_date`, `event_date`, the attendance
+`date`, `date_recorded`) are not filters and the fix round does not touch them
+(an impossible one reaches the database on both engines; not measured here).
+**A request body over 100 KB** is refused
+by `express.json()` before any route — `500` through the app's error handler,
+on both engines, unchanged (found by the excuse-letter cap test).
+
 ## C. Time contracts
 
 **C.1 Clocks.** MySQL `NOW()` / `CURRENT_TIMESTAMP` = start of the
