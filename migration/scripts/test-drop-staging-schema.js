@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // THE TEST OF scripts/drop-staging-schema.js — on the embedded local cluster
-// ONLY (127.0.0.1, its own port). It never passes --target staging, never
-// reads supabase.env and opens no connection anywhere else: the staging path
-// is the owner's to run (the cutover plan's step 4).
+// ONLY (127.0.0.1, its own port). It never passes --target staging, and every
+// script run it starts is under test-loopback-guard.js (NODE_OPTIONS
+// --require), so not even a broken guard can open a connection off the
+// loopback; check 0 proves the guard is live first. The staging path is the
+// owner's to run (the cutover plan's step 4).
 //
 //   node scripts/test-drop-staging-schema.js [--script <path>]
 //
@@ -11,6 +13,7 @@
 // transaction as on staging, adds one row, and drops that database at the end,
 // pass or fail. Nothing else on the cluster is written.
 //
+//   0. The loopback guard is live in the script's process.
 //   A. The argument guard: exit 2, with no survey and no question, for
 //      parents_portal_pg, a name outside parents_portal_droptest_*, a missing
 //      --database, a missing --target, --tls-encrypt-only and an unknown
@@ -46,6 +49,12 @@ const scriptArg = process.argv.indexOf('--script');
 const SCRIPT = scriptArg > 0 ? path.resolve(process.argv[scriptArg + 1]) : path.join(__dirname, 'drop-staging-schema.js');
 const QUESTION = 'Type DROP portal to drop it';
 const RUN_TIMEOUT_MS = 60000;
+const GUARD = path.join(__dirname, 'test-loopback-guard.js');
+// forward slashes: inside NODE_OPTIONS's double quotes a backslash escapes
+const GUARDED_ENV = {
+  ...process.env,
+  NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--require "${GUARD.replace(/\\/g, '/')}"`,
+};
 
 const results = [];
 function check(name, ok, note) {
@@ -113,11 +122,11 @@ async function settingsRows(database) {
 // undefined for a run that must never ask (the input is closed at once).
 // While the script is held at its question, `onQuestion(outSoFar)` runs
 // BEFORE anything is sent.
-function run(args, answer, onQuestion) {
+function run(args, answer, onQuestion, argv) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [SCRIPT, ...args], {
+    const child = spawn(process.execPath, argv || [SCRIPT, ...args], {
       cwd: MIGRATION_DIR,
-      env: process.env,
+      env: GUARDED_ENV,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
@@ -184,8 +193,17 @@ function surveyBeforeQuestion(out) {
   return null;
 }
 
+// TEST-NET-1 (RFC 5737): routes nowhere, so even an unguarded attempt is inert.
+const PROBE = [
+  '-e',
+  "try { require('net').connect(9, '192.0.2.1'); } catch (e) { console.log(e.message); process.exit(/loopback guard/.test(e.message) ? 0 : 1); } console.log('not blocked'); process.exit(1);",
+];
+
 async function main() {
   if (!fs.existsSync(SCRIPT)) throw new Error('the script under test is missing');
+  const probe = await run([], undefined, null, PROBE);
+  check('the loopback guard is live in the script runs (a socket off the loopback is refused)', probe.code === 0 && /loopback guard/.test(probe.out), `exit ${probe.code}`);
+  if (probe.code !== 0) throw new Error('the loopback guard is not live — nothing else is run');
   const name = `parents_portal_droptest_${stamp()}`;
   const admin = await client(localSettings('postgres'));
   let created = false;
