@@ -21,7 +21,7 @@
  * The connection is the API's own role (portal_app, the same PG_* keys as
  * config/db.js), with the search path set to the application schema, and it
  * REFUSES any host but a loopback one: a suite writes fixtures, and no suite
- * may ever reach the hosted project. It also refuses settings passed in — the
+ * may ever reach the hosted project — with ONE exception, at config() below. It also refuses settings passed in — the
  * MySQL-shaped config objects the suites used to build — so a suite that still
  * hands one over fails at once instead of half-working.
  */
@@ -31,9 +31,31 @@ const db = require('../../config/db');
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 const WRITES = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE']);
 
+// THE ONE EXCEPTION (P3-C-R2 Phase L, the owner's approval of 2026-10-26, with
+// its three conditions): the browser smoke against the STAGING project, whose
+// fixture (client/e2e/auth.js) must stamp and put back its rows there. Allowed
+// only when ALL hold: PORTAL_FIXTURE_HOSTED is exactly 'staging-smoke' — set
+// by migration/scripts/staging-api.js --smoke in the smoke's own process and
+// never written to a .env or any config file; the host is Supabase's session
+// pooler; and TLS is verify-full (the chain checked against a CA). Anything
+// else is refused as before — scripts/test-fixture-guard.js proves it.
+const HOSTED_FLAG = 'PORTAL_FIXTURE_HOSTED';
+const HOSTED_VALUE = 'staging-smoke';
+const POOLER_HOST = /^[a-z0-9-]+\.pooler\.supabase\.com$/i;
+
+function hostedSmokeAllowed(settings) {
+  return (
+    process.env[HOSTED_FLAG] === HOSTED_VALUE &&
+    POOLER_HOST.test(String(settings.host || '')) &&
+    Boolean(settings.ssl) &&
+    settings.ssl.rejectUnauthorized === true &&
+    Boolean(settings.ssl.ca)
+  );
+}
+
 function config() {
   const settings = db.settings('runtime');
-  if (!LOOPBACK.has(settings.host)) {
+  if (!LOOPBACK.has(settings.host) && !hostedSmokeAllowed(settings)) {
     throw new Error('The suites connect only to a loopback PostgreSQL (PG_HOST); this one is not.');
   }
   return settings;
@@ -84,4 +106,4 @@ async function withDb(fn) {
   }
 }
 
-module.exports = { createConnection, withDb, config };
+module.exports = { createConnection, withDb, config, HOSTED_FLAG, HOSTED_VALUE };
