@@ -166,6 +166,72 @@ cast (42P18 otherwise, measured); a best-effort hook inside a transaction
 runs in a SAVEPOINT, because a failed statement aborts a PostgreSQL
 transaction where MySQL kept it open.
 
+**Both `transfer.js` defects are REQUIRED MIGRATION CORRECTNESS WORK and are
+CLOSED (P3-C-R2 Phase C, 2026-10-25; the owner's dispatch) — the closure
+record follows the two findings as commit 7 measured them.**
+
+**Defect C1 — stale AUTO_INCREMENT. Closed.** *Root cause:* MySQL 8 caches
+`information_schema.TABLES.AUTO_INCREMENT` for `information_schema_stats_expiry`
+seconds (86,400 by default); the transfer read it on a session at the default.
+*Reproduction (`scripts/autoinc-fresh.js`, a disposable `parents_portal_migtest_*`
+database, dropped and asserted gone):* rows inserted after the cache was
+filled — the old session read next id 4 for a table whose highest id was 7
+(the guard refused, as measured twice on the scratch); **an empty table whose
+counter was moved to 500 — the old session read 1 and the guard PASSED** (an
+empty table has no highest id to compare), so the old transfer would have
+set that sequence to 1 silently, below every id MySQL had handed out; deleted
+rows (highest id 5, next id 11) and a plain table read right on both. *Fix
+(scoped to `migration/lib/mysql.js`):* `freshStatistics()` sets
+`information_schema_stats_expiry = 0` on every `readOnly()` and `scratch()`
+session — the transfer's, the reconcile's and every rehearsal's source — reads
+the value back, and refuses (closes the session, throws) when it is not 0. The
+transfer's own guards stay: a NULL AUTO_INCREMENT, one not above the highest
+id, or one that is not a positive integer is a refusal. *After:* every case
+reads the storage engine's value (`AUTOINC FRESH OK`), and the older scratch —
+never `ANALYZE`d since it was made — transferred READY and reconciled (C2's
+case 10). *Limitation:* the AUTO_INCREMENT is read after the source snapshot
+starts, so an insert committed after the snapshot only raises it (the next id
+is higher, never lower) — safe by construction, not by a cache.
+
+**Defect C2 — sequence changes outside the transaction. Closed.** *Root
+cause:* `setval()` is not transactional; a transfer that failed after its
+sequence step rolled back its rows and kept every sequence (commit 7: 25 of 25
+survived, 2 backwards, `login_attempts` at its own highest id). *Measured
+(17.10):* `setval()` survives a ROLLBACK; `ALTER SEQUENCE … RESTART WITH` and
+`ALTER TABLE … ALTER COLUMN … RESTART WITH` both roll back, and while one is
+uncommitted a concurrent `nextval()` and an INSERT using the default both
+WAIT (statement timeout 57014) — no other connection can take a value from
+either state. `ALTER TABLE` is refused inside the transfer, though: with every
+foreign key deferred the table has pending trigger events (55006, found by the
+first run of the regression proof). *Fix (scoped to `scripts/transfer.js`):*
+each sequence moves by `ALTER SEQUENCE <seq> RESTART WITH <AUTO_INCREMENT>`
+inside the transfer's one transaction; before `BEGIN` every sequence's next
+value is read on a separate connection, and after any failure a separate
+connection checks each one is exactly there (`sequences_after_failure` in the
+report); after the COMMIT a separate connection reads every sequence at the
+source's AUTO_INCREMENT and above its table's highest id, and only then is the
+report `ready: true` — anything else exits 1 (`TARGET NOT READY`). A failed
+transfer is never ready. Six named failpoints (`MIGRATION_FAILPOINT`, honoured
+on the disposable local target only, refused anywhere else). *Regression
+evidence (`scripts/transfer-failures.js`, the real `transfer.js` and
+`reconcile.js` as child processes, every state read on the proof's own
+connection, each failure required to come from its NAMED point):* a failure
+before the load, midway, immediately before the first sequence change, after
+the last one, at the deferred foreign key's check at COMMIT, and in a trigger
+raising at COMMIT — each exit 1, `ready` false, every row and all 25
+sequences exactly as before, and each retry READY with `RECONCILE OK`;
+sequences set below their tables' highest ids are refused by reconcile, left
+as they were by a failed run (neither hidden nor worsened) and repaired by a
+retry; sequences set 1,000 ahead are left by a failed run and put back at the
+source's AUTO_INCREMENT by a retry; an older snapshot (20 lower values) is
+READY and reconciles against itself, then the newest again; the concurrency
+case above. `TRANSFER FAILURES OK`, 24 checks. `scripts/sequence-rollback.js`
+(the commit 7 measurement) now reports 0 of 25 moved. *Limitations:* a
+sequence another session moves AFTER the COMMIT is outside any transfer
+(reconcile reports it); the readiness check reads the sequences once, right
+after the COMMIT — a target is the application's only once reconcile has also
+passed (`07` keeps both gates).
+
 **Commit 7 (2026-10-25) — the proof gaps, the golden master and the token
 fix (`05` §0c).** Two findings about `scripts/transfer.js`, measured, **not
 fixed here** (the script is outside that commit's whitelist):

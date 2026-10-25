@@ -15,7 +15,22 @@
 //     — nothing is silently skipped, coerced or defaulted
 //   - ids are inserted explicitly; afterwards each identity sequence is set so
 //     that its NEXT value equals MySQL's AUTO_INCREMENT (empty tables too), so
-//     no id MySQL ever handed out is reused
+//     no id MySQL ever handed out is reused. The AUTO_INCREMENT is the storage
+//     engine's own, never information_schema's cache (lib/mysql.js
+//     freshStatistics, P3-C-R2 C1)
+//   - THE SEQUENCES ARE TRANSACTIONAL TOO (P3-C-R2 C2). setval() is not — a
+//     transfer failed at COMMIT kept every setval() while its rows rolled back
+//     (measured, docs/05 §0c) — so each sequence moves by ALTER SEQUENCE …
+//     RESTART WITH <AUTO_INCREMENT>, which rolls back with the rest and makes
+//     a concurrent nextval() or INSERT wait for the transaction (measured on
+//     17.10; ALTER TABLE … RESTART is refused here, the deferred keys leave
+//     pending trigger events on the table). After a failure a SEPARATE connection checks
+//     that every sequence is where it was before BEGIN; after the COMMIT one
+//     checks that every sequence is at the source's AUTO_INCREMENT and above
+//     its table's highest id, and only then is the target READY (the report's
+//     `ready`; anything else exits 1)
+//   - MIGRATION_FAILPOINT=<name> stops the run at one named place on purpose —
+//     the disposable local target only (scripts/transfer-failures.js)
 //   - it touches only the 26 tables in schema portal; it refuses a target
 //     table that already has rows unless --truncate (local only)
 //   - the source's base tables must be EXACTLY lib/tables.js's set (the
@@ -33,6 +48,33 @@ const P = require('../lib/paths');
 
 const BATCH = 500;
 
+// FAILPOINTS (P3-C-R2 C2's regression evidence): where a run may be stopped on
+// purpose. Honoured on the disposable local target only — anywhere else a set
+// MIGRATION_FAILPOINT is a refusal before anything is read.
+const FAILPOINT = process.env.MIGRATION_FAILPOINT || null;
+const FAILPOINTS = new Set(['before_load', 'mid_load', 'before_sequences', 'after_sequences', 'deferred_fk', 'at_commit']);
+function failpoint(name) {
+  if (FAILPOINT === name) throw new Error(`FAILPOINT ${name}: the run is stopped here on purpose`);
+}
+
+// Every identity sequence's next value and its table's highest id, read on a
+// connection of its own (never the transfer's), numbers only.
+async function sequenceStates(p) {
+  const c = await p.connect();
+  try {
+    const out = {};
+    for (const table of TABLES.filter((t) => t.sequence)) {
+      const seq = (await c.query(`SELECT pg_get_serial_sequence('portal.${table.name}', 'id') AS s`)).rows[0].s;
+      const s = (await c.query(`SELECT last_value, is_called FROM ${seq}`)).rows[0];
+      const max = (await c.query(`SELECT max(id) AS m FROM portal.${table.name}`)).rows[0].m;
+      out[table.name] = { next: Number(s.last_value) + (s.is_called ? 1 : 0), max_id: max === null ? null : Number(max) };
+    }
+    return out;
+  } finally {
+    c.release();
+  }
+}
+
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : fallback;
@@ -45,6 +87,9 @@ async function main() {
   const name = targetName();
   if (truncate && name !== 'local') throw new Error(`--truncate is allowed on the local target only (refused for ${name} before any secret was read).`);
   const target = targetConfig();
+  if (FAILPOINT && (!FAILPOINTS.has(FAILPOINT) || !isDisposableLocal(target))) {
+    throw new Error('MIGRATION_FAILPOINT is honoured on the disposable local target only, and must name a known failpoint.');
+  }
   if (truncate && !isDisposableLocal(target)) throw new Error('--truncate refused: the target is not the disposable local cluster (127.0.0.1, the embedded port and database, no TLS).');
   console.log(`target ${target.name}: tls ${target.tlsMode}`);
   const sourceDb = arg('--source-db', sourceConfig().database);
@@ -55,7 +100,8 @@ async function main() {
   const src = await readOnly({ database: sourceDb });
   const p = pool(target.pg);
   const pgc = await p.connect();
-  const report = { target: target.name, source_database: sourceDb, started_at: new Date().toISOString(), tables: {}, sequences: {}, ok: false };
+  const report = { target: target.name, source_database: sourceDb, started_at: new Date().toISOString(), tables: {}, sequences: {}, ok: false, ready: false };
+  let sequencesBefore = null;
 
   try {
     await src.query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
@@ -75,8 +121,17 @@ async function main() {
     report.source_tables = baseRows.length;
     console.log(`source ${sourceDb}: ${baseRows.length} base tables, the same set as lib/tables.js`);
 
+    // Where every sequence stands BEFORE the transaction: a failed run must
+    // leave each one exactly there (checked in the catch, on its own connection).
+    sequencesBefore = await sequenceStates(p);
     await pgc.query('BEGIN');
     await pgc.query('SET CONSTRAINTS ALL DEFERRED');
+    if (FAILPOINT === 'at_commit') {
+      // A deferred constraint trigger that raises at COMMIT, created INSIDE this
+      // transaction, so it rolls back with everything else.
+      await pgc.query("CREATE FUNCTION portal.zz_transfer_failpoint() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'FAILPOINT at_commit: the COMMIT is stopped here on purpose'; END $f$");
+      await pgc.query('CREATE CONSTRAINT TRIGGER zz_transfer_failpoint AFTER INSERT ON portal.auth_security_state DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION portal.zz_transfer_failpoint()');
+    }
     await pgc.query("SET LOCAL TIME ZONE 'UTC'");
 
     // Count EVERY table before truncating ANY: TRUNCATE … CASCADE on users
@@ -99,6 +154,7 @@ async function main() {
       await pgc.query(`TRUNCATE ${nonEmpty.map((t) => `portal.${t.name}`).join(', ')} CASCADE`);
     }
 
+    failpoint('before_load');
     for (const table of TABLES) {
       const cols = table.columns.map((c) => c.name);
       const [rows] = await src.query(`SELECT ${cols.map((n) => `\`${n}\``).join(', ')} FROM \`${table.name}\` ORDER BY id`);
@@ -123,6 +179,7 @@ async function main() {
       }
       if (inserted !== rows.length) throw new Error(`${table.name}: read ${rows.length} rows, inserted ${inserted}`);
       report.tables[table.name] = { source_rows: rows.length, inserted, max_id: maxId };
+      if (TABLES.indexOf(table) === Math.floor(TABLES.length / 2)) failpoint('mid_load');
       console.log(`${table.name.padEnd(22)} ${String(rows.length).padStart(6)} rows -> ${inserted}`);
 
       if (table.sequence) {
@@ -130,22 +187,58 @@ async function main() {
         if (ai === null || ai === undefined) throw new Error(`${table.name}: no AUTO_INCREMENT value in information_schema`);
         if (maxId !== null && ai <= maxId) throw new Error(`${table.name}: AUTO_INCREMENT ${ai} is not above MAX(id) ${maxId}`);
         const seq = (await pgc.query(`SELECT pg_get_serial_sequence('portal.${table.name}', 'id') AS s`)).rows[0].s;
-        if (ai > 1) await pgc.query('SELECT setval($1, $2, true)', [seq, ai - 1]);
-        else await pgc.query('SELECT setval($1, 1, false)', [seq]);
+        failpoint('before_sequences');
+        if (!Number.isSafeInteger(ai) || ai < 1) throw new Error(`${table.name}: AUTO_INCREMENT ${ai} is not a positive integer`);
+        // TRANSACTIONAL (C2): the next value is `ai`, and a ROLLBACK undoes it.
+        // ALTER SEQUENCE, not ALTER TABLE … RESTART: with every foreign key
+        // deferred the table already has pending trigger events and PostgreSQL
+        // refuses ALTER TABLE on it (55006, measured); the sequence has none.
+        await pgc.query(`ALTER SEQUENCE ${seq} RESTART WITH ${ai}`);
         report.sequences[table.name] = { sequence: seq, source_auto_increment: ai, next_value: ai };
       }
     }
+
+    failpoint('after_sequences');
 
     // The fixed row must be there exactly once.
     const state = (await pgc.query('SELECT count(*)::int AS n FROM portal.auth_security_state')).rows[0].n;
     if (state !== 1) throw new Error(`auth_security_state holds ${state} rows after the load; expected 1`);
 
+    // A deferred foreign key broken on purpose, so the COMMIT's constraint check fails.
+    if (FAILPOINT === 'deferred_fk') await pgc.query('UPDATE portal.students SET created_by = -1 WHERE id = (SELECT min(id) FROM portal.students)');
     await pgc.query('COMMIT');
     report.ok = true;
+    // READY only when a SEPARATE connection reads every sequence where this run
+    // set it and above its table's highest id.
+    const after = await sequenceStates(p);
+    const unsafe = Object.keys(report.sequences).filter((t) => after[t].next !== report.sequences[t].next_value || (after[t].max_id !== null && after[t].next <= after[t].max_id));
+    report.sequences_verified = after;
+    report.ready = unsafe.length === 0;
+    if (report.ready) {
+      console.log(`READY: ${Object.keys(after).length} sequences read back on a separate connection, each at the source's AUTO_INCREMENT and above its highest id`);
+    } else {
+      console.error(`TARGET NOT READY: ${unsafe.length} sequence(s) not at the source's AUTO_INCREMENT or not above the highest id: ${unsafe.join(', ')}`);
+      process.exitCode = 1;
+    }
     report.finished_at = new Date().toISOString();
     console.log(`COMMITTED ${TABLES.length} tables into ${target.name}`);
   } catch (error) {
     try { await pgc.query('ROLLBACK'); } catch { /* connection may be gone */ }
+    // A failed run is never READY. Its sequences must stand exactly where they
+    // stood before BEGIN — read on a connection of its own.
+    report.ready = false;
+    if (sequencesBefore) {
+      try {
+        const after = await sequenceStates(p);
+        const moved = Object.keys(sequencesBefore).filter((t) => sequencesBefore[t].next !== after[t].next);
+        report.sequences_after_failure = { unchanged: moved.length === 0, moved };
+        if (moved.length) console.error(`SEQUENCES MOVED by the failed run (${moved.join(', ')}) — the target is NOT READY; run the transfer again`);
+        else console.error(`the failed run left all ${Object.keys(after).length} sequences where they were (read on a separate connection); the target is not ready — run the transfer again`);
+      } catch (e) {
+        report.sequences_after_failure = { unchanged: null };
+        console.error('the sequences could not be read back after the failure — the target is NOT READY');
+      }
+    }
     report.error = require('../lib/safeMessage').safeMessage(error);
     console.error('TRANSFER ROLLED BACK —', report.error);
     process.exitCode = 1;

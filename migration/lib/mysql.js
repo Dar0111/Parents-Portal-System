@@ -11,6 +11,13 @@
 //   - dateStrings: true                  — DATE, DATETIME and TIMESTAMP all
 //     arrive as strings; no JS Date is ever constructed on the way out.
 //   - DECIMAL stays a string, BIGINT aggregates come back as numbers.
+//   - SET SESSION information_schema_stats_expiry = 0 (Phase 3, P3-C-R2 C1):
+//     MySQL 8 CACHES information_schema.TABLES.AUTO_INCREMENT for this many
+//     seconds (a day by default), so right after writes on the source the
+//     transfer read a stale next id and its guard refused (measured twice).
+//     With 0 every read asks the storage engine. The value is read back and a
+//     session that is not at 0 is refused, never used — scratch() too, since a
+//     scratch is a transfer's source in every rehearsal.
 //
 // The one exception is scratch(): a connection to an ISOLATED database this
 // package created itself (the snapshot restore check, the MySQL side of the
@@ -19,6 +26,18 @@ const { dep } = require('./deps');
 const { sourceConfig } = require('./env');
 
 const mysql = dep('mysql2/promise');
+
+// Fresh table statistics on THIS session, or a refusal: the AUTO_INCREMENT a
+// transfer copies into every sequence must be the storage engine's own.
+async function freshStatistics(conn) {
+  await conn.query('SET SESSION information_schema_stats_expiry = 0');
+  const [[row]] = await conn.query('SELECT @@SESSION.information_schema_stats_expiry AS e');
+  if (Number(row.e) !== 0) {
+    await conn.end();
+    throw new Error('information_schema_stats_expiry is not 0 on the source session — refusing to read AUTO_INCREMENT from a cache');
+  }
+  return conn;
+}
 
 async function readOnly(overrides = {}) {
   const cfg = sourceConfig();
@@ -35,7 +54,7 @@ async function readOnly(overrides = {}) {
   });
   await conn.query("SET time_zone = '+00:00'");
   await conn.query('SET SESSION TRANSACTION READ ONLY');
-  return conn;
+  return freshStatistics(conn);
 }
 
 async function scratch(database) {
@@ -55,7 +74,7 @@ async function scratch(database) {
     timezone: 'Z',
   });
   await conn.query("SET time_zone = '+00:00'");
-  return conn;
+  return freshStatistics(conn);
 }
 
 // A connection with NO database selected, for CREATE DATABASE / DROP DATABASE
@@ -74,4 +93,4 @@ async function dropScratch(conn, database) {
   await conn.query(`DROP DATABASE IF EXISTS \`${database}\``);
 }
 
-module.exports = { readOnly, scratch, admin, dropScratch, sourceConfig };
+module.exports = { readOnly, scratch, admin, dropScratch, sourceConfig, freshStatistics };

@@ -15,6 +15,12 @@
 // and after: every table's rows, every sequence's next value and highest id.
 // The trigger and its function are dropped in a finally, and asserted gone.
 //
+// SINCE P3-C-R2 C2 THE EXPECTATION IS INVERTED: transfer.js moves each
+// sequence with ALTER SEQUENCE … RESTART, which rolls back, so a transfer
+// failed here must leave every sequence where it was (`ok`). This script
+// measured the defect (05 §0c, commit 7: every setval() survived); its
+// successor with every failure point is scripts/transfer-failures.js.
+//
 // The disposable LOCAL target only (lib/env.js isDisposableLocal). Prints
 // counts and sequence numbers, never a row. The report goes to
 // <DATA_DIR>/rehearsal/seqrollback_<stamp>.json.
@@ -130,10 +136,10 @@ async function main() {
     report.sequences_at_or_below_max_id = collide;
     report.per_table = Object.fromEntries(withSeq.map((t) => [t, { before: before[t].next, after: after[t].next, source: sourceNext.get(t), max_id: after[t].max_id }]));
     console.log(`rows: ${rowsKept} of ${tables.length} tables hold exactly what they held — the TRUNCATE and every insert were rolled back`);
-    console.log(`sequences: ${atSource.length} of ${withSeq.length} now stand at the source's AUTO_INCREMENT — the setval() calls SURVIVED the rollback (${moved.length} moved)`);
+    console.log(`sequences: ${moved.length} of ${withSeq.length} moved by the failed run (0 is the fix: ALTER SEQUENCE … RESTART rolls back; the setval() it replaced did not); ${atSource.length} stand at the source's AUTO_INCREMENT, as they did before it`);
     console.log(`moved backwards: ${backwards.length} (${backwards.join(', ') || 'none'}); now at or below their table's highest id, so the next insert would collide: ${collide.length} (${collide.join(', ') || 'none'})`);
-    report.ok = run.status === 1 && rowsKept === tables.length && atSource.length === withSeq.length;
-    console.log(report.ok ? 'SEQUENCE ROLLBACK RECORDED: rows rolled back, sequences survived' : 'SEQUENCE ROLLBACK: unexpected outcome — see the report');
+    report.ok = run.status === 1 && rowsKept === tables.length && moved.length === 0;
+    console.log(report.ok ? 'SEQUENCE ROLLBACK OK: the rows AND every sequence rolled back (P3-C-R2 C2)' : 'SEQUENCE ROLLBACK: unexpected outcome — see the report');
   } finally {
     try {
       await c.query(`DROP TRIGGER IF EXISTS ${TRIGGER} ON portal.auth_security_state`);
