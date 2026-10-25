@@ -126,14 +126,10 @@ async function withServerDb(fn) {
   const serverDir = new URL('../../server/', import.meta.url);
   const require = createRequire(new URL('package.json', serverDir));
   require('dotenv').config({ path: new URL('.env', serverDir) });
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  });
+  // PostgreSQL (Phase 3): the suites' own fixture connection — the PG_* keys,
+  // a loopback host only, the API's own role (server/scripts/test-helpers/db.js;
+  // it keeps mysql2's [rows] shape, so the statements below read as they did).
+  const conn = await require('./scripts/test-helpers/db').createConnection();
   try {
     return await fn(conn);
   } finally {
@@ -143,7 +139,7 @@ async function withServerDb(fn) {
 
 async function acceptanceIds(userIds) {
   return withServerDb(async (conn) => {
-    const [rows] = await conn.query('SELECT id FROM policy_acceptances WHERE user_id IN (?)', [userIds]);
+    const [rows] = await conn.query('SELECT id FROM policy_acceptances WHERE user_id = ANY(?::int[])', [userIds]);
     return rows.map((r) => r.id);
   });
 }
@@ -153,15 +149,15 @@ async function acceptanceIds(userIds) {
 async function stampContact(account) {
   return withServerDb(async (conn) => {
     const [[row]] = await conn.query(
-      'SELECT email, email_verified_at, contact_number, contact_verified_at, NOW() AS since FROM users WHERE id = ?',
+      'SELECT email, email_verified_at, contact_number, contact_verified_at, portal.now_s() AS since FROM users WHERE id = ?',
       [account.id]
     );
     if (row?.email) {
-      await conn.query('UPDATE users SET email_verified_at = NOW() WHERE id = ?', [account.id]);
+      await conn.query('UPDATE users SET email_verified_at = portal.now_s() WHERE id = ?', [account.id]);
       return { id: account.id, since: row.since, restore: { email_verified_at: row.email_verified_at } };
     }
     if (row?.contact_number) {
-      await conn.query('UPDATE users SET contact_verified_at = NOW() WHERE id = ?', [account.id]);
+      await conn.query('UPDATE users SET contact_verified_at = portal.now_s() WHERE id = ?', [account.id]);
       return { id: account.id, since: row.since, restore: { contact_verified_at: row.contact_verified_at } };
     }
     throw new Error(
@@ -250,7 +246,7 @@ async function acceptForParents() {
     }
     const added = (await acceptanceIds(userIds)).filter((id) => !before.has(id));
     if (added.length) {
-      await withServerDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [added]));
+      await withServerDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id = ANY(?::int[])', [added]));
     }
   };
 }

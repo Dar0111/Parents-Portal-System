@@ -84,6 +84,15 @@ the same database, `MAIL_TRANSPORT=file SMS_TRANSPORT=file` on the server for
 **Suites that count a shared table exactly belong on a fresh `db:setup`**
 (`test:notifications`'s cleanup checks), never on a transfer target.
 
+**The browser smoke on PostgreSQL** (proposed for "The smoke run"): its
+fixture, `client/e2e/auth.js`, now connects through
+`server/scripts/test-helpers/db.js` (it opened mysql2 against `server/.env`
+until Phase J — on a tree without a `.env` that defaulted to the live
+database). `migration/scripts/smoke-pg.js` runs it against a chosen pair of
+servers with the accounts handed over as environment variables, never a file;
+**`VITE_API_BASE_URL` must end in `/api`** (`client/src/api/apiBase.js` uses it
+verbatim — without it every login stays on `/login`, measured).
+
 **New proofs** (`migration/scripts/`, each with its negative control):
 `component-order.js` (grades-1), `golden-values.js` (values, order, writes,
 D-2), `backup-during-restore.js` (backup-1), `restore-commit-drop.js`
