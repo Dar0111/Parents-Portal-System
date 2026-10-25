@@ -25,12 +25,40 @@
 //                                         nothing is read during the run, and
 //                                         the confirmed contacts and policy
 //                                         acceptances by role must match
+//   node scripts/staging-api.js --smoke-live
+//                                         THE POST-CUTOVER WEB SMOKE (the
+//                                         cutover plan's step 10; the owner's
+//                                         Q8 (b)): the same smoke, the same
+//                                         counts before and after and the same
+//                                         flag in the child's environment only,
+//                                         against the OWNER'S OWN API on
+//                                         127.0.0.1:5000 (npm start, server/.env
+//                                         on the Supabase project) and web on
+//                                         http://localhost:3000 — this script
+//                                         only connects to them. smoke-pg.js
+//                                         is pinned to 5010/3010 and stays so,
+//                                         so this mode derives the same five
+//                                         accounts itself (the default
+//                                         passwords from setup-db.js, the login
+//                                         ids by role and child, read-only) and
+//                                         runs Playwright directly. It refuses
+//                                         to start if the flag is already set
+//                                         in its own shell.
+//   node scripts/staging-api.js --smoke-live --local
+//                                         the same on the EMBEDDED cluster for
+//                                         its test (scripts/test-smoke-live.js):
+//                                         the PG_* keys come from this
+//                                         process's environment (the session
+//                                         runner) and must name 127.0.0.1 and
+//                                         the cluster's port; no secrets file
+//                                         is read
 //
 // TLS is verify-full or nothing: the CA file must be in the secrets folder
 // (lib/env.js reads it; this script never opens it), and --tls-encrypt-only is
 // refused here. JWT_SECRET is random per launch, so every token dies with the
-// process. Ports 5000, 3000, 5001 and 3001 are never used: the API listens on
-// 5010 and allows the browser origin http://localhost:3010 only.
+// process. This script never LISTENS on 5000, 3000, 5001 or 3001: the API it
+// starts listens on 5010 and allows the browser origin http://localhost:3010
+// only; --smoke-live only connects to the owner's 5000 and 3000.
 //
 // Everything the child prints passes the same masks as the session runner,
 // plus the pooler host, the project ref and the two role passwords.
@@ -45,6 +73,11 @@ const { client } = require('../lib/pg');
 const SERVER = path.join(__dirname, '..', '..', 'server');
 const PORT = '5010';
 const ORIGIN = 'http://localhost:3010';
+const CLIENT = path.join(__dirname, '..', '..', 'client');
+// --smoke-live: the owner's own servers after the cutover
+const LIVE = { api: 'http://127.0.0.1:5000', app: 'http://localhost:3000' };
+const FLAG = 'PORTAL_FIXTURE_HOSTED';
+const FLAG_VALUE = 'staging-smoke';
 
 if (process.argv.includes('--tls-encrypt-only')) {
   console.error('staging-api: --tls-encrypt-only is refused — verify-full only (the CA file in the secrets folder).');
@@ -277,7 +310,163 @@ async function smoke(cfg, mask) {
   process.exitCode = code === 0 && match ? 0 : 1;
 }
 
+// --- the post-cutover web smoke (--smoke-live) -----------------------------
+
+// --local: the embedded cluster, from the PG_* keys the session runner set.
+function localSettings() {
+  const e = process.env;
+  if (e.PG_HOST !== '127.0.0.1' || Number(e.PG_PORT) !== env.LOCAL_PG.port || /^verify/.test(e.PG_SSL || '')) {
+    return null;
+  }
+  const base = { host: e.PG_HOST, port: Number(e.PG_PORT), database: e.PG_DATABASE };
+  return {
+    app: { ...base, user: e.PG_USER, password: e.PG_PASSWORD },
+    migrate: { ...base, user: e.PG_MIGRATE_USER, password: e.PG_MIGRATE_PASSWORD },
+  };
+}
+
+// The default passwords, from setup-db.js (the one place they live).
+function seededPasswords() {
+  const src = fs.readFileSync(path.join(SERVER, 'scripts', 'setup-db.js'), 'utf8');
+  const out = {};
+  for (const m of src.matchAll(/const (admin|teacher|parent)Hash = bcrypt\.hashSync\('([^']+)'/g)) out[m[1]] = m[2];
+  if (!out.admin || !out.teacher || !out.parent) throw new Error('the three default passwords were not found in server/scripts/setup-db.js');
+  return out;
+}
+
+// The five accounts smoke-pg.js uses, read-only: the admin; the Grade 1
+// learner Nino's parent and class adviser; the Grade 6 learner Marwin's.
+async function smokeLoginIds(cfg) {
+  const c = await client(connConfig(cfg.migrate));
+  try {
+    await c.query('BEGIN READ ONLY');
+    const one = async (sql, params, what) => {
+      const { rows } = await c.query(sql, params);
+      if (rows.length !== 1) throw new Error(`expected one ${what}, found ${rows.length}`);
+      return rows[0].login_id;
+    };
+    const parentOf = (first, grade) =>
+      one(
+        `SELECT u.login_id FROM portal.users u JOIN portal.students s ON s.id = u.student_id
+          WHERE u.role = 'parent' AND s.first_name = $1`,
+        [first],
+        `parent of the Grade ${grade} learner`
+      );
+    const adviserOf = (first, grade) =>
+      one(
+        `SELECT u.login_id FROM portal.students s
+           JOIN portal.sections sec ON sec.id = s.section_id
+           JOIN portal.users u ON u.id = sec.adviser_id
+          WHERE s.first_name = $1`,
+        [first],
+        `adviser of the Grade ${grade} learner's class`
+      );
+    const ids = {
+      admin: await one("SELECT login_id FROM portal.users WHERE role = 'admin'", [], 'admin'),
+      teacher: await adviserOf('Nino', 1),
+      parent: await parentOf('Nino', 1),
+      teacher2: await adviserOf('Marwin', 6),
+      parent2: await parentOf('Marwin', 6),
+    };
+    await c.query('ROLLBACK');
+    return ids;
+  } finally {
+    await c.end();
+  }
+}
+
+// The mask, plus every account value this run holds in memory.
+function withSecrets(mask, values) {
+  const list = values.filter((s) => typeof s === 'string' && s.length >= 4).sort((a, b) => b.length - a.length);
+  return (line) => {
+    let s = String(line);
+    for (const v of list) s = s.split(v).join('…');
+    return mask(s);
+  };
+}
+
+async function smokeLive() {
+  const local = process.argv.includes('--local');
+  if (process.env[FLAG] !== undefined) {
+    console.error(`${FLAG} is already set in this shell — it belongs to the smoke child's environment only; clear it and run again`);
+    process.exitCode = 2;
+    return;
+  }
+  const cfg = local ? localSettings() : settings();
+  if (!cfg) {
+    console.error('--local needs the PG_* keys of the embedded cluster (127.0.0.1, its own port, no TLS) in this environment');
+    process.exitCode = 2;
+    return;
+  }
+  const health = await fetch(`${LIVE.api}/api/health`, { signal: AbortSignal.timeout(10000) })
+    .then(async (r) => ({ status: r.status, db: (await r.json().catch(() => ({}))).db }))
+    .catch(() => null);
+  if (!health || health.status !== 200 || health.db !== 'ok') {
+    console.error(`nothing answers ${LIVE.api}/api/health with db ok (${health ? `status ${health.status}` : 'no answer'}) — start the API first`);
+    process.exitCode = 1;
+    return;
+  }
+  const web = await fetch(LIVE.app, { signal: AbortSignal.timeout(10000) }).then((r) => r.status).catch(() => null);
+  if (web !== 200) {
+    console.error(`nothing answers ${LIVE.app} (${web === null ? 'no answer' : `status ${web}`}) — start the web first`);
+    process.exitCode = 1;
+    return;
+  }
+  const cli = path.join(CLIENT, 'node_modules', '@playwright', 'test', 'cli.js');
+  if (!fs.existsSync(cli)) throw new Error('client/node_modules has no @playwright/test');
+
+  const pw = seededPasswords();
+  const ids = await smokeLoginIds(cfg);
+  const mask = withSecrets(makeMask(cfg), [...Object.values(pw), ...Object.values(ids)]);
+  console.log(`smoke-live: API ${LIVE.api} (health: db ok), web ${LIVE.app}; database: ${local ? 'the embedded local cluster' : 'the Supabase project, verify-full'}`);
+
+  const before = await smokeCounts(cfg);
+  console.log(`counts BEFORE (read-only): ${JSON.stringify(before)}`);
+  const childEnv = {
+    ...(local ? process.env : stagingPgEnv(cfg)),
+    E2E_APP_ORIGIN: LIVE.app,
+    E2E_API_ORIGIN: LIVE.api,
+    E2E_ADMIN_ID: ids.admin,
+    E2E_ADMIN_PW: pw.admin,
+    E2E_TEACHER_ID: ids.teacher,
+    E2E_TEACHER_PW: pw.teacher,
+    E2E_PARENT_ID: ids.parent,
+    E2E_PARENT_PW: pw.parent,
+    E2E_TEACHER2_ID: ids.teacher2,
+    E2E_TEACHER2_PW: pw.teacher,
+    E2E_PARENT2_ID: ids.parent2,
+    E2E_PARENT2_PW: pw.parent,
+    [FLAG]: FLAG_VALUE,
+  };
+  console.log(`flag: ${FLAG} is in the smoke child's environment only; this process: ${process.env[FLAG] === undefined ? 'absent' : 'PRESENT'}`);
+  // Anything after `--` goes to Playwright as it is (e.g. -g to run one test).
+  const dashes = process.argv.indexOf('--');
+  const extra = dashes > 0 ? process.argv.slice(dashes + 1) : [];
+  const child = spawn(process.execPath, [cli, 'test', '--config', path.join(CLIENT, 'playwright.config.js'), ...extra], {
+    cwd: CLIENT,
+    env: childEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  pipeMasked(child, mask);
+  const code = await new Promise((resolve) => child.on('close', (c) => resolve(c === null ? 1 : c)));
+  const after = await smokeCounts(cfg);
+  console.log(`counts AFTER (read-only, after the smoke's teardown): ${JSON.stringify(after)}`);
+  const match = JSON.stringify(before.byRole) === JSON.stringify(after.byRole);
+  const delta = Object.fromEntries(Object.keys(after.info).map((k) => [k, after.info[k] - before.info[k]]));
+  console.log(`counts by role ${match ? 'MATCH' : 'DIFFER'}; what the smoke added by design: ${JSON.stringify(delta)}`);
+  console.log(`flag after the run: this process ${process.env[FLAG] === undefined ? 'absent' : 'PRESENT'}`);
+  console.log(`smoke exit ${code}`);
+  process.exitCode = code === 0 && match && process.env[FLAG] === undefined ? 0 : 1;
+}
+
 async function main() {
+  if (process.argv.includes('--local') && !process.argv.includes('--smoke-live')) {
+    console.error('--local goes with --smoke-live only');
+    process.exitCode = 2;
+    return undefined;
+  }
+  if (process.argv.includes('--smoke-live')) return smokeLive();
   const cfg = settings();
   const scrub = makeScrub(cfg);
   const mask = makeMask(cfg);
