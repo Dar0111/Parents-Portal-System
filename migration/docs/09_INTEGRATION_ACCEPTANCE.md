@@ -4,7 +4,8 @@
 on the embedded PostgreSQL 17 cluster (54329), measured against the MySQL code
 it was ported from (`main` `64200f7`). **Not in scope:** the hosted Supabase
 project (Phase L, which waits for the owner's go). Every figure below was
-measured on 2026-10-25; the runs are `05` §0b–§0i.
+measured on 2026-10-25; the runs are `05` §0b–§0i. **Since 2026-10-26:** the
+owner's answers and the fix round are §5, Phase L on staging is §6.
 
 **Verdict: local Phase 3 is complete**, with one item NOT RUN (mobile) and
 four decisions that are the owner's (§3). Nothing below blocks Phase L's
@@ -25,7 +26,7 @@ non-destructive hosted checks.
 | 9 | Acceptable golden-master results | **met** | every difference classified: `/api/backups` by design (`04`); the int4 cap's two 400s documented (`05` §0f) and confirmed by the owner (§3); the name sort measured — it differs only among names MySQL treats as equal, and `COLLATE portal.ci` reproduces MySQL exactly (`05` §0g); the owner kept the database default (D-2, §3) |
 | 10 | Complete applicable regression execution | **met; one item NOT RUN** | 33 suites, `verify:grading-seed`, the client's oxlint / tokens / contrast / build and its one affected render proof at their figures, the browser smoke 20/20 (`05` §0i); **mobile NOT RUN** — no mobile file differs from `main` and the worktree has no mobile dependencies |
 | 11 | Preserved source systems | **met** | the main tree, its server on 5000 and the live `parents_portal` were not touched (nothing listened on 5000, 3000, 5001 or 3001 when checked); the MySQL side was read through `lib/mysql.js` READ ONLY sessions and written only in `parents_portal_migsrc_*` scratches and one disposable `parents_portal_migtest_*` (dropped); the smoke fixture's mysql2 default — which would have reached the live database — was ported before any sweep (`05` §0i) |
-| 12 | Recorded remaining hosted dependencies | **met** | `06` (staging), `07` (cutover and rollback), `08` §5 (the owner's decisions); Phase L not started |
+| 12 | Recorded remaining hosted dependencies | **met** | `06` (staging), `07` (cutover and rollback), `08` §5 (the owner's decisions); Phase L run 2026-10-25/26 without the phone (§6, `06` §4 item 15) |
 
 ## 2. Defects found and closed in this dispatch
 
@@ -126,3 +127,89 @@ change it" for `test:students` and `08`'s matching proposals are superseded by
 this section (both files are outside this round's whitelist).
 `migration/scripts/port-review-fixes.js`'s NUL sign-in expectation (`401`) is
 superseded too: a NUL login id is now the boundary's `400`.
+
+## 6. Phase L on staging — without the phone (2026-10-25/26)
+
+The full record is `06` §4 item 15. In one line each:
+
+| Step | Result |
+|---|---|
+| a. staging's schema vs `001` + `003` (read-only) | **IDENTICAL** in all 14 catalog categories; only the ICU collation version differs (platform); the comparator's negative control found its 3 planted differences; nothing applied |
+| b. 06's checks, re-run | identity, PostgreSQL 17.11, ICU (854), both roles (no superuser, no BYPASSRLS), TLS verify-full, the session pooler, RLS 26/26 with 0 forced and no Data API access — all as recorded; `RLS CHECK OK`; **the clock had drifted to +2,906 ms** (the owner synced it: +1 ms); new facts: `statement_timeout` 2 min, no server-side idle timeouts, the default collation ICU `en-US` (D-2's accepted tie order, as locally) |
+| c. the API on staging | `migration/scripts/staging-api.js` (new): `portal_app` through the pooler, settings from `supabase.env` in memory, file mail and SMS; health 200 `db ok`, public settings 200, no write |
+| d. the browser smoke | **20/20 (8.7 min)** — after the owner's scoped exception in `server/scripts/test-helpers/db.js` (`PORTAL_FIXTURE_HOSTED=staging-smoke` in the smoke's process only, the pooler host, verify-full) and its negative test `scripts/test-fixture-guard.js` **10/10** (its flag-removal mutant fails exactly the 2 flag cases); the read-only counts by role before and after the teardown **match**; the admin Backups page in a browser at 1280 and 390 px: MySQL-era rows labelled "MySQL", the archives "PostgreSQL", 0 console errors, 0 failed requests |
+| e. Backup & Restore on staging | **`STAGING RESTORE OK`**: every refusal before a write (409 MySQL-era, 400 / 403 / 400), one backup (201; the manifest checked against its checksums and the live counts), one restore (200): the safety archive, the old session 401, a new sign-in 200 at once, the cutoff moved, no sequence backwards, every table at the manifest's count; the hosted roles allowed every statement the archive and the restore make, and refused nothing they need. The admin's two `draft-2` acceptances left in place (the owner) |
+| f. | the local cluster, the API and Vite stopped; nothing listening on the session's or the forbidden ports |
+
+### 6a. What the phone smoke needs from the owner (not run — the dispatch stops before it)
+
+The phone runs **Expo Go (SDK 57)** against the ported API on this laptop,
+which talks to staging. No mobile file differs from `main` on this branch,
+and this worktree has no mobile dependencies, so Expo runs from `mobile/` in
+the tree of the owner's choice (the main tree's `mobile/` is the same code;
+this worktree needs `npm ci` in `mobile/` first).
+
+1. **The API on staging, reachable from the hotspot:** in this worktree,
+   `cd migration` then `node scripts/staging-api.js`. The preflight must show
+   the clock skew under one second (resync Windows first if not). It listens
+   on all interfaces, port **5010**; the Windows firewall needs the
+   program-level Allow for `node.exe` on the **Public** profile
+   (`docs/MOBILE_CONVENTIONS.md` M5 — a hotspot is Public).
+2. **The laptop's IPv4 on the hotspot:** `ipconfig` (the hotspot adapter's
+   IPv4 address, e.g. `192.168.43.x`).
+3. **The proof order (M5):** the phone's Chrome opens
+   `http://<laptop-ip>:5010/api/health` and shows `"db":"ok"` **first**.
+4. **The Expo bundle's one env line**, in `mobile/.env` (git-ignored):
+   `EXPO_PUBLIC_API_URL=http://<laptop-ip>:5010/api` — then
+   `npx expo start --clear` (M7: `--clear` after any change to that line or a
+   checkout; Expo inlines it at bundle time). Reload by cold boot, never `r`.
+5. **CORS:** none is needed for the Expo app (a native request carries no
+   `Origin`; Socket.io's handshake likewise). Only the phone's **Chrome**
+   against the web client would need its origin listed — the launcher allows
+   `http://localhost:3010` alone, so a phone-Chrome pass of the web would add
+   `http://<laptop-ip>:3010` (a launcher change, not made here).
+6. **The accounts:** on staging every account meets the consent screen
+   (draft-2; the admin has accepted since step e), and the three parents have
+   no confirmed contact — on the phone they land on Confirm contact, whose
+   code goes to the API's file transports on the laptop
+   (`MAIL_TRANSPORT=file`, `SMS_TRANSPORT=file`), never to a real inbox.
+   Whatever the phone pass accepts or confirms stays on staging until the
+   cutover reload unless it is put back by hand.
+
+### 6b. What the cutover needs
+
+`07` is the procedure (freeze → load → switch → after); what this round adds
+to it, and what is still open:
+
+1. **The owner's go** for the window, and the hosting decision (`CLAUDE.md`
+   BUILD ORDER: hosting last).
+2. **`07` Phase 1–2 as written:** the API stopped (the write freeze), the final
+   `snapshot` → `snapshot:restore-check`; then `pg:schema --target staging`
+   on an **empty** schema — the rehearsal data this phase left (the admin's two
+   `draft-2` acceptances, the 2 archive rows, the extra log rows) goes when the
+   owner drops the schema by hand as `portal_migrate`, since `--drop-first`
+   is refused for staging (D-65); then `transfer` and `reconcile` (`RECONCILE
+   OK`, `grown=0`). The schema to apply is the one compared IDENTICAL in §6.
+3. **The API host's clock** measured against the database (`06` item 4) —
+   under one second, fixed on the host otherwise. It drifted to 2.9 s on this
+   laptop within a day of a sync; the launcher's preflight prints it.
+4. **The application host's settings** (`06` §3, `07` Phase 3): `PG_HOST` /
+   `PG_PORT` / `PG_DATABASE` / `PG_USER` / `PG_PASSWORD` (portal_app, the
+   session pooler), `PG_MIGRATE_USER` / `PG_MIGRATE_PASSWORD` (portal_migrate,
+   the restore), `PG_SSL=verify-full` with `PG_CA_FILE`, the **same
+   `JWT_SECRET`**, `trust proxy` if behind a load balancer, `CORS_ORIGIN`,
+   and the real mail and SMS transports. `staging-api.js` shows the set; it
+   is not the production launcher.
+5. **`07` Phase 3's smoke** — now proven possible on the hosted target: the
+   browser smoke through `staging-api.js --smoke`'s flag (§6 d) and Backup &
+   Restore through the API (§6 e).
+6. **Still open in `06` §4:** item 6 (the pooler's own idle limit) and item 12
+   (the plan's backup cadence and PITR); and the phone pass (§6a).
+7. **The merge** of `migrate/postgres-prep`, with `08`'s context-sync
+   proposals applied then, plus this round's: `test:fixture-guard` (10) and
+   the new suite figures for `docs/TESTING.md`; the `test:students` KNOWN
+   ISSUES proposal (`08` §3) is closed by §5 item 5; `02` §B's four refusals
+   for `docs/API_REFERENCE.md`.
+8. **After the cutover:** the old MySQL scratches dropped by the owner by
+   hand; this worktree's two staging archives in `server/backups/` (copied
+   live records) kept or removed by the owner.

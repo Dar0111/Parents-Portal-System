@@ -234,6 +234,12 @@ Each is a command in this package or a dashboard read; record the answer in
    "confirmed since this sign-in" compare a JWT `iat` with database stamps
    in whole seconds, so this measurement is repeated there before cutover
    and a skew above one second is fixed on that host, never tolerated.
+   **Re-measured 2026-10-26 (Phase L, the launcher's preflight):** the
+   laptop had drifted again — the database **2,906 ms ahead**, median, spread
+   6 ms; the owner synced the clock and the re-measurement read **+1 ms**
+   (−4 to +1 ms) before the backup and the restore. The drift returns: the
+   preflight measures it on every launch, and the cutover host gets the same
+   check.
 5. Privileges — **answered 2026-10-25:** `CREATE SCHEMA` and `CREATE
    COLLATION` as `portal_migrate` both worked (`001` applied, `portal.ci`
    ICU nondeterministic). `pg_available_extensions`: `citext` 1.6 and
@@ -261,7 +267,14 @@ Each is a command in this package or a dashboard read; record the answer in
    is reachable over IPv4 from this host (every step of the run went through
    it, as `postgres.<ref>`, `portal_migrate.<ref>` and `portal_app.<ref>`).
    Still open: a 15-minute idle transaction is not killed (the class-record
-   PUT is seconds, but the pooler's limits must be known).
+   PUT is seconds, but the pooler's limits must be known). **Read 2026-10-26
+   as `portal_app` through the pooler (Phase L):** session mode confirmed (two
+   statements on one connection share the backend and keep a session
+   setting); `statement_timeout` **2min** (the platform's database default —
+   any single statement is cancelled past it; every statement of the staging
+   archive and restore of 2026-10-26 finished under it — not timed), `idle_in_transaction_session_timeout`
+   **0** and `idle_session_timeout` **0** on the server side. The pooler's own
+   idle limit is still not visible from SQL — still open.
 7. `scripts/apply-schema.js --target staging` — **ran 2026-10-25, as
    `portal_migrate.<ref>`:** COUNTS tables 26, indexes 86, fks 35, uniques
    15, checks 25, pks 26, enums 13, triggers 7, sequences 25; POLICIES
@@ -344,6 +357,116 @@ Each is a command in this package or a dashboard read; record the answer in
     "Enable automatic RLS" setting, kept on; it never reaches `portal`, which
     `003` covers table by table, and it cannot break `apply-schema` on
     staging. Nothing to add.
+15. **Phase L (P3-C-R2), 2026-10-25/26 — the hosted checks re-run, the
+    ported API on staging, the browser smoke and Backup & Restore.** Every
+    staging connection `verify-full` (TLSv1.3, chain verified, `*.pooler.supabase.com`,
+    the Supabase Intermediate 2021 CA, valid to March 2030) through the
+    session pooler, the settings derived in memory from `supabase.env` by
+    `lib/env.js`; no host, ref or credential printed.
+    - **a. The schema** — `portal` on staging against a local database built
+      by `setup-db` from exactly `001` + `003` (a scratchpad comparator, read
+      inside `BEGIN READ ONLY … ROLLBACK` as `portal_migrate`, every catalog
+      read under the same `search_path`): **IDENTICAL** — 214 columns (type,
+      nullability, default, identity, collation, column ACL), 51 relations
+      (kind, owner, ACL, RLS, FORCE, options), 101 constraints, 86 indexes, 7
+      triggers, 3 functions (definition hash, SECURITY DEFINER, config, owner,
+      ACL), 13 types (enum labels in order), 25 sequences and their owning
+      columns, the `ci` collation, 26 policies, the schema's owner and ACL,
+      3 default ACLs, no extension in `portal`. Not part of the contract and
+      differing as expected: the ICU collation version (153.14 local, 153.121
+      hosted). A negative control (the reference altered in memory: one index
+      removed, one column type and one policy's qual changed) reported exactly
+      3 differences. Nothing was applied.
+    - **b. The checks** — `scripts/staging-api.js --check` (new, read-only):
+      `portal_app` and `portal_migrate` sign in through the pooler; **PostgreSQL
+      17.11**; 854 ICU collations (853 on 2026-10-24); `portal.ci` ICU
+      `und-u-ks-level1`, nondeterministic; the database UTF8, provider **ICU,
+      locale `en-US`** (`datcollate` `en_US.UTF-8`); TimeZone UTC, read
+      committed, `search_path` `portal, pg_catalog`; both roles LOGIN, no
+      superuser, no BYPASSRLS, no CREATEROLE / CREATEDB; RLS on 26 of 26,
+      forced 0, 26 `portal_app_all` policies, `portal_app` DML on 26, TRUNCATE
+      on 0, USAGE on 25 of 25 sequences, no CREATE; `anon`, `authenticated`
+      and `service_role` without schema usage; the clock (item 4); the
+      pooler's session mode and the timeouts (item 6). **D-2 on staging:** the
+      database default orders `abad · Abad · Abrego · Ábrego · … · Nunez ·
+      nuñez · Ñuñez · … · zuniga · Zuñiga` — lowercase and unaccented first,
+      the same as the local cluster's ICU `en-US` (`05` §0g), so the accepted
+      tie order (`02` §E) is what staging serves. `scripts/rls-check.js
+      --target staging` → **RLS CHECK OK** (`rlscheck_staging_20261025T161936.json`).
+    - **c. The API on staging** — `scripts/staging-api.js` (new): `server.js`
+      as `portal_app` (`portal_migrate` for the restore), `PG_SSL=verify-full`
+      with the CA file, file mail and file SMS, a random `JWT_SECRET` per
+      launch, on 5010 for the origin `http://localhost:3010`; the child's
+      output masked. Starting it writes nothing (no startup job). Without a
+      sign-in: `/api/health` **200**, `db ok`; `/api/settings/public` **200**
+      (six keys, all filled); `/api/auth/me` with no token **401**; a NUL in a
+      query **400** at the boundary.
+    - **d. The browser smoke** — the owner's approval of 2026-10-26 with three
+      conditions: `server/scripts/test-helpers/db.js` accepts a hosted host
+      only when `PORTAL_FIXTURE_HOSTED=staging-smoke` is set, the host is the
+      session pooler and TLS is verify-full; the flag is set only in
+      `staging-api.js --smoke`'s child process, never in a file;
+      `scripts/test-fixture-guard.js` (new) proves the refusal without it —
+      **10/10**, and against an in-memory mutant with the flag check removed
+      exactly its 2 flag cases fail (the test opens no connection: its first
+      version had one `createConnection()` case, which under that mutant made
+      one TLS attempt to a pooler host name, refused by the stand-in CA before
+      any startup message — the case was removed). **Smoke: 20 passed
+      (8.7 min)** on Vite 3010 and the staging-connected API 5010. Read-only
+      counts by role before and after its teardown, nothing read during the
+      run: confirmed contacts and policy acceptances **MATCH** (parents 0 / 0,
+      teachers 3 / 6, the admin 1 / 2); notifications 0 → 0, auth codes and
+      sign-in failures unchanged, `login` rows **+25** (the recorded figure).
+      **The admin's Backup & Restore page in a browser** (after step e's
+      acceptance, the admin's real sign-in form; 1280 and 390 px): it loads,
+      one `h1`, "MySQL" on the 48 MySQL-era rows of the first page, "PostgreSQL"
+      16 times (the 2 new archives and the 14 orphan rehearsal archives), no
+      sideways scroll, 0 console errors, 0 failed API responses.
+    - **e. Backup & Restore on staging** (authorized: staging is reloaded at
+      the cutover) — a scratchpad script through the API, the admin's
+      default password from `setup-db.js` in memory. **The admin's
+      acceptance:** no account on staging had accepted `draft-2` (0 of 7; the
+      copy predates it), so the admin accepted both texts through `POST
+      /api/policy/accept` — **two rows, left in place (the owner's choice)**;
+      the parents (no confirmed contact) and the teachers were not touched.
+      **Before any write:** a MySQL-era row (130 on staging, all
+      `mysql/mysqldump`) **409 `MYSQL_ERA_BACKUP`** before the step-up; then on
+      the new archive no password **400**, a wrong password **403** (never
+      401), a wrong file name **400**, the session still valid. **The
+      backup:** `POST /api/backups` **201**, listed `postgresql/copy-archive`;
+      the manifest `parents-portal-copy-archive` v1, PostgreSQL 17.11, 24
+      members, 25 sequences, `auth_codes` and `backups` excluded,
+      `completed_at` present; every member against its checksum
+      (`inspectArchive`); every member's row count equal to the database read
+      right after, `activity_logs` +1 (the `create_backup` entry written after
+      the archive); no live sequence below the manifest's next value. **The
+      restore:** **200** — the safety archive first (`pre_restore_…`, listed
+      PostgreSQL, its 24 members checked); the old session **401**; a new
+      sign-in at once **200** and `/auth/me` **200** (the clock re-synced,
+      item 4); the cutoff moved; **no sequence backwards** (25 read before and
+      after); every archived table at the manifest's count, `activity_logs`
+      the manifest's + 3 (`restore_backup`, `restore_wiped_activity_logs`, the
+      new sign-in), 5 entries lost and reported (exactly those after the
+      archive: `create_backup`, three `restore_refused`, the safety archive's);
+      `backups` 131 → 132 (the catalog kept, the safety row added);
+      `auth_codes` 11 → 0 (a restore empties it by design). **What the hosted
+      roles allowed:** as `portal_app`, the archive's REPEATABLE READ READ
+      ONLY snapshot, `LOCK … IN ACCESS SHARE MODE` and `COPY … TO STDOUT`; as
+      `portal_migrate` (the tables' owner, no superuser), the restore's
+      `LOCK TABLE` on all 26, `SET CONSTRAINTS ALL DEFERRED`, the one
+      `TRUNCATE` of 26 tables, 24 `COPY … FROM STDIN`, `ALTER SEQUENCE …
+      START WITH … RESTART` on the sequences it moves, the cutoff write and
+      the COMMIT (`backupArchive.js restoreArchive`; the 200 proves each ran). **Refused:**
+      nothing the restore needed; `portal_app` holds no TRUNCATE (0 tables)
+      and no CREATE, which is why the restore runs as `portal_migrate`. **Left
+      on staging by this phase:** the two acceptances, the `login` rows (the
+      smoke's 25, step e's 2, the page check's 2), the restore's bookkeeping
+      entries, and the two archive rows in `backups`; their two `.zip` files
+      are in this worktree's git-ignored `server/backups/` and hold the
+      copied live records — never deleted by a script (CLAUDE.md), the owner's
+      to keep or remove after the cutover.
+    - **f.** The local cluster on 54329, the API and Vite stopped; nothing
+      listening on 5010, 54329, 5030, 3010, 5000, 3000, 5001 or 3001.
 
 ## 5. What is and is not in scope on the hosted side (D-13, D-17, D-83)
 
