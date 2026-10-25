@@ -5,9 +5,12 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { refuseNul } = require('../utils/requestLimits');
 
 const subjectsRouter = express.Router();
 const assignmentsRouter = express.Router();
+subjectsRouter.use(refuseNul);
+assignmentsRouter.use(refuseNul);
 
 const ASSIGNMENT_DETAIL_SQL = `
   SELECT ta.id, ta.teacher_id, u.name AS teacher_name,

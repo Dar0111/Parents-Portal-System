@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const policy = require('../utils/policy');
+const { refuseNul } = require('../utils/requestLimits');
 
 // THE CONSENT GATE'S THREE ENDPOINTS (feat/privacy, 2026-10-10; every role
 // since feat/staff-acceptance, 2026-10-11). All three are reachable while the
@@ -11,6 +12,7 @@ const policy = require('../utils/policy');
 // since feat/first-signin (utils/accountGates.js), so these come before the
 // contact step and the password.
 const router = express.Router();
+router.use(refuseNul);
 
 function documentView(d) {
   return { document: d.document, title: d.title, version: d.version, text: d.text };

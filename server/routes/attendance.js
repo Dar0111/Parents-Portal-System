@@ -5,8 +5,10 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 const VALID_STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
 

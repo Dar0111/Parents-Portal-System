@@ -604,6 +604,60 @@ async function run() {
     await checkPage('/api/memos', parentToken, 'memos', { sort: 'created_at', field: 'created_at' });
     await checkPage('/api/events', teacherToken, 'events', { sort: 'event_date', field: 'event_date' });
     await checkPage('/api/events', parentToken, 'events', { sort: 'title', field: 'title' });
+
+    // --- NUL (U+0000) refused at the request boundary (P3-C-R2 fix round, the
+    // owner's answer of 2026-10-25). PostgreSQL's text types cannot hold one
+    // (22021, a 500), so utils/requestLimits.js refuses it — in the body, the
+    // query or the address — with the route's 400 before authenticate and
+    // before any query. The same values without the NUL are accepted.
+    console.log('\nNUL characters (utils/requestLimits.js):');
+    const nulCases = [
+      ['title', { title: 'NUL check\u0000 title', content: 'NUL check content' }, 'title must not contain a NUL character.'],
+      ['content', { title: 'NUL check title', content: 'NUL check\u0000 content' }, 'content must not contain a NUL character.'],
+      ['a nested field', { title: 'NUL check title', content: 'NUL check content', extra: { inner: 'a\u0000b' } }, 'extra.inner must not contain a NUL character.'],
+      ['an array item', { title: 'NUL check title', content: 'NUL check content', list: ['ok', 'a\u0000b'] }, 'list[1] must not contain a NUL character.'],
+      ['a field name', { title: 'NUL check title', content: 'NUL check content', ['bad\u0000key']: 1 }, 'A field name must not contain a NUL character.'],
+    ];
+    for (const [what, body, message] of nulCases) {
+      const res = await request('POST', '/api/announcements', { token: adminToken, body });
+      if (res.data?.announcement?.id) createdAnnouncementIds.push(res.data.announcement.id);
+      assert(
+        res.status === 400 && res.data?.message === message && !res.data?.announcement,
+        `POST /announcements: a NUL in ${what} is 400, naming it`,
+        `got ${res.status} ${JSON.stringify(res.data?.message)}`
+      );
+    }
+    const nulQuery = await request('GET', '/api/announcements?category=a%00b', { token: adminToken });
+    assert(
+      nulQuery.status === 400 && nulQuery.data?.message === 'category must not contain a NUL character.',
+      'GET /announcements: a NUL in a query value is 400, naming it',
+      `got ${nulQuery.status} ${JSON.stringify(nulQuery.data?.message)}`
+    );
+    const nulAddress = await request('GET', '/api/announcements/%00', { token: adminToken });
+    assert(
+      nulAddress.status === 400 && nulAddress.data?.message === 'The request address must not contain a NUL character.',
+      'GET /announcements/%00: a NUL in the address is 400',
+      `got ${nulAddress.status} ${JSON.stringify(nulAddress.data?.message)}`
+    );
+    const nulNoToken = await request('POST', '/api/announcements', { body: nulCases[0][1] });
+    const plainNoToken = await request('POST', '/api/announcements', { body: { title: 'NUL check title', content: 'NUL check content' } });
+    assert(
+      nulNoToken.status === 400 && plainNoToken.status === 401,
+      'the boundary runs before authenticate: NUL without a token is 400, the same body without the NUL 401',
+      `got ${nulNoToken.status} and ${plainNoToken.status}`
+    );
+    const nulControl = await request('POST', '/api/announcements', {
+      token: adminToken,
+      body: { title: 'NUL check title', content: 'NUL check content', extra: { inner: 'ab' }, list: ['ok', 'ab'] },
+    });
+    if (nulControl.data?.announcement?.id) createdAnnouncementIds.push(nulControl.data.announcement.id);
+    assert(
+      nulControl.status === 201 && nulControl.data?.announcement?.title === 'NUL check title',
+      'control: the same values without the NUL are accepted (201)',
+      `got ${nulControl.status}`
+    );
+    const nulQueryControl = await request('GET', '/api/announcements?category=ab', { token: adminToken });
+    assert(nulQueryControl.status === 200, 'control: the same query without the NUL is 200', `got ${nulQueryControl.status}`);
   } finally {
     await cleanup();
     await policy.cleanup();

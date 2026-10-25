@@ -4,8 +4,10 @@ const { authenticate } = require('../middleware/auth');
 const { parseId } = require('../utils/validateId');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { emitNotifications } = require('../utils/notify');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // Notifications — the bell. N1, 2026-09-19.
 //

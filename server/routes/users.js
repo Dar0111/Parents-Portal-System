@@ -14,8 +14,10 @@ const { sanitizeUser } = require('../utils/sanitizeUser');
 const codes = require('../utils/authCodes');
 const { removePhotoFile } = require('../utils/profilePhoto');
 const { sendPasswordAlert } = require('../utils/passwordAlert');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // CREATE TEACHER AND CREATE PARENT TAKE NO EMAIL AND NO CONTACT NUMBER
 // (feat/account-create, 2026-10-21; the owner's decision of 2026-10-16). The

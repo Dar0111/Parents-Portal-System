@@ -5,6 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { refuseNul } = require('../utils/requestLimits');
 const {
   announcementAudience,
   memoAudience,
@@ -207,6 +208,7 @@ async function resolveEventTarget(user, targetGradeInput) {
 // ---------------------------------------------------------------------------
 
 const announcementsRouter = express.Router();
+announcementsRouter.use(refuseNul);
 
 announcementsRouter.get('/', authenticate, async (req, res) => {
   const { category, grade_level, section } = req.query;
@@ -454,6 +456,7 @@ announcementsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), 
 // ---------------------------------------------------------------------------
 
 const memosRouter = express.Router();
+memosRouter.use(refuseNul);
 
 memosRouter.get('/', authenticate, async (req, res) => {
   const list = readListParams(req.query, {
@@ -606,6 +609,7 @@ memosRouter.delete('/:id', authenticate, authorize('admin'), async (req, res) =>
 // ---------------------------------------------------------------------------
 
 const eventsRouter = express.Router();
+eventsRouter.use(refuseNul);
 
 eventsRouter.get('/', authenticate, async (req, res) => {
   const { grade_level, from, to } = req.query;

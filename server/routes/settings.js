@@ -3,8 +3,10 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { validateEmail } = require('../utils/emailRule');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // The only keys this API will ever read or write. An open key-value write
 // endpoint is a way to smuggle junk into the database — every write is

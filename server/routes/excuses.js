@@ -13,8 +13,10 @@ const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { reviewWithAttendance, RETRY_MESSAGE } = require('../utils/excuseAttendance');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // CRUD half — submit, list, view, edit — plus PATCH /:id/review
 // (approve/decline). The section ADVISER only may review (not any assigned

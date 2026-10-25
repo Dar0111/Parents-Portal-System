@@ -1,8 +1,10 @@
 const express = require('express');
 const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // Third copy of the YYYY-YYYY consecutive-year check (settings.js
 // validateAcademicYear, grades.js isValidSchoolYear). Extract into a

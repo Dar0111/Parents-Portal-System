@@ -5,8 +5,10 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, parsePagination, pageMeta } = require('../utils/pagination');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // The security boundary for who may message whom. Used on every send
 // (POST /api/messages) — reads are participant-scoped instead, not

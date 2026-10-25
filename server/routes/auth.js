@@ -17,8 +17,10 @@ const throttle = require('../utils/loginThrottle');
 const policy = require('../utils/policy');
 const gates = require('../utils/accountGates');
 const { sendPasswordAlert } = require('../utils/passwordAlert');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // `sanitizeUser` strips any key containing "password" — by design, so an
 // aliased JOIN column cannot leak a hash. Two of the R1 columns collide

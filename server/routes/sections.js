@@ -3,8 +3,10 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // Shared by GET /:id and the PATCH re-fetch — a correlated subquery for
 // student_count instead of a JOIN + GROUP BY: joining students directly

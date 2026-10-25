@@ -6,8 +6,10 @@ const { parsePagination, pageMeta } = require('../utils/pagination');
 const { ACTION_GROUPS, OTHER_GROUP, actionInfo, groupCodes, groupLabel, knownCodes } = require('../utils/activityActions');
 const { isRealDate, manilaDayStart, manilaDayEnd, manilaParts, manilaToday } = require('../utils/manilaTime');
 const { buildCsv } = require('../utils/csv');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // THE ACTIVITY LOG (feat/activity-log, B2 — the owner's decision D-21,
 // 2026-10-16): the admin reads activity_logs by date, account role and action,

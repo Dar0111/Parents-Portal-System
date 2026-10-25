@@ -21,8 +21,10 @@ const {
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { TEACHER_ADVISES_CLASS_SQL } = require('../utils/teacherScope');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 function isValidScore(value) {
   return typeof value === 'number' && value >= 0;

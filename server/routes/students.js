@@ -6,8 +6,10 @@ const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { validateLrn } = require('../utils/lrnRule');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 function isValidGradeLevel(value) {
   const n = Number(value);

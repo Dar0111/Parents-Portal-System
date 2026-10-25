@@ -4,8 +4,10 @@ const { authenticate } = require('../middleware/auth');
 const { roundTo2 } = require('../utils/gradeComputation');
 const { SCHOOL_YEAR, currentTerm } = require('../utils/schoolCalendar');
 const { todayLocalDateString } = require('../utils/dateFormat');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // GET /api/dashboard — one read-only endpoint, branched by role (DB1,
 // 2026-09-19).

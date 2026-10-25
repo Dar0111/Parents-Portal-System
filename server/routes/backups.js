@@ -9,8 +9,10 @@ const { parseId } = require('../utils/validateId');
 const { comparePassword } = require('../utils/password');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const archive = require('../utils/backupArchive');
+const { refuseNul } = require('../utils/requestLimits');
 
 const router = express.Router();
+router.use(refuseNul);
 
 // BACKUP & RESTORE ON POSTGRESQL (Phase 3, commit 6 — migration/docs/04, the
 // owner's P4 with Q3 (a) and Q4 (a), 2026-10-25). A backup is a `.zip` COPY
