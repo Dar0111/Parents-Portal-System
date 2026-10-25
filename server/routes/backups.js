@@ -94,7 +94,9 @@ function reserveBackupPath(prefix) {
 // PG_MIGRATE_* keys) to restore one, which needs TRUNCATE and setval — exactly
 // what portal_app is not given.
 async function openClient(which) {
-  const client = new Client(pool.settings(which));
+  // its own 'error' listener (config/db.js guardClient): a socket that dies
+  // mid-archive or mid-restore must fail the request, not end the process
+  const client = pool.guardClient(new Client(pool.settings(which)), `${which === 'migrate' ? 'restoring' : 'archiving'}`);
   await client.connect();
   return client;
 }

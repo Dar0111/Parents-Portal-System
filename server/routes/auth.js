@@ -65,10 +65,21 @@ async function acceptedCountFor(row) {
   return Object.keys(await policy.currentAcceptances(row.id)).length;
 }
 
+// A TYPED LOGIN ID WITH A NUL IN IT NAMES NO ACCOUNT (P3-C-R2, review finding
+// auth-1). PostgreSQL text cannot hold U+0000 — binding one is 22021, which
+// the routes' catch turned into a 500, where MySQL simply found no row: a
+// 401 with the failure counted, the reset's one 400, the forgot reply's 202.
+// No stored login id can contain one, so the answer is "no such account"
+// without asking the database.
+function cannotBeALoginId(value) {
+  return String(value).includes('\u0000');
+}
+
 // `u.login_id = ?` is case-insensitive through the column's portal.ci
 // collation (migration/docs/02 D) — the sign-in path depends on it, as it
 // depended on utf8mb4_unicode_ci.
 async function fetchUserByLoginId(loginId) {
+  if (cannotBeALoginId(loginId)) return null;
   const { rows } = await pool.query(
     `SELECT u.*, s.first_name AS student_first_name, s.last_name AS student_last_name,
             s.grade_level, s.section
@@ -619,10 +630,12 @@ router.post('/forgot-password', async (req, res) => {
   const ip = req.ip;
 
   try {
-    const { rows } = await pool.query(
-      'SELECT id, name, email, email_verified_at, contact_number, contact_verified_at, status FROM users WHERE login_id = ? LIMIT 1',
-      [loginId]
-    );
+    const { rows } = cannotBeALoginId(loginId)
+      ? { rows: [] }
+      : await pool.query(
+        'SELECT id, name, email, email_verified_at, contact_number, contact_verified_at, status FROM users WHERE login_id = ? LIMIT 1',
+        [loginId]
+      );
     const user = rows[0];
 
     // EVERY CONFIRMED CHANNEL gets the SAME code (decision Q2). A confirmed
@@ -741,7 +754,9 @@ router.post('/reset-password', async (req, res) => {
   const INVALID = { success: false, message: 'That code is not valid. Request a new one.' };
 
   try {
-    const { rows } = await pool.query('SELECT id, status FROM users WHERE login_id = ? LIMIT 1', [login_id.trim()]);
+    const { rows } = cannotBeALoginId(login_id)
+      ? { rows: [] }
+      : await pool.query('SELECT id, status FROM users WHERE login_id = ? LIMIT 1', [login_id.trim()]);
     const user = rows[0];
     if (!user || user.status !== 'active') {
       await codes.burnTiming();

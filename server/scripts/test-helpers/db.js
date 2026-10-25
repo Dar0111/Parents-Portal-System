@@ -60,7 +60,7 @@ async function createConnection(settings) {
   if (settings !== undefined) {
     throw new Error('createConnection() takes no settings on PostgreSQL: the PG_* keys decide (test-helpers/db.js).');
   }
-  const client = new Client(config());
+  const client = db.guardClient(new Client(config()), 'a suite fixture used it');
   await client.connect();
   await client.query('SET search_path TO portal, pg_catalog');
   return {

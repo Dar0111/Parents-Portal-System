@@ -568,7 +568,13 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     // change.
     const emailChanged = (existing.email ?? null) !== (nextEmail ?? null);
     const contactChanged = (existing.contact_number ?? null) !== (nextContact ?? null);
-    await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND email IS DISTINCT FROM ?', [id, nextEmail]);
+    // Under portal.ci (P3-C-R2, review findings auth-2 / records-1): MySQL's
+    // `<=>` compared under utf8mb4_unicode_ci, so an address re-typed in other
+    // capitals was NOT a change and kept its confirmation; users.email is not a
+    // portal.ci column, so the comparison carries the collation itself (case-
+    // and accent-insensitive, NULL-safe — measured). The codes are still burned
+    // by the exact `!==` above, as they were on MySQL.
+    await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND (email COLLATE portal.ci) IS DISTINCT FROM ?', [id, nextEmail]);
     if (emailChanged) await codes.burnPending(id, 'email_verification');
     if (contactChanged) {
       await pool.query('UPDATE users SET contact_verified_at = NULL WHERE id = ?', [id]);

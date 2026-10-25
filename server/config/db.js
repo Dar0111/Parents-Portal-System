@@ -89,7 +89,34 @@ function settings(which = 'runtime') {
     password: migrate ? process.env.PG_MIGRATE_PASSWORD : process.env.PG_PASSWORD,
     ssl: sslOption(host),
     application_name: migrate ? 'parents-portal-restore' : 'parents-portal-api',
+    // A CONNECT TIMEOUT, as mysql2's 10 s connectTimeout gave (P3-C-R2, review
+    // finding driver-2): node-postgres has none by default, so a host that
+    // accepts and never answers held a request — and a pool slot — forever;
+    // now it fails as "timeout exceeded when trying to connect", a connection
+    // error (503, utils/dbErrors.js). In the POOL the same limit also caps the
+    // wait for a free connection (mysql2's pool waited without one) — ten
+    // busy connections for ten seconds answer 503 rather than queue on.
+    connectionTimeoutMillis: 10000,
   };
+}
+
+// A CHECKED-OUT OR ONE-OFF CLIENT NEEDS ITS OWN 'error' LISTENER (P3-C-R2,
+// review finding driver-1, measured by test:pg-driver): pg-pool removes its
+// idle listener while a client is lent out, and node-postgres EMITS 'error'
+// when the socket dies under an active query (a reset, a network drop — no
+// FATAL message first). With no listener that is an uncaught exception and the
+// API process exits; mysql2's connections always carried one. The query itself
+// still rejects with the connection error, so the request answers 503 and the
+// client is discarded on release.
+const guarded = new WeakSet();
+function guardClient(client, label = 'in use') {
+  if (!guarded.has(client)) {
+    guarded.add(client);
+    client.on('error', (error) => {
+      console.error(`PostgreSQL: a connection failed while ${label} and is discarded:`, error.code || error.message);
+    });
+  }
+  return client;
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +264,7 @@ pool.on('error', (error) => {
 const prepared = new WeakSet();
 
 async function checkout() {
-  const client = await pool.connect();
+  const client = guardClient(await pool.connect());
   if (!prepared.has(client)) {
     try {
       await client.query('SET search_path TO portal, pg_catalog');
@@ -415,4 +442,4 @@ function foldedContains(term) {
   return `%${foldText(term)}%`;
 }
 
-module.exports = { query, connect, withTransaction, end, toPg, settings, foldedSql, foldText, foldedContains };
+module.exports = { query, connect, withTransaction, end, toPg, settings, guardClient, foldedSql, foldText, foldedContains };
