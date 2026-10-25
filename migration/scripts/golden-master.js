@@ -453,7 +453,11 @@ async function main() {
   return undefined;
 }
 
-main().catch((e) => {
+// The helpers other proofs reuse (scripts/search-route.js); main() runs only
+// when this file is the one started.
+module.exports = { seededAccounts, resolveSourceDb, call, shapeOf, diffShapes, LOOPBACK, FORBIDDEN_PORTS };
+
+if (require.main === module) main().catch((e) => {
   console.error('golden-master failed:', safeMessage(e));
   process.exit(1);
 });

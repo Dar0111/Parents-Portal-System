@@ -118,32 +118,18 @@ async function run() {
 
   // Every student created below is tracked here and deleted in the finally
   // block, so a run leaves the DB exactly as it found it.
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // The suites' PostgreSQL connection (Phase 3): the API's own role, loopback only.
+  const { withDb } = require('./test-helpers/db');
   const createdStudentIds = [];
   // Teachers this run mints for the enrolment gate; their assignment rows
   // cascade away with the user (fk_assignments_teacher).
   const createdTeacherIds = [];
   async function cleanup() {
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
     if (createdTeacherIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM users WHERE id IN (?)', [createdTeacherIds]));
+      await withDb((conn) => conn.query('DELETE FROM users WHERE id = ANY(?::int[])', [createdTeacherIds]));
     }
   }
 
@@ -563,7 +549,7 @@ async function run() {
     const nullSidId = await withDb(async (conn) => {
       const [result] = await conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
-         VALUES (?, 'NullSid', 'Malikhain', 6, 'Malikhain', NULL, 1)`,
+         VALUES (?, 'NullSid', 'Malikhain', 6, 'Malikhain', NULL, 1) RETURNING id`,
         [`TN${uniqueSuffix.slice(-10)}`] // 12 chars, non-numeric on purpose (VARCHAR(12))
       );
       return result.insertId;
@@ -583,7 +569,7 @@ async function run() {
     const unmatchedNullId = await withDb(async (conn) => {
       const [result] = await conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
-         VALUES (?, 'Unmatched', 'Mabini', 6, 'Mabini', NULL, 1)`,
+         VALUES (?, 'Unmatched', 'Mabini', 6, 'Mabini', NULL, 1) RETURNING id`,
         [`TM${uniqueSuffix.slice(-10)}`] // 12 chars, non-numeric on purpose (VARCHAR(12))
       );
       return result.insertId;

@@ -85,28 +85,14 @@ async function run() {
   await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login');
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // The suites' PostgreSQL connection (Phase 3): the API's own role, loopback only.
+  const { withDb } = require('./test-helpers/db');
 
   const createdLoginIds = [];
 
   async function cleanup() {
     if (createdLoginIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]));
+      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id = ANY(?::text[])', [createdLoginIds]));
     }
   }
 
@@ -350,7 +336,7 @@ async function run() {
       await withDb((conn) =>
         conn.query(
           `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, contact_snapshot, expires_at)
-           VALUES (?, ?, ?, ?, ?, NOW() + INTERVAL 10 MINUTE)`,
+           VALUES (?, ?, ?, ?, ?, NOW() + INTERVAL '10 minutes')`,
           [throwawayId, purpose, hash, email, contact]
         )
       );

@@ -15,6 +15,17 @@ const { pool } = require('../lib/pg');
 const { safeMessage } = require('../lib/safeMessage');
 const P = require('../lib/paths');
 
+// Phase B (2026-10-25): check 1's cross-engine leg reads the SOURCE MySQL
+// database this target was transferred from (`--source-db <name>`, through
+// lib/mysql's scratch(), which refuses the application database), and check 2
+// runs the PORTED ROUTE's search predicate (server/config/db.js's fold).
+const { scratch } = require('../lib/mysql');
+const db = require('../../server/config/db');
+const SOURCE_DB = (() => {
+  const i = process.argv.indexOf('--source-db');
+  return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
+})();
+
 const report = { cases: {} };
 let failures = 0;
 function check(name, value, expect) {
@@ -127,19 +138,55 @@ async function main() {
     check('codes.burn_pending_rowCount', burned.rowCount, 1);
 
     // 7. sign-in limits
+    // The copied rows BEFORE this run adds its own: check 1's cross-engine leg
+    // compares them with the source's, so "the same data" is measured, not assumed.
+    const lsBefore = (await c.query('SELECT COUNT(*)::int AS n, COALESCE(SUM(id), 0)::text AS s, COALESCE(MAX(id), 0)::int AS m FROM login_attempts')).rows[0];
     for (let i = 0; i < 5; i += 1) await c.query('INSERT INTO login_attempts (login_key, ip) VALUES ($1, $2)', ['f'.repeat(64), '127.0.0.1']);
     const perAccount = (await c.query('SELECT COUNT(*) AS n FROM login_attempts WHERE login_key = $1 AND cleared = 0 AND attempted_at > (portal.now_s() - make_interval(mins => $2))', ['f'.repeat(64), 15])).rows[0].n;
     check('throttle.five_failures_counted', perAccount, 5);
     const cleared = await c.query('UPDATE login_attempts SET cleared = 1 WHERE login_key = $1 AND cleared = 0', ['f'.repeat(64)]);
     check('throttle.clear_account_rowCount', cleared.rowCount, 5);
-    // CORRECTED EXPECTATION 1 of 3 (recorded in docs/05 §3, Phase 3 commit 7):
-    // as first written the prune was expected to remove nothing, since the
-    // run's own rows are minutes old; the copied data holds real failures
-    // older than a day, so it now expects to remove exactly the stale rows
-    // counted here, and to leave the run's five.
+    // VERIFIED 2026-10-25 — the Phase B checkpoint (docs/05 §3b), all four criteria.
+    // CORRECTED EXPECTATION 1 of 3 (docs/05 §3b, Phase 3 commit 7; the Phase B
+    // checkpoint): as first written the prune was expected to remove nothing,
+    // since the run's own rows are minutes old; the copied data holds real
+    // failures older than a day, so it removes exactly the stale rows counted
+    // here and leaves the run's five — and, since Phase B, exactly as many rows
+    // as MySQL's OWN statement counts on the source at the same second (the
+    // check after this one), so a unit mistake made in both statements here
+    // cannot pass.
+    const pruneT0 = Number((await c.query('SELECT extract(epoch FROM portal.now_s())::bigint AS t')).rows[0].t);
     const stale = (await c.query('SELECT COUNT(*) AS n FROM login_attempts WHERE attempted_at < (portal.now_s() - make_interval(hours => $1))', [24])).rows[0].n;
     const pruned = await c.query('DELETE FROM login_attempts WHERE attempted_at < (portal.now_s() - make_interval(hours => $1))', [24]);
     check('throttle.prune_older_than_a_day_removes_exactly_the_stale_rows_not_the_fresh_five', [pruned.rowCount === stale, (await c.query('SELECT COUNT(*) AS n FROM login_attempts WHERE login_key = $1', ['f'.repeat(64)])).rows[0].n], [true, 5]);
+    const pruneT1 = Number((await c.query('SELECT extract(epoch FROM portal.now_s())::bigint AS t')).rows[0].t);
+    // The source's own statement (5426b70 utils/loginThrottle.js, the 24-hour
+    // prune's WHERE) on the source rows, with MySQL's NOW() frozen at each
+    // second the prune above could have run in. The target must hold the same
+    // rows (count, id sum, highest id) or the leg fails closed.
+    let pruneVsSource;
+    if (!SOURCE_DB) {
+      pruneVsSource = 'no --source-db';
+    } else {
+      const my = await scratch(SOURCE_DB);
+      try {
+        const [[fp]] = await my.query('SELECT COUNT(*) AS n, COALESCE(SUM(id), 0) AS s, COALESCE(MAX(id), 0) AS m FROM login_attempts');
+        const same = Number(fp.n) === lsBefore.n && String(fp.s) === lsBefore.s && Number(fp.m) === lsBefore.m;
+        const counts = [];
+        for (let t = pruneT0; t <= pruneT1; t += 1) {
+          await my.query('SET TIMESTAMP = ?', [t]);
+          const [[r]] = await my.query('SELECT COUNT(*) AS n FROM login_attempts WHERE attempted_at < (NOW() - INTERVAL ? HOUR)', [24]);
+          counts.push(Number(r.n));
+        }
+        await my.query('SET TIMESTAMP = DEFAULT');
+        info('throttle.prune_source_mysql_count', counts);
+        if (!same) pruneVsSource = 'target is not a copy of the source';
+        else pruneVsSource = counts.includes(pruned.rowCount) ? 'equal' : 'differs';
+      } finally {
+        await my.end();
+      }
+    }
+    check('throttle.prune_matches_source_mysql', pruneVsSource, 'equal');
 
     // 8. attendance bulk upsert, twice, with the trigger
     const upsert = (status) => c.query(`INSERT INTO attendance (student_id, date, status, recorded_by) VALUES ($1, $2, $3, $4)
@@ -199,15 +246,40 @@ async function main() {
       WHERE u.id = $1 AND u.status = 'active' AND (u.name ILIKE $2 OR st.student_name ILIKE $2)`, [teacher.id, '%rehearsal%'])).rows;
     check('messages.contacts_string_agg_concat_ilike', [contacts.length, typeof contacts[0].subject, contacts[0].subject.length > 0], [1, 'string', true]);
 
-    // 12. students search: lrn exact (ci) or name ILIKE; accent search gap
-    // scoped to the synthetic learner: the seeded roster holds a real learner whose ASCII name would match
-    // (CORRECTED EXPECTATION 2 of 3, docs/05 §3: as first written the probe
-    // searched the whole roster and expected the ASCII term to find nothing;
-    // the seeded learner's ASCII name matched it, so the probe is scoped.)
-    const search = async (q) => (await c.query(`SELECT s.id FROM students s WHERE (s.lrn = $1 OR concat(s.first_name, ' ', s.last_name) ILIKE $2) AND s.id = $3`, [q, `%${q}%`, student.id])).rowCount;
+    // 12. students search: lrn exact (ci) or the folded name, scoped to the
+    // synthetic learner (the copied roster holds a real learner whose ASCII
+    // name matches the third term).
+    // VERIFIED 2026-10-25 — the Phase B checkpoint (docs/05 §3b), all four
+    // criteria and Josh's eight requirements (scripts/search-route.js runs the
+    // same case through both APIs' real search route).
+    // CORRECTED EXPECTATION 2 of 3 (docs/05 §3b; the Phase B checkpoint,
+    // approved by the owner and Josh): first written over the whole roster
+    // with a plain ILIKE, expecting the ASCII term to find NOTHING; then scoped
+    // (commit 7), still expecting nothing. Both asserted the gap, which is the
+    // opposite of the original system: MySQL's utf8mb4_unicode_ci search finds
+    // the accented learner, and so does the ported route through
+    // config/db.js's fold (Q5 b). The checks below run the ROUTE's predicate
+    // and expect the learner; the plain-ILIKE gap is an info line only.
+    const searchRaw = async (q) => (await c.query(`SELECT s.id FROM students s WHERE (s.lrn = $1 OR concat(s.first_name, ' ', s.last_name) ILIKE $2) AND s.id = $3`, [q, `%${q}%`, student.id])).rowCount;
+    // routes/students.js's search predicate, word for word, scoped to the
+    // synthetic learner: 1 only when the one row returned IS that learner.
+    const searched = [];
+    const search = async (q) => {
+      searched.push(q);
+      const r = await c.query(
+        `SELECT s.id FROM students s WHERE (s.lrn = $1 OR ${db.foldedSql("concat(s.first_name, ' ', s.last_name)")} LIKE $2) AND s.id = $3`,
+        [q, db.foldedContains(q), student.id]
+      );
+      if (r.rows.length === 0) return 0;
+      return r.rows.length === 1 && r.rows[0].id === student.id ? 1 : -1;
+    };
     check('students.search_by_lrn_lowercase', await search('zzrehearse01'), 1);
     check('students.search_by_name_case_insensitive', await search('niño rehearsal'), 1);
-    check('students.search_accent_stripped_DOES_NOT_match_(MySQL_did)', await search('nino'), 0);
+    check('students.search_accent_stripped_DOES_NOT_match_(MySQL_did)', await search('nino'), 1);
+    // the plain-ILIKE gap on the same ASCII term, information only
+    info('students.search_accent_gap_plain_ilike', await searchRaw(searched[2]));
+    // the negative control: a term the synthetic learner's name does not hold
+    check('students.search_route_negative_control', await search('qxzv nosuch learner'), 0);
     await c.query('SAVEPOINT s2');
     const ext = await tryq(c, 'CREATE EXTENSION IF NOT EXISTS unaccent');
     const unaccent = ext.ok ? await tryq(c, 'SELECT unaccent(concat(first_name, \' \', last_name)) ILIKE unaccent($1) AS m FROM students WHERE id = $2', ['%nino%', student.id]) : ext;
@@ -215,15 +287,26 @@ async function main() {
     await c.query('ROLLBACK TO SAVEPOINT s2');
 
     // 13. users list: sort by role as text, LIKE on login_id with an explicit deterministic collation
-    // (CORRECTED EXPECTATION 3 of 3, docs/05 §3: the ILIKE count was first
+    // VERIFIED 2026-10-25 — the Phase B checkpoint (docs/05 §3b), all four criteria.
+    // (CORRECTED EXPECTATION 3 of 3, docs/05 §3b: the ILIKE count was first
     // expected to be 3, one per synthetic account; only two of the three
     // synthetic login ids carry the hyphen the pattern asks for, so it is 2.)
+    // Since the Phase B checkpoint the same pattern also runs in the ported
+    // route's own form (routes/users.js: COLLATE "und-x-icu" ILIKE) — added,
+    // the existing count unchanged.
+    let likeParams = null;
+    const tryqKeep = async (cc, sql, params) => {
+      likeParams = params;
+      return tryq(cc, sql, params);
+    };
     const sorted = (await c.query('SELECT role::text AS r FROM users WHERE id = ANY($1::int[]) ORDER BY role::text ASC, id DESC', [[admin.id, teacher.id, parent.id]])).rows.map((r) => r.r);
     check('users.sort_role_as_text_alphabetical', sorted, ['admin', 'parent', 'teacher']);
     const likeNative = await attempt(c, 's3', 'SELECT 1 FROM users WHERE login_id LIKE $1', ['ZZ-REH%']);
     check('users.LIKE_on_portal_ci_column_is_refused_on_pg17', likeNative.ok ? 'accepted' : likeNative.code, '0A000');
-    const likeColl = await tryq(c, 'SELECT COUNT(*)::int AS n FROM users WHERE login_id COLLATE "C" ILIKE $1', ['zz-reh%']);
+    const likeColl = await tryqKeep(c,'SELECT COUNT(*)::int AS n FROM users WHERE login_id COLLATE "C" ILIKE $1', ['zz-reh%']);
     check('users.ILIKE_with_explicit_C_collation_works_(two_of_three_synthetic_ids_carry_the_hyphen)', likeColl.ok ? likeColl.rows[0].n : likeColl.code, 2);
+    const likeRoute = await attempt(c, 'like_route', 'SELECT COUNT(*) AS n FROM users WHERE login_id COLLATE "und-x-icu" ILIKE $1', likeParams);
+    check('users.login_id_ilike_route_collation', likeRoute.ok ? likeRoute.rows[0].n : likeRoute.code, 2);
     const dupAssign = await attempt(c, 's4', 'INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section, section_id) VALUES ($1, $2, $3, $4, $5)', [teacher.id, subj.id, sec.grade_level, sec.name.toUpperCase(), sec.id]);
     check('assignments.duplicate_with_case_variant_section_is_23505_(ER_DUP_ENTRY_to_409)', dupAssign.ok ? 'accepted' : dupAssign.code, '23505');
 
@@ -383,6 +466,7 @@ async function main() {
   } finally {
     c.release(true);
     await p.end();
+    await db.end().catch(() => {});
     report.failures = failures;
     fs.mkdirSync(P.REHEARSAL_DIR, { recursive: true });
     const out = path.join(P.REHEARSAL_DIR, `rehearse_${target.name}_${new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '')}.json`);
