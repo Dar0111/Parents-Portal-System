@@ -5,7 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, parsePagination, pageMeta } = require('../utils/pagination');
-const { refuseNul } = require('../utils/requestLimits');
+const { refuseNul, textTooLong } = require('../utils/requestLimits');
 
 const router = express.Router();
 router.use(refuseNul);
@@ -444,6 +444,10 @@ router.post('/', authenticate, async (req, res) => {
 
   if (typeof body !== 'string' || !body.trim()) {
     return res.status(400).json({ success: false, message: 'body must not be empty.' });
+  }
+  const bodyTooLong = textTooLong('body', body.trim());
+  if (bodyTooLong) {
+    return res.status(400).json({ success: false, message: bodyTooLong });
   }
 
   const permission = await canMessage(req.user, receiverId);

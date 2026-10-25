@@ -13,7 +13,7 @@ const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { reviewWithAttendance, RETRY_MESSAGE } = require('../utils/excuseAttendance');
-const { refuseNul } = require('../utils/requestLimits');
+const { refuseNul, textTooLong } = require('../utils/requestLimits');
 
 const router = express.Router();
 router.use(refuseNul);
@@ -215,6 +215,11 @@ router.post('/', authenticate, authorize('parent'), async (req, res) => {
     return res.status(400).json({ success: false, message: 'absence_date cannot be in the future.' });
   }
 
+  const textError = textTooLong('reason', reason) || textTooLong('details', details || null);
+  if (textError) {
+    return res.status(400).json({ success: false, message: textError });
+  }
+
   // Precondition, not a query failure: refuse before try so a NULL
   // student_id never reaches the NOT NULL INSERT (that was a 500 via
   // ER_BAD_NULL_ERROR in the generic catch). logActivity names
@@ -314,6 +319,11 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
     return res.status(400).json({ success: false, message: 'reason must not be empty.' });
   }
 
+  const textError = textTooLong('reason', reason) || textTooLong('details', details !== undefined ? details || null : null);
+  if (textError) {
+    return res.status(400).json({ success: false, message: textError });
+  }
+
   try {
     // Read-scope fails first: not found or not this parent's letter both
     // return the same 404, so a parent probing ids can't distinguish them.
@@ -387,6 +397,11 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       success: false,
       message: `status must be one of ${REVIEW_STATUSES.join(', ')}.`,
     });
+  }
+
+  const remarksTooLong = textTooLong('teacher_remarks', teacher_remarks || null);
+  if (remarksTooLong) {
+    return res.status(400).json({ success: false, message: remarksTooLong });
   }
 
   try {

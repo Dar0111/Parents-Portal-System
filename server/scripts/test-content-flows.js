@@ -658,6 +658,55 @@ async function run() {
     );
     const nulQueryControl = await request('GET', '/api/announcements?category=ab', { token: adminToken });
     assert(nulQueryControl.status === 200, 'control: the same query without the NUL is 200', `got ${nulQueryControl.status}`);
+
+    // --- THE 64 KB TEXT CAP (P3-C-R2 fix round, the owner's answer of
+    // 2026-10-25). MySQL's TEXT held at most 65,535 BYTES and refused more (a
+    // 500); PostgreSQL's text has no limit, so utils/requestLimits.js keeps
+    // MySQL's cap as the route's 400. At the limit accepted, one byte past it
+    // refused — in ASCII and in two-byte é (bytes, not characters).
+    console.log('\nThe 64 KB text cap (utils/requestLimits.js):');
+    const capTexts = [
+      ['65,535 ASCII bytes', 'a'.repeat(65535), true],
+      ['65,536 ASCII bytes', 'a'.repeat(65536), false],
+      ['65,535 bytes as 32,767 é + 1 ASCII', 'é'.repeat(32767) + 'a', true],
+      ['65,536 bytes as 32,768 é', 'é'.repeat(32768), false],
+    ];
+    const capCases = [
+      ['announcements', 'announcement', 'content', (text) => ({ title: 'Cap check', content: text }), createdAnnouncementIds],
+      ['memos', 'memo', 'content', (text) => ({ title: 'Cap check', content: text }), createdMemoIds],
+      ['events', 'event', 'description', (text) => ({ title: 'Cap check', description: text, event_date: daysAgo(0) }), createdEventIds],
+    ];
+    for (const [path, key, field, makeBody, ids] of capCases) {
+      let capRowId = null;
+      for (const [what, text, accepted] of capTexts) {
+        const res = await request('POST', `/api/${path}`, { token: adminToken, body: makeBody(text) });
+        const id = res.data?.[key]?.id;
+        if (id) {
+          ids.push(id);
+          if (key === 'event') notifiedEventIds.push(id);
+          if (capRowId === null) capRowId = id;
+        }
+        assert(
+          accepted
+            ? res.status === 201 && res.data?.[key]?.[field] === text
+            : res.status === 400 && res.data?.message === `${field} must be 65,535 bytes or fewer.` && !id,
+          `POST /${path}: ${field} of ${what} is ${accepted ? '201, stored whole' : '400, naming the field'}`,
+          `got ${res.status} ${JSON.stringify(res.data?.message)}`
+        );
+      }
+      const putPast = await request('PUT', `/api/${path}/${capRowId}`, { token: adminToken, body: makeBody('b'.repeat(65536)) });
+      assert(
+        putPast.status === 400 && putPast.data?.message === `${field} must be 65,535 bytes or fewer.`,
+        `PUT /${path}/:id: ${field} of 65,536 bytes is 400`,
+        `got ${putPast.status} ${JSON.stringify(putPast.data?.message)}`
+      );
+      const putAt = await request('PUT', `/api/${path}/${capRowId}`, { token: adminToken, body: makeBody('b'.repeat(65535)) });
+      assert(
+        putAt.status === 200 && putAt.data?.[key]?.[field] === 'b'.repeat(65535),
+        `PUT /${path}/:id: ${field} of 65,535 bytes is 200, stored whole`,
+        `got ${putAt.status} ${JSON.stringify(putAt.data?.message)}`
+      );
+    }
   } finally {
     await cleanup();
     await policy.cleanup();

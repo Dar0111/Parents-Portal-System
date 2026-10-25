@@ -11,8 +11,18 @@
 // or not the handler would have used that field. The message names the field
 // only when its path is a plain name; it never echoes what was sent.
 // (routes/auth.js's `cannotBeALoginId` stays behind it as defence in depth.)
+//
+// THE 64 KB TEXT CAP. MySQL's TEXT columns held at most 65,535 BYTES (UTF-8
+// octets, not characters) and refused a longer value (a 500); PostgreSQL's
+// `text` has no such limit, so the nine request-writable former TEXT fields
+// keep MySQL's cap here, on the value as it would be stored (after the
+// route's own trim): announcements.content, memos.content,
+// events.description, messages.body, excuse_letters.reason / details /
+// teacher_remarks, users.rejection_reason (the reject's `reason`) and every
+// system_settings value. `textTooLong` returns the route's message, or null.
 
 const NUL = '\u0000';
+const TEXT_MAX_BYTES = 65535;
 const PLAIN_SEGMENT = /^[A-Za-z0-9_]{1,64}$/;
 
 // The first place a NUL appears in `value` — '' for the value itself, a dotted
@@ -59,4 +69,10 @@ function refuseNul(req, res, next) {
   return next();
 }
 
-module.exports = { refuseNul, findNul };
+function textTooLong(field, value) {
+  if (value === undefined || value === null) return null;
+  const bytes = Buffer.byteLength(typeof value === 'string' ? value : String(value), 'utf8');
+  return bytes > TEXT_MAX_BYTES ? `${field} must be 65,535 bytes or fewer.` : null;
+}
+
+module.exports = { refuseNul, findNul, textTooLong, TEXT_MAX_BYTES };

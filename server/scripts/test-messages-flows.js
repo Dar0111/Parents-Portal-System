@@ -805,6 +805,30 @@ async function run() {
         threadSort.status === 400 && threadBadBefore.status === 400,
       'GET /with/:id refuses offset, sort and a non-numeric before with 400'
     );
+
+    // --- THE 64 KB TEXT CAP on messages.body (P3-C-R2 fix round, the owner's
+    // answer of 2026-10-25): MySQL's TEXT held 65,535 bytes and refused more
+    // (a 500); utils/requestLimits.js keeps the cap as the route's 400, on the
+    // body as stored — after the route's trim.
+    console.log('\nThe 64 KB text cap on messages.body:');
+    const capBodies = [
+      ['65,535 ASCII bytes', 'a'.repeat(65535), true],
+      ['65,536 ASCII bytes', 'a'.repeat(65536), false],
+      ['65,535 bytes as 32,767 é + 1 ASCII', 'é'.repeat(32767) + 'a', true],
+      ['65,536 bytes as 32,768 é', 'é'.repeat(32768), false],
+      ['65,535 bytes inside surrounding spaces (the cap is on the trimmed body)', `  ${'c'.repeat(65535)}  `, true],
+    ];
+    for (const [what, body, accepted] of capBodies) {
+      const res = await request('POST', '/api/messages', { token: teacher1Token, body: { receiver_id: parent1Id, body } });
+      if (res.data?.data?.id) createdMessageIds.push(res.data.data.id);
+      assert(
+        accepted
+          ? res.status === 201 && res.data?.data?.body === body.trim()
+          : res.status === 400 && res.data?.message === 'body must be 65,535 bytes or fewer.' && !res.data?.data,
+        `POST /messages: a body of ${what} is ${accepted ? '201, stored whole' : '400, naming the field'}`,
+        `got ${res.status} ${JSON.stringify(res.data?.message)}`
+      );
+    }
   } finally {
     await cleanup();
     await policy.cleanup();

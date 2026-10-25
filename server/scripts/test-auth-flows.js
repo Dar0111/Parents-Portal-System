@@ -645,6 +645,37 @@ async function run() {
       createdParentUserIds.push(rejectParentId);
     }
 
+    // THE 64 KB TEXT CAP on the rejection reason (P3-C-R2 fix round, the
+    // owner's answer of 2026-10-25): users.rejection_reason was TEXT, 65,535
+    // bytes at most; utils/requestLimits.js keeps the cap on the trimmed
+    // reason as the route's 400. A reason one byte past it is refused and the
+    // account stays pending; one AT the limit rejects it, and this run's own
+    // fixture account is then put back to pending by SQL so the rejection
+    // flow below runs as it always has.
+    const capReject = async (reason) =>
+      request('PUT', `/api/users/parents/${rejectParentId}/reject`, { token: adminToken, body: { reason } });
+    const rejectPast = await capReject('x'.repeat(65536));
+    const rejectPastWide = await capReject('é'.repeat(32768));
+    const [[afterPast]] = await withDb((conn) => conn.query('SELECT status FROM users WHERE id = ?', [rejectParentId]));
+    assert(
+      rejectPast.status === 400 && rejectPast.data?.message === 'reason must be 65,535 bytes or fewer.' &&
+        rejectPastWide.status === 400 && afterPast?.status === 'pending',
+      'PUT /users/parents/:id/reject: a reason of 65,536 bytes (ASCII, and as 32,768 é) is 400, the account still pending',
+      `got ${rejectPast.status} and ${rejectPastWide.status}`
+    );
+    const rejectAt = await capReject(`  ${'é'.repeat(32767)}x  `);
+    const [[afterAt]] = await withDb((conn) =>
+      conn.query('SELECT status, octet_length(rejection_reason) AS bytes FROM users WHERE id = ?', [rejectParentId])
+    );
+    assert(
+      rejectAt.status === 200 && afterAt?.status === 'rejected' && Number(afterAt?.bytes) === 65535,
+      'PUT /users/parents/:id/reject: a reason of 65,535 bytes (é, inside spaces the route trims) is 200, stored whole',
+      `got ${rejectAt.status}, ${afterAt?.bytes} bytes stored`
+    );
+    await withDb((conn) =>
+      conn.query("UPDATE users SET status = 'pending', approved_by = NULL, rejection_reason = NULL WHERE id = ?", [rejectParentId])
+    );
+
     const reject = await request('PUT', `/api/users/parents/${rejectParentId}/reject`, {
       token: adminToken,
       body: { reason: 'Invalid guardian documents' },

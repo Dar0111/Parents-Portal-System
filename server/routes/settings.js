@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { validateEmail } = require('../utils/emailRule');
-const { refuseNul } = require('../utils/requestLimits');
+const { refuseNul, textTooLong } = require('../utils/requestLimits');
 
 const router = express.Router();
 router.use(refuseNul);
@@ -119,10 +119,12 @@ const VALIDATORS = {
 // A key in ALLOWED_KEYS with no validator used to be a TypeError — a 500 —
 // the day someone added the key and forgot the function. Both callers
 // allow-list first, so this is a backstop that answers 400 instead.
+// Every value also keeps MySQL's 64 KB TEXT cap (utils/requestLimits.js;
+// setting_value was TEXT), after its own validator.
 async function validateSetting(key, value) {
   const validator = VALIDATORS[key];
   if (!validator) return 'Unknown setting key.';
-  return validator(value);
+  return validator(value) || textTooLong(key, value);
 }
 
 // Trimmed once, where a value enters, and that trimmed value is the one

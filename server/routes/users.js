@@ -14,7 +14,7 @@ const { sanitizeUser } = require('../utils/sanitizeUser');
 const codes = require('../utils/authCodes');
 const { removePhotoFile } = require('../utils/profilePhoto');
 const { sendPasswordAlert } = require('../utils/passwordAlert');
-const { refuseNul } = require('../utils/requestLimits');
+const { refuseNul, textTooLong } = require('../utils/requestLimits');
 
 const router = express.Router();
 router.use(refuseNul);
@@ -363,6 +363,10 @@ router.put('/parents/:id/reject', authenticate, authorize('admin'), async (req, 
 
   if (!reason || !String(reason).trim()) {
     return res.status(400).json({ success: false, message: 'Rejection reason is required.' });
+  }
+  const reasonTooLong = textTooLong('reason', String(reason).trim());
+  if (reasonTooLong) {
+    return res.status(400).json({ success: false, message: reasonTooLong });
   }
 
   try {

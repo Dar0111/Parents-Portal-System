@@ -1130,6 +1130,84 @@ async function run() {
         (pendingPage.data?.page?.has_more || pendingPage.data?.page?.total === pendingPage.data?.excuse_letters?.length),
       'GET /excuse-letters?status=Pending: every row matches and total is the filtered count'
     );
+
+    // --- THE 64 KB TEXT CAP on reason, details and teacher_remarks (P3-C-R2
+    // fix round, the owner's answer of 2026-10-25): MySQL's TEXT held 65,535
+    // BYTES and refused more (a 500); utils/requestLimits.js keeps the cap as
+    // the route's 400, before any write. At the limit accepted, one byte past
+    // it refused, in ASCII and in two-byte é. The reviewed day is snapshotted
+    // first, like every review in this file.
+    console.log('\nThe 64 KB text cap on reason, details and teacher_remarks:');
+    const capDay = daysAgo(41);
+    const capAt = 'r'.repeat(65535);
+    const capPast = 'r'.repeat(65536);
+    const capAtWide = 'é'.repeat(32767) + 'r';
+    const capPastWide = 'é'.repeat(32768);
+    const capMessage = (field) => `${field} must be 65,535 bytes or fewer.`;
+    const capRefusedPosts = [
+      ['a reason of 65,536 bytes', { absence_date: capDay, reason: capPast }, 'reason'],
+      ['a reason of 65,536 bytes as 32,768 é', { absence_date: capDay, reason: capPastWide }, 'reason'],
+      ['details of 65,536 bytes', { absence_date: capDay, reason: 'Cap check', details: capPast }, 'details'],
+    ];
+    for (const [what, body, field] of capRefusedPosts) {
+      const res = await request('POST', '/api/excuse-letters', { token: parentToken, body });
+      if (res.data?.excuse_letter?.id) createdExcuseLetterIds.push(res.data.excuse_letter.id);
+      assert(
+        res.status === 400 && res.data?.message === capMessage(field) && !res.data?.excuse_letter,
+        `POST /excuse-letters: ${what} is 400, naming the field`,
+        `got ${res.status} ${JSON.stringify(res.data?.message)}`
+      );
+    }
+    // One field at the limit per request: two would pass express.json's
+    // 100 KB body limit, which answers 500 on both engines (not the cap).
+    const capPost = await request('POST', '/api/excuse-letters', {
+      token: parentToken,
+      body: { absence_date: capDay, reason: capAt },
+    });
+    const capLetterId = capPost.data?.excuse_letter?.id;
+    if (capLetterId) createdExcuseLetterIds.push(capLetterId);
+    assert(
+      capPost.status === 201 && capPost.data?.excuse_letter?.reason === capAt,
+      'POST /excuse-letters: a reason of 65,535 bytes is 201, stored whole',
+      `got ${capPost.status} ${JSON.stringify(capPost.data?.message)}`
+    );
+    const capPutReason = await request('PUT', `/api/excuse-letters/${capLetterId}`, { token: parentToken, body: { reason: capPast } });
+    const capPutDetails = await request('PUT', `/api/excuse-letters/${capLetterId}`, { token: parentToken, body: { details: capPastWide } });
+    assert(
+      capPutReason.status === 400 && capPutReason.data?.message === capMessage('reason') &&
+        capPutDetails.status === 400 && capPutDetails.data?.message === capMessage('details'),
+      'PUT /excuse-letters/:id: a reason or details one byte past the cap is 400, naming the field',
+      `got ${capPutReason.status} and ${capPutDetails.status}`
+    );
+    const capPutAt = await request('PUT', `/api/excuse-letters/${capLetterId}`, { token: parentToken, body: { details: capAtWide } });
+    assert(
+      capPutAt.status === 200 && capPutAt.data?.excuse_letter?.details === capAtWide && capPutAt.data?.excuse_letter?.reason === capAt,
+      'PUT /excuse-letters/:id: details of 65,535 bytes (é) is 200, stored whole; the refused reason PUT wrote nothing',
+      `got ${capPutAt.status}`
+    );
+    // Snapshotted before the refused review too: should it ever be let
+    // through, the day it set still goes back in the cleanup.
+    await guardDays([[marwinId, capDay]]);
+    const capReviewPast = await request('PATCH', `/api/excuse-letters/${capLetterId}/review`, {
+      token: teacherToken,
+      body: { status: 'Approved', teacher_remarks: capPast },
+    });
+    const capStillPending = await request('GET', `/api/excuse-letters/${capLetterId}`, { token: parentToken });
+    assert(
+      capReviewPast.status === 400 && capReviewPast.data?.message === capMessage('teacher_remarks') &&
+        capStillPending.data?.excuse_letter?.status === 'Pending',
+      'PATCH /excuse-letters/:id/review: teacher_remarks of 65,536 bytes is 400 and the letter stays Pending',
+      `got ${capReviewPast.status} ${JSON.stringify(capReviewPast.data?.message)}`
+    );
+    const capReviewAt = await request('PATCH', `/api/excuse-letters/${capLetterId}/review`, {
+      token: teacherToken,
+      body: { status: 'Approved', teacher_remarks: capAtWide },
+    });
+    assert(
+      capReviewAt.status === 200 && capReviewAt.data?.excuse_letter?.teacher_remarks === capAtWide,
+      'PATCH /excuse-letters/:id/review: teacher_remarks of 65,535 bytes (é) is 200, stored whole',
+      `got ${capReviewAt.status} ${JSON.stringify(capReviewAt.data?.message)}`
+    );
   } finally {
     await cleanup();
     await policy.cleanup();

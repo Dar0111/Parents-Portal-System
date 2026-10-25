@@ -339,6 +339,43 @@ async function run() {
     );
     const privateStillPrivate = await request('GET', '/api/settings');
     assert(privateStillPrivate.status === 401, 'GET /settings without a token is still 401 — only /public opened');
+
+    // --- THE 64 KB TEXT CAP on every setting value (P3-C-R2 fix round, the
+    // owner's answer of 2026-10-25): system_settings.setting_value was TEXT,
+    // 65,535 bytes at most; utils/requestLimits.js keeps the cap after each
+    // key's own validator, on PUT and PATCH alike. Only keys the finally
+    // restores (school_name, logo_url) are written.
+    console.log('\nThe 64 KB text cap on setting values:');
+    const capMessage = (key) => `${key} must be 65,535 bytes or fewer.`;
+    const putNamePast = await request('PUT', '/api/settings/school_name', { token: adminToken, body: { value: 'n'.repeat(65536) } });
+    const putNamePastWide = await request('PUT', '/api/settings/school_name', { token: adminToken, body: { value: 'é'.repeat(32768) } });
+    assert(
+      putNamePast.status === 400 && putNamePast.data?.message === capMessage('school_name') &&
+        putNamePastWide.status === 400 && putNamePastWide.data?.message === capMessage('school_name'),
+      'PUT /settings/school_name: 65,536 bytes (ASCII, and as 32,768 é) is 400, naming the key',
+      `got ${putNamePast.status} and ${putNamePastWide.status}`
+    );
+    const putNameAt = await request('PUT', '/api/settings/school_name', { token: adminToken, body: { value: 'é'.repeat(32767) + 'n' } });
+    const readNameAt = await request('GET', '/api/settings/school_name', { token: adminToken });
+    assert(
+      putNameAt.status === 200 && readNameAt.data?.value === 'é'.repeat(32767) + 'n',
+      'PUT /settings/school_name: 65,535 bytes (é) is 200, stored whole',
+      `got ${putNameAt.status}`
+    );
+    const patchLogoPast = await request('PATCH', '/api/settings', {
+      token: adminToken,
+      body: { settings: { logo_url: 'l'.repeat(65536) } },
+    });
+    const patchLogoAt = await request('PATCH', '/api/settings', {
+      token: adminToken,
+      body: { settings: { logo_url: 'l'.repeat(65535) } },
+    });
+    assert(
+      patchLogoPast.status === 400 && patchLogoPast.data?.message === `logo_url: ${capMessage('logo_url')}` &&
+        patchLogoAt.status === 200 && patchLogoAt.data?.settings?.logo_url === 'l'.repeat(65535),
+      'PATCH /settings: logo_url of 65,536 bytes is 400, of 65,535 bytes 200 and stored whole',
+      `got ${patchLogoPast.status} and ${patchLogoAt.status}`
+    );
   } finally {
     // Restore every key this run may have touched, regardless of pass/fail.
     await request('PATCH', '/api/settings', {

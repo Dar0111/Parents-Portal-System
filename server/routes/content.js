@@ -5,7 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
-const { refuseNul } = require('../utils/requestLimits');
+const { refuseNul, textTooLong } = require('../utils/requestLimits');
 const {
   announcementAudience,
   memoAudience,
@@ -318,6 +318,10 @@ announcementsRouter.post('/', authenticate, authorize('teacher', 'admin'), async
   if (!title || !content) {
     return res.status(400).json({ success: false, message: 'title and content are required.' });
   }
+  const contentTooLong = textTooLong('content', content);
+  if (contentTooLong) {
+    return res.status(400).json({ success: false, message: contentTooLong });
+  }
 
   const target = await resolveAnnouncementTarget(req.user, target_grade, target_section);
   if (!target.ok) {
@@ -392,6 +396,10 @@ announcementsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), asy
 
     if (!nextTitle || !nextContent) {
       return res.status(400).json({ success: false, message: 'title and content are required.' });
+    }
+    const contentTooLong = textTooLong('content', content);
+    if (contentTooLong) {
+      return res.status(400).json({ success: false, message: contentTooLong });
     }
 
     const target = await resolveAnnouncementTarget(req.user, nextTargetGrade, nextTargetSection);
@@ -495,6 +503,10 @@ memosRouter.post('/', authenticate, authorize('admin'), async (req, res) => {
   if (!title || !content) {
     return res.status(400).json({ success: false, message: 'title and content are required.' });
   }
+  const contentTooLong = textTooLong('content', content);
+  if (contentTooLong) {
+    return res.status(400).json({ success: false, message: contentTooLong });
+  }
 
   try {
     const { rows: inserted } = await pool.query(
@@ -556,6 +568,10 @@ memosRouter.put('/:id', authenticate, authorize('admin'), async (req, res) => {
 
     if (!nextTitle || !nextContent) {
       return res.status(400).json({ success: false, message: 'title and content are required.' });
+    }
+    const contentTooLong = textTooLong('content', content);
+    if (contentTooLong) {
+      return res.status(400).json({ success: false, message: contentTooLong });
     }
 
     await pool.query('UPDATE memos SET title = ?, content = ?, attachment_url = ? WHERE id = ?', [
@@ -700,6 +716,10 @@ eventsRouter.post('/', authenticate, authorize('teacher', 'admin'), async (req, 
   if (isMoreThanOneYearAhead(event_date)) {
     return res.status(400).json({ success: false, message: 'event_date cannot be more than one year in the future.' });
   }
+  const descriptionTooLong = textTooLong('description', description || null);
+  if (descriptionTooLong) {
+    return res.status(400).json({ success: false, message: descriptionTooLong });
+  }
 
   const target = await resolveEventTarget(req.user, target_grade);
   if (!target.ok) {
@@ -780,6 +800,10 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
     }
     if (isMoreThanOneYearAhead(nextEventDate)) {
       return res.status(400).json({ success: false, message: 'event_date cannot be more than one year in the future.' });
+    }
+    const descriptionTooLong = textTooLong('description', description !== undefined ? description || null : null);
+    if (descriptionTooLong) {
+      return res.status(400).json({ success: false, message: descriptionTooLong });
     }
 
     const target = await resolveEventTarget(req.user, nextTargetGrade);
