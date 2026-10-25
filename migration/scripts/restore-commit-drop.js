@@ -16,6 +16,10 @@
 // restore restores. After 'before' it must be back at 1 with nothing else
 // changed — the restore's sequence moves are TRANSACTIONAL now — and after
 // 'after' it must stand at the archive's value, with the session cutoff moved.
+// The cutoff's singleton row is checked on its own: unchanged after 'before',
+// exactly the row id 1 after 'after' (a never-restored database has none, and
+// the committed restore creates it — the P3-C-R2 fix round's classification of
+// the "row count changed" seen on the first run against each new database).
 //
 // --mutant setval loads backupArchive.js IN MEMORY with the sequence move as
 // setval() (the code before the fix, without its hand put-back): the 'before'
@@ -131,9 +135,20 @@ async function counts(client) {
        FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
       WHERE ns.nspname = 'portal' AND c.relkind = 'r'
         AND c.relname <> 'auth_codes' -- a restore empties it by design (04)
+        -- The session cutoff's singleton row is checked on its own (cutoffRows):
+        -- a committed restore WRITES it, so on a database never restored before
+        -- (a fresh db:setup has no row; MySQL's schema never seeded one either)
+        -- its count goes 0 -> 1 by design. Counted here, that was the "row count
+        -- changed" of the first run on every new database (P3-C-R2 fix round).
+        AND c.relname <> 'auth_security_state'
       ORDER BY c.relname`
   );
   return rows.map((r) => `${r.t}:${r.n}`).join(',');
+}
+
+async function cutoffRows(client) {
+  const { rows } = await client.query('SELECT id FROM portal.auth_security_state ORDER BY id');
+  return rows.map((r) => Number(r.id));
 }
 
 function changedTables(a, b) {
@@ -198,6 +213,8 @@ async function main() {
     const lowered = await seqState(d);
     const cutoff0 = (await d.query('SELECT token_valid_after::text AS t FROM portal.auth_security_state WHERE id = 1')).rows[0];
     const counts0 = await counts(d);
+    const cutoffRows0 = await cutoffRows(d);
+    console.log(`auth_security_state before the legs: ${cutoffRows0.length} row(s)${cutoffRows0.length ? '' : ' (never restored)'}`);
 
     for (const mode of ['before', 'after']) {
       const rl = await relay(owner.host, owner.port, mode);
@@ -218,10 +235,17 @@ async function main() {
       const next = await seqState(d);
       const cutoff = (await d.query('SELECT token_valid_after::text AS t FROM portal.auth_security_state WHERE id = 1')).rows[0];
       const countsNow = await counts(d);
+      const cutoffRowsNow = await cutoffRows(d);
       const want = mode === 'before' ? 'aborted' : 'committed';
       console.log(
-        `${mode.padEnd(6)}: the relay saw the COMMIT ${rl.state.sawCommit} and ended the connection ${rl.state.dropped}; restoreArchive threw ${Boolean(error)}, outcomeUnknown ${unknown}; the server says ${outcome}; the sequence's next value ${next}; the cutoff moved ${(cutoff && cutoff.t) !== (cutoff0 && cutoff0.t)}; the row counts as before ${countsNow === counts0}`
+        `${mode.padEnd(6)}: the relay saw the COMMIT ${rl.state.sawCommit} and ended the connection ${rl.state.dropped}; restoreArchive threw ${Boolean(error)}, outcomeUnknown ${unknown}; the server says ${outcome}; the sequence's next value ${next}; the cutoff moved ${(cutoff && cutoff.t) !== (cutoff0 && cutoff0.t)}; the row counts as before ${countsNow === counts0}; auth_security_state rows ${cutoffRows0.length} -> ${cutoffRowsNow.length}`
       );
+      if (mode === 'before' && JSON.stringify(cutoffRowsNow) !== JSON.stringify(cutoffRows0)) {
+        problems.push(`before: auth_security_state went from ${cutoffRows0.length} to ${cutoffRowsNow.length} row(s) although nothing committed`);
+      }
+      if (mode === 'after' && JSON.stringify(cutoffRowsNow) !== '[1]') {
+        problems.push(`after: auth_security_state holds ${JSON.stringify(cutoffRowsNow)}, expected exactly the singleton row [1]`);
+      }
       if (!rl.state.sawCommit || !rl.state.dropped) problems.push(`${mode}: the relay did not end the connection at the COMMIT`);
       if (!unknown) problems.push(`${mode}: restoreArchive did not report an unknown outcome`);
       if (outcome !== want) problems.push(`${mode}: the server says ${outcome}, expected ${want}`);
