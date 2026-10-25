@@ -195,7 +195,7 @@ async function main() {
       const seq = (await w.query("SELECT pg_get_serial_sequence('portal.login_attempts', 'id') AS s")).rows[0].s;
       const before = (await w.query(`SELECT last_value, is_called FROM ${seq}`)).rows[0];
       await w.query('BEGIN');
-      await w.query(`ALTER SEQUENCE ${seq} RESTART WITH 7000000`);
+      await w.query(`ALTER SEQUENCE ${seq} START WITH 7000000 RESTART`);
       await r.query("SET statement_timeout = '1500ms'");
       let nv = 'answered';
       try { await r.query('SELECT nextval($1)', [seq]); } catch (e) { nv = `waited (${e.code})`; }

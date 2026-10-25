@@ -91,7 +91,7 @@ function reserveBackupPath(prefix) {
 
 // One connection outside the pool, as one role: the API's own (portal_app) to
 // write an archive, which needs SELECT only; the owner (portal_migrate, the
-// PG_MIGRATE_* keys) to restore one, which needs TRUNCATE and setval — exactly
+// PG_MIGRATE_* keys) to restore one, which needs TRUNCATE and ALTER SEQUENCE — exactly
 // what portal_app is not given.
 async function openClient(which) {
   // its own 'error' listener (config/db.js guardClient): a socket that dies
@@ -215,6 +215,18 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 // POST /api/backups — create. The row is inserted only after the archive is
 // complete and has been read back; a failed archive leaves no row and no file.
 router.post('/', authenticate, authorize('admin'), async (req, res) => {
+  // A restore in this process is replacing every table (P3-C-R2 Phase H,
+  // backup-1). The archive's own locks would make it wait for that restore
+  // and then hold the restored state — but while the restore is still making
+  // its safety archive, a manual one holding its locks could make the
+  // restore's lock wait (15 s) fail. So it is refused here, saying why.
+  if (restoreRunning) {
+    return res.status(409).json({
+      success: false,
+      code: 'RESTORE_RUNNING',
+      message: 'A restore is running. No backup was made; try again when it has finished.',
+    });
+  }
   try {
     const backup = await createBackupRecord({ prefix: 'parents_portal', createdBy: req.user.id });
     return res.status(201).json({ success: true, message: 'Backup created.', backup });
@@ -435,6 +447,8 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
   }
 
   if (restoreRunning) {
+    // Logged like every other refusal of this endpoint (backup-3).
+    await logRestoreRefusal(req.user.id, backup.filename, 'another restore was running');
     return res.status(409).json({ success: false, code: 'RESTORE_RUNNING', message: 'Another restore is running. Nothing was changed; try again when it has finished.' });
   }
   restoreRunning = true;
@@ -461,24 +475,43 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
     // The restore itself: one connection as the owner, one transaction.
     let result;
     let client;
+    let outcomeNote = '';
     try {
       client = await openClient('migrate');
       result = await archive.restoreArchive(client, backup.file_path, inspection);
     } catch (error) {
-      if (error.sequencePlan) {
-        // The connection died before the captured sequence values went back.
+      // The connection failed AT COMMIT (backup-2): this side cannot know
+      // whether the restore committed, so the server is asked, on a fresh
+      // connection, about the restore's own transaction id — never assumed.
+      let outcome = null;
+      if (error.outcomeUnknown) {
         try {
           const fresh = await openClient('migrate');
           try {
-            await archive.putBackSequences(fresh, error.sequencePlan);
+            outcome = await archive.transactionOutcome(fresh, error.outcomeUnknown.xid);
           } finally {
             await fresh.end().catch(() => {});
           }
-        } catch (putBackError) {
-          console.error('Could not put the sequences back after a failed restore:', putBackError.code || putBackError.message);
+        } catch (askError) {
+          console.error('Could not ask the server what became of the restore:', askError.code || askError.message);
+          outcome = 'unknown';
         }
       }
-      if (error instanceof archive.ArchiveError) {
+      if (outcome === 'committed') {
+        // It committed: carry on as a restore that succeeded, saying so.
+        result = error.outcomeUnknown.result;
+        outcomeNote = ' The connection failed as the restore was committing; the database confirms it committed.';
+      } else if (outcome === 'unknown') {
+        console.error('Restore outcome unknown after the connection failed at COMMIT:', error.code || error.message);
+        return res.status(500).json({
+          success: false,
+          code: 'RESTORE_OUTCOME_UNKNOWN',
+          message:
+            'The connection to the database failed as the restore was committing, and whether it committed could not be confirmed. ' +
+            `Check the data before doing anything else, and do not run another restore until it is checked. ${safetyNote}`,
+          safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
+        });
+      } else if (error instanceof archive.ArchiveError) {
         await logRestoreRefusal(req.user.id, backup.filename, error.message);
         return res.status(409).json({
           success: false,
@@ -486,13 +519,15 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
           message: `Restore refused: ${error.message}. Nothing was changed — the restore was rolled back. ${safetyNote}`,
           safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
         });
+      } else {
+        // Rolled back — before COMMIT, or 'aborted' by the server's own word.
+        console.error('Restore failed and was rolled back:', error.code || error.message);
+        return res.status(500).json({
+          success: false,
+          message: `Restore failed (${archive.safeMessage(error)}). Nothing was changed — the restore was rolled back in full. ${safetyNote}`,
+          safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
+        });
       }
-      console.error('Restore failed and was rolled back:', error.code || error.message);
-      return res.status(500).json({
-        success: false,
-        message: `Restore failed (${archive.safeMessage(error)}). Nothing was changed — the restore was rolled back in full. ${safetyNote}`,
-        safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
-      });
     } finally {
       if (client) await client.end().catch(() => {});
     }
@@ -535,7 +570,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
 
     return res.json({
       success: true,
-      message: `Database restored. All sessions are now invalid — everyone, including you, must log in again.${bookkeepingNote}`,
+      message: `Database restored. All sessions are now invalid — everyone, including you, must log in again.${outcomeNote}${bookkeepingNote}`,
       restored_from: { id: backup.id, filename: backup.filename },
       safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
       activity_logs_wiped: result.lost_activity_logs,

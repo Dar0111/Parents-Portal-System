@@ -64,12 +64,39 @@ design text below, the build is what the owner approved and this list wins:
 3. **Q4 (a): a sequence never moves backwards.** Each is set to the furthest
    of its live value, the archive's and the restored rows' highest id — not
    "from the manifest" — so an id handed out before a restore is never
-   handed out again. The values are captured under the locks and put back on
+   handed out again. ~~The values are captured under the locks and put back on
    any failure, inside the savepoint before the rollback (`setval` is not
-   transactional).
+   transactional).~~ **Since P3-C-R2 Phase H (2026-10-25):** each sequence
+   moves by `ALTER SEQUENCE … START WITH n RESTART`, which IS transactional —
+   a rollback puts it back by itself, so there is no hand put-back, and none
+   that could run after a COMMIT that in fact succeeded. `START WITH` keeps
+   an uncalled sequence's `start_value` equal to its next value, which is what
+   the next archive's manifest reads through `pg_sequences` (with `RESTART
+   WITH` alone, 14 of 25 sequences read 1 after a transfer — measured).
+   **A connection lost AT COMMIT** (review finding backup-2): the restore's
+   transaction id travels with the error, the route asks the server
+   (`pg_xact_status`) on a fresh connection, and answers by the server's word —
+   committed (the success reply, saying the connection dropped), aborted
+   (rolled back), or `500 RESTORE_OUTCOME_UNKNOWN` (check before anything
+   else). Proved by `migration/scripts/restore-commit-drop.js` (a relay that
+   ends the connection before and after the COMMIT).
 4. **Every table is locked** (ACCESS EXCLUSIVE, `lock_timeout` 15 s) before
    anything is read, so no write lands between the saved `backups` rows and
    the truncate, and the schema cannot change under the fingerprint.
+   **And an ARCHIVE locks every table IN ACCESS SHARE MODE before its
+   snapshot exists** (P3-C-R2 Phase H, review finding backup-1): TRUNCATE is
+   not MVCC-safe, so an archive whose snapshot was fixed while a restore held
+   its locks read every truncated table as EMPTY after the restore committed
+   — an empty archive that passed every check (reproduced: 0 of 201 rows,
+   `inspectArchive` passing). The lock waits for the restore (`lock_timeout`
+   60 s), and the snapshot taken after it holds the restored rows
+   (`migration/scripts/backup-during-restore.js`, with that mutant). A manual
+   backup asked for while a restore runs in this process is `409
+   RESTORE_RUNNING`, and a second restore's `409 RESTORE_RUNNING` is logged as
+   `restore_refused` like every other refusal (backup-3) — written before the
+   running restore's transaction, so a successful restore rewinds it with the
+   rest of `activity_logs` and counts it in its lost entries
+   (`migration/scripts/restore-e2e.js`: 3 wiped with the log line, 2 without).
 5. **The fingerprint is read from `pg_catalog`**, never
    `information_schema` (which hides what a role may not see): every table's
    columns (type, nullability, identity, generation, collation), its

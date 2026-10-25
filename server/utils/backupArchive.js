@@ -8,7 +8,12 @@
 // WRITING (writeArchive) needs SELECT and nothing else, so it runs as the
 // API's own role, portal_app: one REPEATABLE READ, READ ONLY transaction — one
 // snapshot for every table, mysqldump's --single-transaction — and each table
-// streams through COPY into its member and through SHA-256 on the way. The
+// streams through COPY into its member and through SHA-256 on the way. Every
+// table is locked IN ACCESS SHARE MODE before the snapshot is taken (P3-C-R2
+// Phase H, review finding backup-1): TRUNCATE is not MVCC-safe, so a snapshot
+// fixed while a restore held its locks read every table the restore truncated
+// as EMPTY once it committed — an empty archive that passed every check. The
+// lock waits for such a restore to commit, and the snapshot then sees it. The
 // manifest carries the format and its version, the server's version, the
 // schema fingerprint, each member's columns, rows, bytes, highest id and
 // hash, every identity sequence's next value, the excluded tables and, as its
@@ -28,16 +33,21 @@
 // until the whole file has been read once.
 //
 // RESTORING (restoreArchive) runs as portal_migrate, the owner — TRUNCATE and
-// setval are what portal_app deliberately lacks — in ONE transaction: every
-// table locked, the sequences captured, the constraints deferred, the backups
-// rows saved, all tables truncated in one statement, each member copied in
-// (its hash checked again on the way), the saved backups rows put back with
-// their ids — or the whole restore refused when the archive lacks one of
-// their creators (Q3 (a)) — the four retired learner fields cleared
+// ALTER SEQUENCE are what portal_app deliberately lacks — in ONE transaction:
+// every table locked, the sequences captured, the constraints deferred, the
+// backups rows saved, all tables truncated in one statement, each member
+// copied in (its hash checked again on the way), the saved backups rows put
+// back with their ids — or the whole restore refused when the archive lacks
+// one of their creators (Q3 (a)) — the four retired learner fields cleared
 // (decision 6), every sequence set and never moved backwards (Q4 (a)), the
 // session cutoff written, the constraints checked, COMMIT. A failure rolls
-// back everything and puts the captured sequence values back: setval is not
-// transactional.
+// back EVERYTHING, the sequences included: since P3-C-R2 Phase H they move by
+// ALTER SEQUENCE … START WITH n RESTART, which is transactional (setval() is
+// not, and the captured values used to be put back by hand — a put-back that
+// could not tell a lost COMMIT from a failed one). When the connection fails
+// at COMMIT the outcome is not known to this side, so the restore's
+// transaction id travels with the error and the caller asks the server
+// (transactionOutcome) — review finding backup-2.
 //
 // THE FINGERPRINT (schemaFingerprint) is the shape a COPY depends on: every
 // table, its columns (type, nullability, identity, generation, collation), its
@@ -63,6 +73,10 @@ const ARCHIVE_FORMAT = 'parents-portal-copy-archive';
 const ARCHIVE_FORMAT_VERSION = 1;
 const MANIFEST_MEMBER = 'manifest.json';
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
+// How long an archive waits for its ACCESS SHARE locks — a restore holding
+// ACCESS EXCLUSIVE ones is waited for this long, then the archive fails (and
+// nothing is written) rather than wait forever.
+const ARCHIVE_LOCK_TIMEOUT = '60s';
 
 const EXCLUDED_TABLES = Object.freeze([
   Object.freeze({
@@ -340,9 +354,12 @@ async function identitySequences(client, schema = SCHEMA) {
 }
 
 // The next value each sequence would hand out, through pg_sequences — what a
-// role with USAGE (portal_app) may read. last_value is NULL only when the
-// sequence has never been called, because restoreArchive always leaves a
-// called sequence called (setval(n - 1, true)).
+// role with USAGE (portal_app) may read. last_value is NULL while the sequence
+// is uncalled — never used, or restarted and not used since — and then the
+// next value is start_value: the transfer and restoreArchive restart a
+// sequence with START WITH its next value, so the two agree (P3-C-R2 Phase H;
+// with RESTART WITH alone, start_value stayed 1 and 14 of 25 sequences read 1
+// after a transfer, measured).
 async function sequenceNextValues(client, sequences, schema = SCHEMA) {
   const { rows } = await client.query(
     `SELECT sequencename AS name, last_value, start_value, increment_by
@@ -359,7 +376,7 @@ async function sequenceNextValues(client, sequences, schema = SCHEMA) {
 }
 
 // The exact state (last_value, is_called), which only the owner may read —
-// what a failed restore puts back.
+// the live next value a restore never moves below (Q4 (a)).
 async function exactSequenceState(client, sequences, schema = SCHEMA) {
   const out = [];
   for (const s of sequences) {
@@ -370,19 +387,27 @@ async function exactSequenceState(client, sequences, schema = SCHEMA) {
   return out;
 }
 
-async function setval(client, sequence, lastValue, isCalled, schema = SCHEMA) {
-  await client.query('SELECT pg_catalog.setval($1::pg_catalog.regclass, $2::bigint, $3::boolean)', [
-    qualified(sequence, schema),
-    lastValue,
-    isCalled,
-  ]);
+// Leave the sequence so its next value is `next` — TRANSACTIONALLY: a
+// rollback of the restore puts it back by itself. START WITH as well, so the
+// uncalled sequence's start_value is the value pg_sequences readers (the next
+// archive's manifest) fall back to.
+async function restartAt(client, sequence, next, schema = SCHEMA) {
+  if (!Number.isSafeInteger(next) || next < 1) throw new Error(`A sequence's next value must be a positive integer (${sequence}).`);
+  await client.query(`ALTER SEQUENCE ${qualified(sequence, schema)} START WITH ${next} RESTART`);
 }
 
-// Leave the sequence so its next value is `next`: called at next - 1 (so
-// pg_sequences can read it), or not called at 1.
-async function setNextValue(client, sequence, next, schema = SCHEMA) {
-  if (next > 1) await setval(client, sequence, next - 1, true, schema);
-  else await setval(client, sequence, 1, false, schema);
+// The fate of a restore whose connection failed at COMMIT, asked of the
+// server on a fresh connection: 'committed', 'aborted', or 'in progress'
+// while the server has not finished with it (a few short waits, then given
+// up as unknown). `xid` is the restore transaction's own id (xid8 text).
+async function transactionOutcome(client, xid, { tries = 10, waitMs = 300 } = {}) {
+  for (let i = 0; i < tries; i += 1) {
+    const { rows } = await client.query('SELECT pg_catalog.pg_xact_status($1::xid8) AS status', [xid]);
+    const status = rows[0].status;
+    if (status === 'committed' || status === 'aborted') return status;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  return 'unknown';
 }
 
 // DECISION 6 (feat/privacy): the learner's birthday, gender, address and
@@ -494,13 +519,33 @@ async function writeArchive(client, outputPath) {
   let began = false;
   let current = null;
   try {
+    // The tables, listed BEFORE the transaction (a statement of its own, so
+    // no snapshot is carried into it), then locked IN ACCESS SHARE MODE as
+    // the transaction's first statements. LOCK does not fix a REPEATABLE READ
+    // snapshot — the first SELECT does (useArchiveSession) — so a restore that
+    // holds its ACCESS EXCLUSIVE locks is waited for, and committed, before
+    // the snapshot exists (backup-1). ACCESS SHARE blocks nothing but
+    // TRUNCATE and DDL; ordinary writes go on.
+    const { rows: listed } = await client.query(
+      `SELECT c.relname AS name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relkind IN ('r', 'p') ORDER BY c.relname`,
+      [SCHEMA]
+    );
+    const lockedNames = listed.map((r) => r.name);
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     began = true;
+    await client.query(`SET LOCAL lock_timeout = '${ARCHIVE_LOCK_TIMEOUT}'`);
+    await client.query(`LOCK TABLE ${lockedNames.map((t) => qualified(t)).join(', ')} IN ACCESS SHARE MODE`);
     await useArchiveSession(client);
     const { rows: about } = await client.query(
       "SELECT pg_catalog.current_setting('server_version') AS server_version, pg_catalog.transaction_timestamp() AS snapshot_at"
     );
     const fingerprint = await schemaFingerprint(client);
+    // A table created between the listing and the lock would be archived
+    // unlocked; the archive is refused instead.
+    if (Object.keys(fingerprint.tables).sort().join(',') !== [...lockedNames].sort().join(',')) {
+      throw new Error('The schema changed while the archive was being made; nothing was written.');
+    }
     const keys = await primaryKeys(client);
     const order = await columnOrder(client);
     const sequences = await sequenceNextValues(client, await identitySequences(client));
@@ -770,16 +815,20 @@ async function loadMember(client, zip, entry, member) {
 
 // Restores `filePath` (already through inspectArchive) on a connected client
 // of the owner role. Returns what it did; throws an ArchiveError for a
-// refusal, anything else for a failure — in both cases with everything rolled
-// back and the captured sequence values put back (or, if the connection
-// itself died, `error.sequencePlan` for putBackSequences on a fresh one).
+// refusal, anything else for a failure — with everything rolled back, the
+// sequences included. One case cannot say that: the connection failing AT
+// COMMIT. Then the error carries `outcomeUnknown` — the transaction's id and
+// the result it would have returned — for the caller to settle with
+// transactionOutcome() on a fresh connection.
 async function restoreArchive(client, filePath, inspection) {
   const { manifest } = inspection;
   const zip = await openZip(filePath);
   let began = false;
   let inSavepoint = false;
+  let committing = false;
+  let xid = null;
+  let pending = null;
   let captured = null;
-  const touched = [];
   try {
     const entries = await listEntries(zip);
     if (sha256(await readManifestBytes(zip, entries)) !== inspection.manifest_sha256) {
@@ -789,6 +838,11 @@ async function restoreArchive(client, filePath, inspection) {
     await client.query('BEGIN');
     began = true;
     await client.query("SET LOCAL lock_timeout = '15s'");
+    // The transaction's own id, assigned now: if the connection fails at
+    // COMMIT, the server can still be asked what became of it.
+    ({
+      rows: [{ xid }],
+    } = await client.query('SELECT pg_catalog.pg_current_xact_id()::text AS xid'));
     await useArchiveSession(client);
     const { rows: listed } = await client.query(
       `SELECT c.relname AS name FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -852,8 +906,7 @@ async function restoreArchive(client, filePath, inspection) {
         `SELECT pg_catalog.max(${quoteIdent(seq.column)})::bigint AS m FROM ${qualified(seq.table)}`
       );
       const next = Math.max(seq.next_value, archived.get(`${seq.table}.${seq.column}`) || 1, Number(maxRows[0].m || 0) + 1);
-      touched.push({ ...seq, target: next });
-      await setNextValue(client, seq.sequence, next);
+      await restartAt(client, seq.sequence, next);
       sequences.push({ table: seq.table, before: seq.next_value, archive: archived.get(`${seq.table}.${seq.column}`) || null, after: next });
     }
 
@@ -865,10 +918,8 @@ async function restoreArchive(client, filePath, inspection) {
     await client.query('SET CONSTRAINTS ALL IMMEDIATE');
     await client.query('RELEASE SAVEPOINT restore_work');
     inSavepoint = false;
-    await client.query('COMMIT');
-    began = false;
 
-    return {
+    pending = {
       tables_truncated: tables.length,
       members_loaded: manifest.tables.length,
       rows_loaded: manifest.tables.reduce((sum, t) => sum + t.rows, 0),
@@ -878,40 +929,32 @@ async function restoreArchive(client, filePath, inspection) {
       sequences,
       cutoff: cutoffRows[0].token_valid_after,
     };
+    committing = true;
+    await client.query('COMMIT');
+    began = false;
+    return pending;
   } catch (error) {
     if (began) {
-      let putBack = touched.length === 0;
-      try {
-        if (inSavepoint) await client.query('ROLLBACK TO SAVEPOINT restore_work');
-        for (const seq of touched) await setval(client, seq.sequence, seq.last_value, seq.is_called);
-        putBack = true;
-        await client.query('ROLLBACK');
-      } catch {
-        // The connection itself failed; the server rolls back as it closes.
+      if (committing) {
+        // COMMIT was sent and no answer came back: it may have committed.
+        // Nothing here can tell, so nothing is undone or claimed — the
+        // caller asks the server (transactionOutcome) on a fresh connection.
+        error.outcomeUnknown = { xid, result: pending };
+      } else {
+        try {
+          if (inSavepoint) await client.query('ROLLBACK TO SAVEPOINT restore_work');
+          await client.query('ROLLBACK');
+        } catch {
+          // The connection itself failed before COMMIT; the server rolls the
+          // transaction back as it closes — the sequences with it (restartAt
+          // is transactional), so there is nothing to put back by hand.
+        }
       }
-      if (!putBack) error.sequencePlan = touched;
     }
     throw error;
   } finally {
     zip.close();
   }
-}
-
-// After a restore whose connection died before it could put the sequences
-// back: on a fresh owner connection, each sequence goes back to its captured
-// value ONLY if it still stands where the restore left it — a sequence that
-// has moved on since has handed out ids, and putting it back would reuse them.
-async function putBackSequences(client, plan) {
-  const now = await exactSequenceState(client, plan);
-  let restored = 0;
-  for (const seq of plan) {
-    const current = now.find((s) => s.sequence === seq.sequence);
-    if (current && current.next_value === seq.target) {
-      await setval(client, seq.sequence, seq.last_value, seq.is_called);
-      restored += 1;
-    }
-  }
-  return { restored, left: plan.length - restored };
 }
 
 module.exports = {
@@ -927,10 +970,10 @@ module.exports = {
   describeFormat,
   fingerprintDifferences,
   inspectArchive,
-  putBackSequences,
   restoreArchive,
   safeMessage,
   schemaFingerprint,
+  transactionOutcome,
   useArchiveSession,
   writeArchive,
 };

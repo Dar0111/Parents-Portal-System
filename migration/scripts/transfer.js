@@ -21,7 +21,9 @@
 //   - THE SEQUENCES ARE TRANSACTIONAL TOO (P3-C-R2 C2). setval() is not — a
 //     transfer failed at COMMIT kept every setval() while its rows rolled back
 //     (measured, docs/05 §0c) — so each sequence moves by ALTER SEQUENCE …
-//     RESTART WITH <AUTO_INCREMENT>, which rolls back with the rest and makes
+//     START WITH <AUTO_INCREMENT> RESTART (START too since Phase H, so a
+//     backup's manifest reads the right next value from pg_sequences while
+//     the sequence is uncalled), which rolls back with the rest and makes
 //     a concurrent nextval() or INSERT wait for the transaction (measured on
 //     17.10; ALTER TABLE … RESTART is refused here, the deferred keys leave
 //     pending trigger events on the table). After a failure a SEPARATE connection checks
@@ -193,7 +195,13 @@ async function main() {
         // ALTER SEQUENCE, not ALTER TABLE … RESTART: with every foreign key
         // deferred the table already has pending trigger events and PostgreSQL
         // refuses ALTER TABLE on it (55006, measured); the sequence has none.
-        await pgc.query(`ALTER SEQUENCE ${seq} RESTART WITH ${ai}`);
+        // START WITH as well as RESTART (P3-C-R2 Phase H): a restarted
+        // sequence is uncalled, and pg_sequences — what a backup's manifest
+        // reads as portal_app — shows an uncalled sequence's last_value as
+        // NULL, so the manifest fell back to start_value (1) for 14 of 25
+        // sequences after a transfer (measured). With START WITH `ai` that
+        // fallback IS the next value.
+        await pgc.query(`ALTER SEQUENCE ${seq} START WITH ${ai} RESTART`);
         report.sequences[table.name] = { sequence: seq, source_auto_increment: ai, next_value: ai };
       }
     }
