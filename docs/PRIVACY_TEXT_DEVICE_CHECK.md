@@ -119,6 +119,39 @@ no forced password change, and no acceptance on record. **Not** Tala's parent.
    and every `activity_logs` row kept (`accept_policy` for #7 and the admin,
    and the sign-ins).
 
-## §5 — result
+## §5 — result: PASSED (2026-10-25)
 
-Not yet run.
+- **§0 (as run, 06:01).** Health 200; **backup 388** (201, 2,862,241 bytes,
+  footer present — the pre-check dump, taken before the switch); the marks:
+  `policy_acceptances` 8 (accounts #1, #2, #5 and #6, both documents, all
+  `draft-1`; highest id 796), **#7 none**, `activity_logs` highest id 31819,
+  `auth_codes` 0, `login_attempts` 21. The switch: the worktree detached at
+  `a613e1a`, the main tree on `feat/privacy-text` at `a613e1a`, both clean; the
+  owner restarted the 5000 API.
+- **§1–§2 — PASSED.** Nino's parent saw both documents at desktop width and at
+  390 px exactly as listed: **Version draft-2** under each title, the headings
+  as their own paragraphs, the "• " paragraphs, no markers, the first and last
+  paragraphs, the three ticks with the button disabled until all three.
+- **§3 — PASSED.** Accepted; Settings → Security & policy: "Version draft-2 ·
+  Accepted on 25 October 2026" for both documents.
+- **§4.1 — PASSED.** Principal Admin saw two ticks only, accepted (kept), and
+  landed on the admin Dashboard.
+- **§4.2 — the cleanup.** Health 200; **backup 389** (201, 2,863,216 bytes,
+  footer present — the pre-cleanup dump). Deleted by id, each in one
+  transaction: #7's two acceptance rows (#2015 the notice, #2016 the terms,
+  both `draft-2`) — #7 back at §0's mark, none — and #7's one consumed
+  confirmation code (#536). Kept: the admin's two `draft-2` rows (#2017,
+  #2018) and every `activity_logs` row (#7's sign-in, `accept_policy`,
+  `update_contact`, `contact_verification_requested`, `contact_verified`; the
+  admin's sign-ins, `accept_policy` and `create_backup`). The survey after:
+  `policy_acceptances` 10 (the eight `draft-1` rows and the admin's two),
+  `auth_codes` 0, every other count at its mark.
+- **Finding — the contact step (not the texts).** §3's "no other step
+  follows" was wrong on the day: after accepting, #7 met **Confirm your
+  contact**, because its email confirmation — and #3's — had been cleared
+  during this branch's gate (the suites and the smoke, 04:52–05:06; #3's row
+  last written at 05:06:21, by the smoke's teardown). The owner confirmed a
+  mobile number there (#7 now has a confirmed number and no confirmed email;
+  kept). **#3 (Marwin's parent) has no confirmed contact** and will meet the
+  contact step at the next sign-in. The cause is not yet traced
+  (`docs/KNOWN_ISSUES.md`).

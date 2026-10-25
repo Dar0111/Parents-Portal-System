@@ -220,9 +220,11 @@ Node ≥ 24.20.0 upgrade the owner's decision; `main` fast-forwarded from
 **Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
 (1) the privacy text in the app (D-36; D-124 changed by the owner — in now,
 without waiting for the principal's approval) — `feat/privacy-text`, both
-documents' draft-2 text, both versions `draft-2`, gated after backup 383;
-next its web device check (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`; the phone joins the
-D-67 phone pass); (2) then Session A's half of
+documents' draft-2 text, both versions `draft-2`, gated after backup 383,
+device-checked on the web and cleaned up after backup 389 (one finding, not
+from the texts: the gate left #3 and #7 without a confirmed email —
+KNOWN_ISSUES; `docs/PRIVACY_TEXT_DEVICE_CHECK.md`; the phone joins the
+D-67 phone pass); merge on the owner's word; (2) then Session A's half of
 the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
 sync with `main` (its next sync carries P-19's DELETE in both forms and the
 SMS change), then the D-65 fix round, then Phase 3 (the owner writes

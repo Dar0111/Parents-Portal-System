@@ -1681,10 +1681,12 @@ row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
    draft-2 Data Privacy Notice and Terms of Use, both versions `draft-2`
    (D-124 changed by the owner: in now, without waiting for the principal's
    approval; a change he asks for is a later update under a new version,
-   which asks every account again); gated 2026-10-25 after backup 383; next
-   its device check (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`, web only — the phone
-   joins the D-67 phone pass). **After the restart every account accepts
-   again once.**
+   which asks every account again); gated 2026-10-25 after backup 383,
+   device-checked on the web 2026-10-25 (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`
+   §5; the phone joins the D-67 phone pass), cleaned up by id after backup
+   389; merge on the owner's word. **One finding, not from the texts:** the
+   gate left #3 and #7 without a confirmed email (KNOWN_ISSUES, cause not yet
+   traced). **After the restart every account accepts again once.**
 2. **Then Session A's half of the Phase 3 split.**
 3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
    then Phase 3; the owner writes `supabase.env` after Session A. **Its next
