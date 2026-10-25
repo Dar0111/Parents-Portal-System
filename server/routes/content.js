@@ -5,7 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
-const { refuseNul, textTooLong } = require('../utils/requestLimits');
+const { refuseNul, textTooLong, isCalendarDate } = require('../utils/requestLimits');
 const {
   announcementAudience,
   memoAudience,
@@ -671,12 +671,18 @@ eventsRouter.get('/', authenticate, async (req, res) => {
       if (!isValidDateFormat(from)) {
         return res.status(400).json({ success: false, message: 'from must be in YYYY-MM-DD format.' });
       }
+      if (!isCalendarDate(from)) {
+        return res.status(400).json({ success: false, message: 'from must be a real date in YYYY-MM-DD format.' });
+      }
       conditions.push('e.event_date >= ?');
       params.push(from);
     }
     if (to) {
       if (!isValidDateFormat(to)) {
         return res.status(400).json({ success: false, message: 'to must be in YYYY-MM-DD format.' });
+      }
+      if (!isCalendarDate(to)) {
+        return res.status(400).json({ success: false, message: 'to must be a real date in YYYY-MM-DD format.' });
       }
       conditions.push('e.event_date <= ?');
       params.push(to);

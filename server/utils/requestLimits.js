@@ -20,6 +20,17 @@
 // events.description, messages.body, excuse_letters.reason / details /
 // teacher_remarks, users.rejection_reason (the reject's `reason`) and every
 // system_settings value. `textTooLong` returns the route's message, or null.
+//
+// IMPOSSIBLE DATES IN A FILTER. A `date` / `from` / `to` filter that passes
+// the YYYY-MM-DD shape check but names no calendar day (2026-02-30, month 13,
+// day 00, year 0000) was 22008 on PostgreSQL — a 500 — where MySQL compared
+// it as a string and matched nothing (an empty 200). `isCalendarDate` checks
+// the Gregorian calendar for years 0001-9999 (PostgreSQL has no year 0; the
+// leap rule is the same on both sides), and the eleven filter sites
+// (attendance ×7, excuse letters ×2, events ×2) refuse with
+// `<name> must be a real date in YYYY-MM-DD format.` — the wording
+// routes/activityLogs.js already uses. The write paths' dates are not
+// filters and are unchanged (an impossible one was a 500 on MySQL too).
 
 const NUL = '\u0000';
 const TEXT_MAX_BYTES = 65535;
@@ -75,4 +86,14 @@ function textTooLong(field, value) {
   return bytes > TEXT_MAX_BYTES ? `${field} must be 65,535 bytes or fewer.` : null;
 }
 
-module.exports = { refuseNul, findNul, textTooLong, TEXT_MAX_BYTES };
+function isCalendarDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  if (y < 1 || m < 1 || m > 12 || d < 1) return false;
+  // setUTCFullYear, not Date.UTC: Date.UTC maps years 0-99 to 1900-1999.
+  const at = new Date(Date.UTC(2000, 0, 1));
+  at.setUTCFullYear(y, m - 1, d);
+  return at.getUTCFullYear() === y && at.getUTCMonth() === m - 1 && at.getUTCDate() === d;
+}
+
+module.exports = { refuseNul, findNul, textTooLong, TEXT_MAX_BYTES, isCalendarDate };

@@ -1208,6 +1208,28 @@ async function run() {
       'PATCH /excuse-letters/:id/review: teacher_remarks of 65,535 bytes (é) is 200, stored whole',
       `got ${capReviewAt.status} ${JSON.stringify(capReviewAt.data?.message)}`
     );
+
+    // --- IMPOSSIBLE DATES IN A FILTER (P3-C-R2 fix round, the owner's answer
+    // of 2026-10-25): from / to of the YYYY-MM-DD shape naming no calendar day
+    // were 22008 on PostgreSQL (a 500; MySQL matched nothing). Now the route's
+    // 400; real days, leap days and year 0001 included, still 200. Reads only.
+    console.log('\nImpossible dates in the excuse-letter filters:');
+    const realDays = ['2026-02-28', '2024-02-29', '2000-02-29', '2026-12-31', '0001-01-01'];
+    const impossibleDays = ['2026-02-29', '1900-02-29', '2026-02-30', '2026-04-31', '2026-13-01', '2026-00-10', '2026-01-00', '0000-01-01'];
+    for (const name of ['from', 'to']) {
+      const real = await Promise.all(realDays.map((v) => request('GET', `/api/excuse-letters?${name}=${v}`, { token: adminToken })));
+      assert(
+        real.every((r) => r.status === 200),
+        `GET /excuse-letters?${name}=: five real days (leap days, year 0001) are 200`,
+        `got ${real.map((r) => r.status).join(',')}`
+      );
+      const impossible = await Promise.all(impossibleDays.map((v) => request('GET', `/api/excuse-letters?${name}=${v}`, { token: adminToken })));
+      assert(
+        impossible.every((r) => r.status === 400 && r.data?.message === `${name} must be a real date in YYYY-MM-DD format.`),
+        `GET /excuse-letters?${name}=: eight impossible days are 400, naming the filter`,
+        `got ${impossible.map((r) => r.status).join(',')}`
+      );
+    }
   } finally {
     await cleanup();
     await policy.cleanup();

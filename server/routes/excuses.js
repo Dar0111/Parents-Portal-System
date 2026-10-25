@@ -13,7 +13,7 @@ const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { reviewWithAttendance, RETRY_MESSAGE } = require('../utils/excuseAttendance');
-const { refuseNul, textTooLong } = require('../utils/requestLimits');
+const { refuseNul, textTooLong, isCalendarDate } = require('../utils/requestLimits');
 
 const router = express.Router();
 router.use(refuseNul);
@@ -95,6 +95,9 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     if (!isValidDateFormat(from)) {
       return res.status(400).json({ success: false, message: 'from must be in YYYY-MM-DD format.' });
     }
+    if (!isCalendarDate(from)) {
+      return res.status(400).json({ success: false, message: 'from must be a real date in YYYY-MM-DD format.' });
+    }
     conditions.push('el.absence_date >= ?');
     params.push(from);
   }
@@ -102,6 +105,9 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   if (to !== undefined) {
     if (!isValidDateFormat(to)) {
       return res.status(400).json({ success: false, message: 'to must be in YYYY-MM-DD format.' });
+    }
+    if (!isCalendarDate(to)) {
+      return res.status(400).json({ success: false, message: 'to must be a real date in YYYY-MM-DD format.' });
     }
     conditions.push('el.absence_date <= ?');
     params.push(to);
