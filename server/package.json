@@ -52,6 +52,7 @@
     "test:privacy": "node scripts/test-privacy-flows.js",
     "test:activity-log": "node scripts/test-activity-log-flows.js",
     "test:excuse-attendance-rule": "node scripts/test-excuse-attendance-rule.js",
+    "test:pg-driver": "node scripts/test-pg-driver.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {
