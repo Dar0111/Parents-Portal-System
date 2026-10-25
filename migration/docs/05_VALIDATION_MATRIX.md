@@ -72,6 +72,39 @@ A read-only review (five areas, each finding adversarially re-checked) found 13 
 
 The suites after the fixes, on 5010: `test:pg-driver` **33/33** (new; 28 passed and 4 failed before the two driver fixes), `test:auth-middleware` 52/52, `test:socket-auth` 51/51, `test:auth` 69/69, `test:users` 73/73, `test:recovery` 143/143, `test:privacy` 85/85. The rest of the driver contract the test covers, unchanged and passing: `?` inside strings, identifiers, E-strings, dollar quotes and comments; the refusals (hand-written `$n`, an uncast or nested array, a count mismatch, an unterminated string); nulls, typed and empty arrays; the result and type contracts; rollback and release; an idle connection killed by the server; a refused port; and the API itself answering 503 (never 401) with its database unreachable.
 
+## 0f. P3-C-R2 Phase F (2026-10-25): the remaining routes and the nine mysql2 suites
+
+The seven files of "Session A's half" (`03` §5a — done here, by the owner's addendum) are ported: `routes/content.js`, `routes/excuses.js` with `utils/excuseAttendance.js`, `routes/messages.js`, `routes/settings.js`, `routes/attendance.js`, `routes/activityLogs.js`, `routes/gradingModes.js`; with `utils/validateId.js`'s int4 cap and the grades-1 fix. Every route in `server/routes/` now reads pg's `{ rows, rowCount }` (no `[rows]`, `insertId`, `affectedRows` or `getConnection` left; `GROUP_CONCAT` and the `_ci` LIKE gone). The nine suites that still opened mysql2 run on `test-helpers/db.js`: sections, assignments, content, attendance, messages, settings, notifications, profile-photo, activity-log (`IN (?)` → `= ANY(?::type[])`, `RETURNING id` where an id is read, `DATE_FORMAT` → `to_char`, the slot upsert → `ON CONFLICT ON CONSTRAINT uq_slot … RETURNING id` as `test:grades` has it, a camelCase alias quoted — PostgreSQL folds `AS maxLog` to `maxlog`).
+
+| Suite | Result | Where | MySQL baseline |
+|---|---|---|---|
+| `test:excuses` | **PASS** 121/121 | 5010, the transfer target | 121 |
+| `test:excuse-attendance-rule` | **PASS** 60/60 | no database | 58 (+2, below) |
+| `test:messages` | **PASS** 86/86 | the transfer target | 86 |
+| `test:settings` | **PASS** 35/35 | the transfer target | 35 |
+| `test:attendance` | **PASS** 73/73 | the transfer target | 73 |
+| `test:content` | **PASS** 97/97 | the transfer target | 97 |
+| `test:sections` | **PASS** 30/30 | the transfer target | 30 |
+| `test:assignments` | **PASS** 62/62 | the transfer target | 62 |
+| `test:grading-modes` | **PASS** 13/13 | the transfer target | 13 |
+| `test:notifications` | **PASS** 227/227 | 5010, a FRESH `db:setup` (`parents_portal_phasef_20261025`) | 227 |
+| `test:profile-photo` | **PASS** 70/70 | the fresh database | 70 |
+| `test:activity-log` | **PASS** 98/98 | the fresh database | 98 |
+| `test:grades` | **PASS** 258/258 | the fresh database (after grades-1) | 256 (258 on PostgreSQL since commit 2) |
+
+**`test:notifications` on the transfer target was 225/2, and the two are not a defect:** its last checks want `events` and `excuse_letters` back to the Seeded baseline's 0, and the transfer target holds the golden master's own fixture (two events dated 2026-12-31 and 2027-01-01 posted by the admin, one Pending letter dated 2026-12-30, all created in one transaction at 14:05:45 Manila — `golden-master.js:124-140`, copied by Phase B's re-transfer). Every functional assertion passed; on a fresh `db:setup` it is 227/227. The suites belong on a fresh setup (Phase J); the transfer target stays as it is for the golden master (Phase G).
+
+| Change | Evidence |
+|---|---|
+| **The excuse review's lock wait** — PostgreSQL waits forever on a row lock; MySQL gave up after `innodb_lock_wait_timeout` (50 s, measured on the source server) and the review answered 409 | `SET LOCAL lock_timeout = '50s'` first in the transaction, `55P03` a conflict. The rule suite's stub pool ported to pg's shape (its SET LOCAL logged apart, so every existing statement-list assertion stands as written) and +2 assertions. **Mutations, the file on disk unchanged (sha256 before and after):** SET LOCAL removed → 59/1; `55P03` removed → 59/1; the timeout `0` → 59/1; SET LOCAL before BEGIN (a no-op outside a transaction) → 59/1; each failing exactly the assertion it targets; unmutated 60/60 |
+| **grades-1** — `GET /grades/:id` components: a legacy row has no slot, so its `s.type` / `s.slot_no` are NULL; MySQL put NULLs first, PostgreSQL last | `NULLS FIRST` on the three nullable keys. `migration/scripts/component-order.js` — the ORIGINAL statement (git `5426b70`) on the MySQL scratch and the PORTED one on the copy, the same grade (#1) and the same ids, three legacy rows added in a rolled-back transaction: `legacy:2 > legacy:3 > legacy:1 > slot:WW:1 > slot:PT:1` on both, **COMPONENT ORDER OK**; the negative control (NULLS FIRST removed) puts the legacy rows last on PostgreSQL and FAILS; no fixture row left on either engine |
+| **ids past the int4 range** — `parseId()` accepted any positive integer; a bound value above 2,147,483,647 is 22003 on PostgreSQL (500, and inside `canMessage()`, outside the send handler's try, an unhandled rejection) | `utils/validateId.js MAX_ID`: such an id is the route's own 400. **A deliberate, documented difference:** MySQL answered 404 or an empty 200 for those ids |
+| **The `messages.js` contacts search** | the `config/db.js` name fold (Q5 (b)) — not `ILIKE`, which would have missed `nino` → `Niño`; the two nullable sorts lead with `IS NOT NULL` |
+
+**Found while porting, not a port defect — recorded for `main`:** `test:students`' "that no-op writes no `update_student_status` entry" is VACUOUS on both engines. Its `LIKE` pattern looks for `(#<id>) to` (written 2026-09-15, `7bb4596`), and the route has logged `Set student #<id> to <status>` since 2026-09-18 (`dab1bb5`, the LRN change), so the counter is 0 before and after whatever the route does (measured on PostgreSQL with an in-memory probe: 0 right after the run's own deactivation). The fix is the pattern `%student #<id> to %`, on `main`; it is in `08` as a proposal and this branch does not change it.
+
+**Documented differences carried by the ported routes (no code change; `08` lists them):** a NUL (U+0000) in a text value is refused by PostgreSQL (22021 → the route's 500, where MySQL stored or searched it — sign-in excepted, fixed in Phase E); a body over 64 KB in a former TEXT column is now stored (MySQL refused it, 500); an impossible date that passes the `YYYY-MM-DD` shape check in a filter is 22008 → 500 (MySQL answered 200, matching nothing); `string_agg` has no 1,024-byte cap; the name sorts follow the database collation until D-2 is decided.
+
 ### 3b. The three rehearsal expectations — the Phase B checkpoint (all three VERIFIED, 2026-10-25)
 
 Git holds only the corrected versions — each of the three commits that ever touched `scripts/rehearse.js` (`7920a18`, `396257b`, `61ffb44`) already carries the corrected forms (read from `git show` in memory, booleans only) — so each original is reconstructed from its check's name and comment. **Josh confirmed these are his three** and accepted the corrections in principle; the owner's dispatch P3-C-R2 set four criteria for each: (1) the corrected expectation matches the original system's behaviour, (2) no assertion was weakened to pass, (3) the check fails on a deliberately broken case and passes again, (4) MySQL and PostgreSQL agree. **Check 2 failed (1) and (4) as first corrected** (it asserted the accent gap — the opposite of the original system); **the owner and Josh approved changing its expectation from 0 to 1** with Josh's eight requirements, and all three now meet every criterion. The final run on a fresh transfer (`RECONCILE OK`): `REHEARSAL OK`, 95 recorded cases (90 + the 5 below), 0 failures.

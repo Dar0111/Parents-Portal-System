@@ -140,7 +140,9 @@ function exportCapMessage(total) {
 }
 
 async function countFiltered(filters) {
-  const [[row]] = await pool.query(`SELECT COUNT(*) AS total ${FROM} ${filters.where}`, filters.params);
+  const {
+    rows: [row],
+  } = await pool.query(`SELECT COUNT(*) AS total ${FROM} ${filters.where}`, filters.params);
   return Number(row.total);
 }
 
@@ -163,7 +165,7 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
   try {
     // total counts the FILTERED set (C4) — same WHERE, same params.
     const total = await countFiltered(filters);
-    const [rows] = await pool.query(`SELECT ${COLUMNS} ${FROM} ${filters.where} ${ORDER} LIMIT ? OFFSET ?`, [
+    const { rows } = await pool.query(`SELECT ${COLUMNS} ${FROM} ${filters.where} ${ORDER} LIMIT ? OFFSET ?`, [
       ...filters.params,
       page.limit,
       page.offset,
@@ -185,7 +187,7 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 // know (its own code as its label).
 router.get('/actions', authenticate, authorize('admin'), async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT DISTINCT action FROM activity_logs');
+    const { rows } = await pool.query('SELECT DISTINCT action FROM activity_logs');
     const known = new Set(knownCodes());
     const unknown = rows
       .map((r) => r.action)
@@ -233,7 +235,7 @@ router.get('/export', authenticate, authorize('admin'), async (req, res) => {
     if (total > EXPORT_CAP) {
       return res.status(400).json({ success: false, message: exportCapMessage(total) });
     }
-    const [rows] = await pool.query(`SELECT ${COLUMNS} ${FROM} ${filters.where} ${ORDER} LIMIT ?`, [
+    const { rows } = await pool.query(`SELECT ${COLUMNS} ${FROM} ${filters.where} ${ORDER} LIMIT ?`, [
       ...filters.params,
       EXPORT_CAP,
     ]);

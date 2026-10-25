@@ -47,7 +47,23 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const pool = require('../config/db');
+// PostgreSQL (Phase 3): the fixture statements run on test-helpers/db.js's
+// connection (the PG_* keys, the API's own role, loopback only), opened on
+// first use. It keeps mysql2's [rows] / [{ affectedRows, insertId }] shapes,
+// so every statement below reads as it did; an INSERT's insertId is its
+// RETURNING id.
+const fixtureDb = require('./test-helpers/db');
+let fixtureConn = null;
+const pool = {
+  async query(sql, params) {
+    if (!fixtureConn) fixtureConn = await fixtureDb.createConnection();
+    return fixtureConn.query(sql, params);
+  },
+  async end() {
+    if (fixtureConn) await fixtureConn.end();
+    fixtureConn = null;
+  },
+};
 const { createPolicyFixture } = require('./policyFixture');
 const { ACTION_GROUPS, actionInfo, groupCodes, knownCodes } = require('../utils/activityActions');
 const { guardCell, csvField, buildCsv, BOM } = require('../utils/csv');
@@ -246,7 +262,7 @@ async function run() {
   const ids = {};
   for (const f of FIX) {
     const [result] = await pool.query(
-      'INSERT INTO activity_logs (user_id, action, description, created_at) VALUES (?, ?, ?, ?)',
+      'INSERT INTO activity_logs (user_id, action, description, created_at) VALUES (?, ?, ?, ?) RETURNING id',
       [f.user, f.action, SENTINEL, f.at]
     );
     ids[f.key] = result.insertId;

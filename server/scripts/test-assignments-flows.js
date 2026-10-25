@@ -100,22 +100,8 @@ async function run() {
   await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login');
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
 
   const createdAssignmentIds = [];
   const createdGradeIds = [];
@@ -124,10 +110,10 @@ async function run() {
   async function cleanup() {
     await withDb(async (conn) => {
       if (createdGradeIds.length) {
-        await conn.query('DELETE FROM grades WHERE id IN (?)', [createdGradeIds]);
+        await conn.query('DELETE FROM grades WHERE id = ANY(?::int[])', [createdGradeIds]);
       }
       if (createdAssignmentIds.length) {
-        await conn.query('DELETE FROM teacher_assignments WHERE id IN (?)', [createdAssignmentIds]);
+        await conn.query('DELETE FROM teacher_assignments WHERE id = ANY(?::int[])', [createdAssignmentIds]);
       }
       if (inactiveTeacherId) {
         await conn.query('DELETE FROM activity_logs WHERE user_id = ?', [inactiveTeacherId]);

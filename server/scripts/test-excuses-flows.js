@@ -137,22 +137,8 @@ async function run() {
   const marwinId = meParent.data?.user?.student_id;
   assert(Number.isInteger(marwinId), "Resolve Marwin's student_id via /me");
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
 
   const runId = String(Date.now()).slice(-8);
   const createdExcuseLetterIds = []; // letters on Marwin's (seeded, permanent) account
@@ -187,7 +173,7 @@ async function run() {
     const letterIds = new Set(createdExcuseLetterIds);
     if (createdLrns.length) {
       const [rows] = await withDb((conn) =>
-        conn.query('SELECT id FROM excuse_letters WHERE student_id IN (SELECT id FROM students WHERE lrn IN (?))', [
+        conn.query('SELECT id FROM excuse_letters WHERE student_id IN (SELECT id FROM students WHERE lrn = ANY(?::text[]))', [
           createdLrns,
         ])
       );
@@ -200,7 +186,7 @@ async function run() {
       await withDb(async (conn) => {
         const [reviewed] = letterIds.size
           ? await conn.query(
-              "SELECT id, student_id, DATE_FORMAT(absence_date, '%Y-%m-%d') AS absence_date FROM excuse_letters WHERE id IN (?) AND status <> 'Pending' AND id <> ?",
+              "SELECT id, student_id, to_char(absence_date, 'YYYY-MM-DD') AS absence_date FROM excuse_letters WHERE id = ANY(?::int[]) AND status <> 'Pending' AND id <> ?",
               [[...letterIds], sqlApprovedLetterId ?? 0]
             )
           : [[]];
@@ -225,15 +211,15 @@ async function run() {
     }
     const notificationPairs = pairsFor('excuse_letter', [...letterIds]);
     if (createdExcuseLetterIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM excuse_letters WHERE id IN (?)', [createdExcuseLetterIds]));
+      await withDb((conn) => conn.query('DELETE FROM excuse_letters WHERE id = ANY(?::int[])', [createdExcuseLetterIds]));
     }
     if (createdLoginIds.length) {
       // Cascades (fk_excuse_parent) any letters tied to the fixture parent.
-      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]));
+      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id = ANY(?::text[])', [createdLoginIds]));
     }
     if (createdLrns.length) {
       // Cascades (fk_excuse_student) any letters tied to the fixture student.
-      await withDb((conn) => conn.query('DELETE FROM students WHERE lrn IN (?)', [createdLrns]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE lrn = ANY(?::text[])', [createdLrns]));
     }
     await withDb(async (conn) => {
       const deleted = await deleteNotificationsFor(conn, notificationPairs);
@@ -330,7 +316,7 @@ async function run() {
       const hashed = await hashPassword(UNLINKED_PASSWORD);
       const [inserted] = await conn.query(
         `INSERT INTO users (login_id, password, role, status, name, student_id)
-         VALUES (?, ?, 'parent', 'active', 'Unlinked Throwaway', NULL)`,
+         VALUES (?, ?, 'parent', 'active', 'Unlinked Throwaway', NULL) RETURNING id`,
         [UNLINKED_LOGIN_ID, hashed]
       );
       unlinkedParentId = inserted.insertId;
@@ -677,7 +663,7 @@ async function run() {
     const insertedJeaLetter = await withDb((conn) =>
       conn.query(
         `INSERT INTO excuse_letters (student_id, parent_id, absence_date, reason, status)
-         VALUES (?, ?, ?, 'Adviser-scope fixture', 'Pending')`,
+         VALUES (?, ?, ?, 'Adviser-scope fixture', 'Pending') RETURNING id`,
         [jeaStudentId, jeaParentId, jeaDay]
       )
     );
@@ -929,7 +915,7 @@ async function run() {
     async function dayRow(date) {
       const [rows] = await withDb((conn) =>
         conn.query(
-          "SELECT id, status, recorded_by, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM attendance WHERE student_id = ? AND date = ? LIMIT 1",
+          "SELECT id, status, recorded_by, to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at FROM attendance WHERE student_id = ? AND date = ? LIMIT 1",
           [marwinId, date]
         )
       );
@@ -1042,7 +1028,7 @@ async function run() {
       const answers = await Promise.all(
         ids.map((id, k) => request('PATCH', `/api/excuse-letters/${id}/review`, { token: teacherToken, body: { status: ROUNDS[r][k] } }))
       );
-      const [letterRows] = await withDb((conn) => conn.query('SELECT id, status FROM excuse_letters WHERE id IN (?) ORDER BY id', [ids]));
+      const [letterRows] = await withDb((conn) => conn.query('SELECT id, status FROM excuse_letters WHERE id = ANY(?::int[]) ORDER BY id', [ids]));
       const statusOf = (id) => letterRows.find((row) => row.id === id)?.status;
       const shapeOk = answers.every(
         (a, k) =>

@@ -67,14 +67,32 @@ function decide(decision, current, date) {
 
 // THE ONE PLACE A LOST RACE IS RECOGNISED. Two letters for the same unrecorded
 // day reviewed at the same moment — or an adviser's register saved at that
-// moment — can meet on the day's row: the second INSERT hits the unique key, or
-// InnoDB picks a deadlock victim between two gap locks (which can also join
-// reviews of NEIGHBOURING days in the same index gap). Either way that
-// transaction rolls back whole, so the letter stays Pending and the reviewer is
-// told to try again. MySQL's codes and PostgreSQL's (unique violation,
-// deadlock, serialization failure) are both listed, so the move to Postgres
-// changes nothing here.
-const CONFLICT_CODES = new Set(['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT', '23505', '40P01', '40001']);
+// moment — can meet on the day's row, and that transaction rolls back whole, so
+// the letter stays Pending and the reviewer is told to try again.
+//
+// ON POSTGRESQL (Phase 3) the race shows differently, with the same outcome.
+// MySQL ran REPEATABLE READ, where a FOR UPDATE on a missing row takes a gap
+// lock: two reviews both got one, both INSERTed, and InnoDB picked a deadlock
+// victim (which could also join reviews of NEIGHBOURING days in one index gap).
+// PostgreSQL runs READ COMMITTED and has no gap locks: the FOR UPDATE on a
+// missing row locks nothing, the second INSERT waits on the unique index for
+// the first transaction, and then fails 23505 — neighbouring days no longer
+// meet. A deadlock is 40P01. A lock wait longer than lock_timeout is 55P03,
+// PostgreSQL's ER_LOCK_WAIT_TIMEOUT: reviewWithAttendance sets it to MySQL's
+// own wait (innodb_lock_wait_timeout, 50 s, measured on the source server on
+// 2026-10-25), because PostgreSQL's default is to wait forever. 40001 cannot
+// occur at READ COMMITTED; it stays listed against a later isolation change.
+// MySQL's codes stay too: they are inert here.
+const CONFLICT_CODES = new Set([
+  'ER_DUP_ENTRY',
+  'ER_LOCK_DEADLOCK',
+  'ER_LOCK_WAIT_TIMEOUT',
+  '23505',
+  '40P01',
+  '40001',
+  '55P03',
+]);
+const LOCK_TIMEOUT = '50s';
 
 function isWriteConflict(error) {
   return Boolean(error) && CONFLICT_CODES.has(String(error.code));
@@ -92,21 +110,29 @@ const RETRY_MESSAGE = 'Another change arrived at the same moment, so this decisi
 // FOR UPDATE before the rule decides, and read back before COMMIT, so the
 // reply is the row this transaction left. Plain INSERT / UPDATE by id — no
 // MySQL-only upsert.
+//
+// ON POSTGRESQL: the UPDATE's `status = 'Pending'` still decides between two
+// reviews of one letter — at READ COMMITTED the second waits on the row lock,
+// then re-checks the WHERE against the committed row and matches nothing.
 async function reviewWithAttendance(pool, { letterId, status, remarks, reviewerId }) {
-  const conn = await pool.getConnection();
+  const conn = await pool.connect();
   try {
     await conn.beginTransaction();
-    const [letter] = await conn.query(
+    await conn.query(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`);
+    const letter = await conn.query(
       "UPDATE excuse_letters SET status = ?, teacher_remarks = ?, reviewed_by = ? WHERE id = ? AND status = 'Pending'",
       [status, remarks, reviewerId, letterId]
     );
-    if (letter.affectedRows !== 1) {
+    if (letter.rowCount !== 1) {
       await conn.rollback();
       return { outcome: 'already_reviewed' };
     }
-    const [letterRows] = await conn.query('SELECT student_id, absence_date FROM excuse_letters WHERE id = ? FOR UPDATE', [letterId]);
+    const { rows: letterRows } = await conn.query(
+      'SELECT student_id, absence_date FROM excuse_letters WHERE id = ? FOR UPDATE',
+      [letterId]
+    );
     const { student_id: studentId, absence_date: absenceDate } = letterRows[0];
-    const [rows] = await conn.query('SELECT id, status FROM attendance WHERE student_id = ? AND date = ? FOR UPDATE', [
+    const { rows } = await conn.query('SELECT id, status FROM attendance WHERE student_id = ? AND date = ? FOR UPDATE', [
       studentId,
       absenceDate,
     ]);
@@ -123,7 +149,10 @@ async function reviewWithAttendance(pool, { letterId, status, remarks, reviewerI
     } else if (result.write === 'update') {
       await conn.query('UPDATE attendance SET status = ?, recorded_by = ? WHERE id = ?', [result.to, reviewerId, existing.id]);
     }
-    const [after] = await conn.query('SELECT * FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [studentId, absenceDate]);
+    const { rows: after } = await conn.query('SELECT * FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [
+      studentId,
+      absenceDate,
+    ]);
     await conn.commit();
     return {
       outcome: 'reviewed',

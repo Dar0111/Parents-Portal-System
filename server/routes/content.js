@@ -21,7 +21,7 @@ const {
 // empty list (KNOWN ISSUES A2). `table` is one of three constants below,
 // never request input.
 async function deleteWithNotifications(req, table, itemType, id) {
-  const conn = await pool.getConnection();
+  const conn = await pool.connect();
   let recipients = [];
   try {
     await conn.beginTransaction();
@@ -50,7 +50,7 @@ function isMoreThanOneYearAhead(dateStr) {
 }
 
 async function getStudentClass(studentId) {
-  const [rows] = await pool.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [studentId]);
+  const { rows } = await pool.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [studentId]);
   return rows[0] || null;
 }
 
@@ -75,7 +75,7 @@ async function getStudentClass(studentId) {
 // student row in a content query to resolve a section_id from, which is also
 // why utils/teacherScope.js's TEACHER_VIEW_SCOPE_SQL cannot be reused here.
 async function teacherHasAssignment(teacherId, gradeLevel, section) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT 1 FROM teacher_assignments
      WHERE teacher_id = ? AND grade_level = ? AND section = ?
      LIMIT 1`,
@@ -83,7 +83,7 @@ async function teacherHasAssignment(teacherId, gradeLevel, section) {
   );
   if (rows.length) return true;
 
-  const [adviserRows] = await pool.query(
+  const { rows: adviserRows } = await pool.query(
     `SELECT 1 FROM sections
      WHERE grade_level = ? AND name = ? AND adviser_id = ?
      LIMIT 1`,
@@ -101,13 +101,13 @@ async function teacherHasAssignment(teacherId, gradeLevel, section) {
 // grade is the same relationship expressed the other way, so admitting them is
 // consistency, not expansion.
 async function teacherHasGradeAssignment(teacherId, gradeLevel) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     'SELECT 1 FROM teacher_assignments WHERE teacher_id = ? AND grade_level = ? LIMIT 1',
     [teacherId, gradeLevel]
   );
   if (rows.length) return true;
 
-  const [adviserRows] = await pool.query(
+  const { rows: adviserRows } = await pool.query(
     'SELECT 1 FROM sections WHERE grade_level = ? AND adviser_id = ? LIMIT 1',
     [gradeLevel, teacherId]
   );
@@ -213,8 +213,18 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
   const conditions = [];
   const params = [];
 
+  // `category` is the one NULL-able sort key here. MySQL put NULLs first
+  // ascending and last descending; PostgreSQL does the opposite. The
+  // pagination helper appends the direction to each column, so the NULL test
+  // leads the key: false (NULL) sorts first ascending and last descending —
+  // the order MySQL returned.
   const list = readListParams(req.query, {
-    sortable: { title: 'a.title', posted_by_name: 'u.name', created_at: 'a.created_at', category: 'a.category' },
+    sortable: {
+      title: 'a.title',
+      posted_by_name: 'u.name',
+      created_at: 'a.created_at',
+      category: '(a.category IS NOT NULL), a.category',
+    },
     defaultOrderBy: 'a.created_at DESC',
     tiebreaker: 'a.id DESC',
   });
@@ -254,7 +264,11 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
     // admin: no condition
 
     if (category) {
-      conditions.push('a.category = ?');
+      // utf8mb4_unicode_ci made this equality case- and accent-insensitive;
+      // category is not one of the nine portal.ci columns, so the collation is
+      // named here (equality on a nondeterministic collation is allowed;
+      // trailing spaces are significant, 02 §D decision 2).
+      conditions.push('a.category COLLATE portal.ci = ?');
       params.push(String(category).trim());
     }
     if (grade_level !== undefined) {
@@ -278,8 +292,10 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
     const fromClause = `FROM announcements a
        INNER JOIN users u ON u.id = a.posted_by
        ${where}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
+    const { rows } = await pool.query(
       `SELECT a.*, u.name AS posted_by_name
        ${fromClause}
        ${list.orderBy}
@@ -307,18 +323,19 @@ announcementsRouter.post('/', authenticate, authorize('teacher', 'admin'), async
   }
 
   try {
-    const [result] = await pool.query(
+    const { rows: inserted } = await pool.query(
       `INSERT INTO announcements (title, content, category, target_grade, target_section, attachment_url, posted_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`,
       [title, content, category || null, target.gradeLevel, target.section, attachment_url || null, req.user.id]
     );
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT a.*, u.name AS posted_by_name
        FROM announcements a
        INNER JOIN users u ON u.id = a.posted_by
        WHERE a.id = ? LIMIT 1`,
-      [result.insertId]
+      [inserted[0].id]
     );
     await logActivity(req.user.id, 'create_announcement', `Posted announcement "${title}"`);
 
@@ -354,7 +371,7 @@ announcementsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), asy
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Announcement not found.' });
@@ -387,7 +404,7 @@ announcementsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), asy
       [nextTitle, nextContent, nextCategory, target.gradeLevel, target.section, nextAttachment, id]
     );
 
-    const [updated] = await pool.query(
+    const { rows: updated } = await pool.query(
       `SELECT a.*, u.name AS posted_by_name
        FROM announcements a
        INNER JOIN users u ON u.id = a.posted_by
@@ -410,7 +427,7 @@ announcementsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), 
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Announcement not found.' });
@@ -452,8 +469,10 @@ memosRouter.get('/', authenticate, async (req, res) => {
     // m.* is the same column set SELECT * used to return (id, title, content,
     // attachment_url, posted_by, created_at). Alias required so the JOIN
     // cannot collide posted_by with u.id.
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM memos');
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query('SELECT COUNT(*) AS total FROM memos');
+    const { rows } = await pool.query(
       `SELECT m.*, u.name AS posted_by_name
        FROM memos m
        INNER JOIN users u ON u.id = m.posted_by
@@ -475,17 +494,17 @@ memosRouter.post('/', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      'INSERT INTO memos (title, content, attachment_url, posted_by) VALUES (?, ?, ?, ?)',
+    const { rows: inserted } = await pool.query(
+      'INSERT INTO memos (title, content, attachment_url, posted_by) VALUES (?, ?, ?, ?) RETURNING id',
       [title, content, attachment_url || null, req.user.id]
     );
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT m.*, u.name AS posted_by_name
        FROM memos m
        INNER JOIN users u ON u.id = m.posted_by
        WHERE m.id = ? LIMIT 1`,
-      [result.insertId]
+      [inserted[0].id]
     );
     await logActivity(req.user.id, 'create_memo', `Posted memo "${title}"`);
 
@@ -521,7 +540,7 @@ memosRouter.put('/:id', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Memo not found.' });
@@ -543,7 +562,7 @@ memosRouter.put('/:id', authenticate, authorize('admin'), async (req, res) => {
       id,
     ]);
 
-    const [updated] = await pool.query(
+    const { rows: updated } = await pool.query(
       `SELECT m.*, u.name AS posted_by_name
        FROM memos m
        INNER JOIN users u ON u.id = m.posted_by
@@ -566,7 +585,7 @@ memosRouter.delete('/:id', authenticate, authorize('admin'), async (req, res) =>
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Memo not found.' });
@@ -647,8 +666,10 @@ eventsRouter.get('/', authenticate, async (req, res) => {
     const fromClause = `FROM events e
        INNER JOIN users u ON u.id = e.posted_by
        ${where}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
+    const { rows } = await pool.query(
       `SELECT e.*, u.name AS posted_by_name
        ${fromClause}
        ${list.orderBy}
@@ -682,17 +703,17 @@ eventsRouter.post('/', authenticate, authorize('teacher', 'admin'), async (req, 
   }
 
   try {
-    const [result] = await pool.query(
-      'INSERT INTO events (title, description, event_date, target_grade, posted_by) VALUES (?, ?, ?, ?, ?)',
+    const { rows: inserted } = await pool.query(
+      'INSERT INTO events (title, description, event_date, target_grade, posted_by) VALUES (?, ?, ?, ?, ?) RETURNING id',
       [title, description || null, event_date, target.gradeLevel, req.user.id]
     );
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT e.*, u.name AS posted_by_name
        FROM events e
        INNER JOIN users u ON u.id = e.posted_by
        WHERE e.id = ? LIMIT 1`,
-      [result.insertId]
+      [inserted[0].id]
     );
     await logActivity(req.user.id, 'create_event', `Posted event "${title}" on ${event_date}`);
 
@@ -728,7 +749,7 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -740,9 +761,10 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
     const { title, description, event_date, target_grade } = req.body;
     const nextTitle = title !== undefined ? title : existing.title;
     const nextDescription = description !== undefined ? description || null : existing.description;
-    // existing.event_date is already a plain 'YYYY-MM-DD' string — the pool's
-    // dateStrings: ['DATE'] option means DATE columns never come back as JS
-    // Date objects, so no conversion is needed (or safe to reintroduce) here.
+    // existing.event_date is already a plain 'YYYY-MM-DD' string — the DATE
+    // type parser in config/db.js (mysql2's dateStrings: ['DATE'] job) means
+    // DATE columns never come back as JS Date objects, so no conversion is
+    // needed (or safe to reintroduce) here.
     const nextEventDate = event_date !== undefined ? event_date : existing.event_date;
     const nextTargetGrade = target_grade !== undefined ? target_grade : existing.target_grade;
 
@@ -769,7 +791,7 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
       id,
     ]);
 
-    const [updated] = await pool.query(
+    const { rows: updated } = await pool.query(
       `SELECT e.*, u.name AS posted_by_name
        FROM events e
        INNER JOIN users u ON u.id = e.posted_by
@@ -792,7 +814,7 @@ eventsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), async (
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Event not found.' });

@@ -138,10 +138,18 @@ function normalizeValue(value) {
 // like token_valid_after). GET / was fixed for that on 2026-08-29 and the
 // PATCH response kept the unfiltered query until 2026-09-15 — one function
 // both use is what stops them drifting apart again.
+//
+// ON POSTGRESQL (Phase 3): `= ANY(?::text[])` — mysql2 expanded IN (?), pg
+// does not; setting_key is portal.ci, so the match folds case and accents as
+// MySQL's _ci did (trailing spaces are significant here, 02 §D decision 2).
+// ORDER BY id: MySQL scanned the table in primary-key order (EXPLAIN: ALL),
+// so the object's keys came back in id order, stable across saves; a
+// PostgreSQL heap returns an updated row later, so the order would drift.
 async function readAllowedSettings() {
-  const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
-    ALLOWED_KEYS,
-  ]);
+  const { rows } = await pool.query(
+    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key = ANY(?::text[]) ORDER BY id',
+    [ALLOWED_KEYS]
+  );
   const settings = {};
   for (const row of rows) {
     settings[row.setting_key] = row.setting_value;
@@ -171,9 +179,10 @@ router.get('/', authenticate, async (_req, res) => {
 // routes/grades.js documents for `class-record`.
 router.get('/public', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
-      PUBLIC_KEYS,
-    ]);
+    const { rows } = await pool.query(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key = ANY(?::text[])',
+      [PUBLIC_KEYS]
+    );
     const settings = {};
     for (const key of PUBLIC_KEYS) settings[key] = '';
     for (const row of rows) settings[row.setting_key] = row.setting_value;
@@ -194,7 +203,7 @@ router.get('/:key', authenticate, async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1', [
+    const { rows } = await pool.query('SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1', [
       key,
     ]);
     if (!rows.length) {
@@ -208,6 +217,12 @@ router.get('/:key', authenticate, async (req, res) => {
 });
 
 // PUT /api/settings/:key — admin only, update one
+//
+// The upsert names its conflict target, uq_system_settings_key (setting_key);
+// MySQL's ON DUPLICATE KEY fired on any unique key, the primary key included,
+// so the identity sequence must stand past max(id) — the transfer sets it to
+// the source's AUTO_INCREMENT and checks it (P3-C-R2 C2). EXCLUDED is MySQL's
+// VALUES(col).
 router.put('/:key', authenticate, authorize('admin'), async (req, res) => {
   const { key } = req.params;
   const value = normalizeValue(req.body.value);
@@ -227,7 +242,7 @@ router.put('/:key', authenticate, authorize('admin'), async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+       ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`,
       [key, value]
     );
 
@@ -277,13 +292,14 @@ router.patch('/', authenticate, authorize('admin'), async (req, res) => {
 
   let conn;
   try {
-    conn = await pool.getConnection();
+    // One checked-out client for the transaction (config/db.js connect()).
+    conn = await pool.connect();
     await conn.beginTransaction();
 
     for (const key of keys) {
       await conn.query(
         `INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`,
         [key, normalized[key]]
       );
     }

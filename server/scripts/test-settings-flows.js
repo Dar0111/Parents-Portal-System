@@ -59,21 +59,8 @@ async function login(loginId, password) {
   return request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 }
 
-async function withDb(fn) {
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  });
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
+// PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+const { withDb } = require('./test-helpers/db');
 
 async function run() {
   console.log(`\nParents Portal — System Settings API Tests (${BASE})\n`);

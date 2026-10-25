@@ -33,7 +33,7 @@ function isFutureDate(value) {
 // one of exactly two places planned to use it. Every other route stays on
 // the VARCHAR section columns; do not extend this pattern elsewhere.
 async function teacherIsAdviserOfSection(teacherId, sectionId) {
-  const [rows] = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
+  const { rows } = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
     sectionId,
     teacherId,
   ]);
@@ -59,7 +59,7 @@ async function teacherIsAdviserOfSection(teacherId, sectionId) {
 //
 // One learner, one day, two teachers: `uq_attendance (student_id, date)`
 // keeps ONE row, and every write path sets `recorded_by` to the writer
-// (ON DUPLICATE KEY UPDATE, and PUT). A second recorder therefore takes the
+// (the upsert's ON CONFLICT DO UPDATE, and PUT). A second recorder therefore takes the
 // row out of the first recorder's "recorded by me" set — the row's author is
 // whoever last wrote it. Accepted; stated here so nobody hunts for the row.
 //
@@ -89,7 +89,7 @@ async function canViewStudent(user, studentId) {
     return studentId === user.student_id;
   }
   if (user.role === 'teacher') {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT 1 FROM students s
        WHERE s.id = ?
          AND (
@@ -101,7 +101,7 @@ async function canViewStudent(user, studentId) {
     );
     return rows.length > 0;
   }
-  const [rows] = await pool.query('SELECT 1 FROM students WHERE id = ? LIMIT 1', [studentId]);
+  const { rows } = await pool.query('SELECT 1 FROM students WHERE id = ? LIMIT 1', [studentId]);
   return rows.length > 0;
 }
 
@@ -205,8 +205,10 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     const fromClause = `FROM attendance a
        JOIN students s ON s.id = a.student_id
        ${where}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
+    const { rows } = await pool.query(
       `SELECT a.id, a.student_id, a.date, a.status, a.recorded_by, a.created_at, a.updated_at,
               s.first_name, s.last_name, s.grade_level, s.section
        ${fromClause}
@@ -281,11 +283,13 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     // `students s` is joined for the teacher predicate's adviser leg (#6);
     // the parent and admin branches simply never reference it.
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const [[{ total }]] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(
       `SELECT COUNT(*) AS total FROM attendance a JOIN students s ON s.id = a.student_id ${where}`,
       params
     );
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT a.* FROM attendance a JOIN students s ON s.id = a.student_id ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
       [...params, list.limit, list.offset]
     );
@@ -335,7 +339,7 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
       params.push(to);
     }
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT a.status, COUNT(*) AS count
          FROM attendance a JOIN students s ON s.id = a.student_id
         WHERE ${conditions.join(' AND ')} GROUP BY a.status`,
@@ -384,7 +388,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
   }
 
   try {
-    const [studentRows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const { rows: studentRows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
     const student = studentRows[0];
 
     if (req.user.role === 'admin') {
@@ -410,14 +414,18 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       return res.status(400).json({ success: false, message: 'Cannot record attendance for an inactive student.' });
     }
 
+    // The upsert names its conflict target, uq_attendance (student_id, date);
+    // EXCLUDED is the row the INSERT proposed, MySQL's VALUES(col). updated_at
+    // moves only on a real change, through portal.touch_updated_at — as MySQL's
+    // ON UPDATE CURRENT_TIMESTAMP did.
     await pool.query(
       `INSERT INTO attendance (student_id, date, status, recorded_by)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
+       ON CONFLICT (student_id, date) DO UPDATE SET status = EXCLUDED.status, recorded_by = EXCLUDED.recorded_by`,
       [studentId, date, status, req.user.id]
     );
 
-    const [rows] = await pool.query('SELECT * FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [
+    const { rows } = await pool.query('SELECT * FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [
       studentId,
       date,
     ]);
@@ -484,7 +492,10 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
       }
     }
 
-    const [students] = await pool.query('SELECT id, status, section_id FROM students WHERE id IN (?)', [studentIds]);
+    // = ANY(?::int[]): mysql2 expanded IN (?), PostgreSQL does not.
+    const { rows: students } = await pool.query('SELECT id, status, section_id FROM students WHERE id = ANY(?::int[])', [
+      studentIds,
+    ]);
     const studentMap = new Map(students.map((s) => [s.id, s]));
 
     for (const studentId of studentIds) {
@@ -500,24 +511,33 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
       }
     }
 
-    conn = await pool.getConnection();
+    // One checked-out client for the transaction (config/db.js connect()).
+    conn = await pool.connect();
     await conn.beginTransaction();
 
-    for (const entry of entries) {
+    // Each entry writes the id THAT WAS VALIDATED (studentIds[i]), not the raw
+    // body value: mysql2 and MySQL coerced a JSON true, "5.0" or [5] to the
+    // same number parseId read, while PostgreSQL's integer input refuses them
+    // (22P02) and the adapter refuses an array — so the parsed id keeps
+    // MySQL's outcome (P3-C-R2, the route-port review).
+    for (let i = 0; i < entries.length; i += 1) {
       await conn.query(
         `INSERT INTO attendance (student_id, date, status, recorded_by)
          VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
-        [entry.student_id, date, entry.status, req.user.id]
+         ON CONFLICT (student_id, date) DO UPDATE SET status = EXCLUDED.status, recorded_by = EXCLUDED.recorded_by`,
+        [studentIds[i], date, entries[i].status, req.user.id]
       );
     }
 
     await conn.commit();
 
-    const [rows] = await pool.query('SELECT * FROM attendance WHERE date = ? AND student_id IN (?)', [
-      date,
-      studentIds,
-    ]);
+    // ORDER BY student_id: MySQL's range read on uq_attendance (student_id,
+    // date) returned the rows in that order; a PostgreSQL heap returns a
+    // re-marked row after the others.
+    const { rows } = await pool.query(
+      'SELECT * FROM attendance WHERE date = ? AND student_id = ANY(?::int[]) ORDER BY student_id',
+      [date, studentIds]
+    );
 
     await logActivity(
       req.user.id,
@@ -564,7 +584,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
   try {
     let existing;
     if (req.user.role === 'teacher') {
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT a.* FROM attendance a
          JOIN students s ON s.id = a.student_id
          JOIN sections sec ON sec.id = s.section_id
@@ -574,7 +594,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       );
       existing = rows[0];
     } else {
-      const [rows] = await pool.query('SELECT * FROM attendance WHERE id = ? LIMIT 1', [id]);
+      const { rows } = await pool.query('SELECT * FROM attendance WHERE id = ? LIMIT 1', [id]);
       existing = rows[0];
     }
 
@@ -584,7 +604,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
 
     await pool.query('UPDATE attendance SET status = ?, recorded_by = ? WHERE id = ?', [status, req.user.id, id]);
 
-    const [rows] = await pool.query('SELECT * FROM attendance WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM attendance WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'correct_attendance', `Corrected attendance #${id} to ${status}`);
 
     return res.json({ success: true, message: 'Attendance updated.', attendance: rows[0] });

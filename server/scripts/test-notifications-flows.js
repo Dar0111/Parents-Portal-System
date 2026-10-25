@@ -152,13 +152,8 @@ function find(rows, type, itemId) {
   return rows.find((r) => r.type === type && Number(r.item_id) === Number(itemId));
 }
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
+// PostgreSQL (Phase 3): every connection below is test-helpers/db.js's
+// createConnection() — the PG_* keys, the API's own role, loopback only.
 
 // Notifications carry no FK on item_id (it is polymorphic), so deleting an
 // item leaves its rows behind — invisible to every reader thanks to the
@@ -184,8 +179,8 @@ const createdSlotIds = [];
 const slotCounters = new Map();
 
 async function makeSlot(gradeId, type, maxScore) {
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection(dbConfig);
+  const mysql = require('./test-helpers/db');
+  const conn = await mysql.createConnection();
   try {
     const [rows] = await conn.query(
       `SELECT g.subject_id, g.term, g.school_year, s.grade_level, s.section
@@ -204,7 +199,7 @@ async function makeSlot(gradeId, type, maxScore) {
       `INSERT INTO assessment_slots
          (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE max_score = VALUES(max_score), id = LAST_INSERT_ID(id)`,
+       ON CONFLICT ON CONSTRAINT uq_slot DO UPDATE SET max_score = EXCLUDED.max_score RETURNING id`,
       [g.subject_id, g.grade_level, g.section, g.term, g.school_year, type, slotNo, maxScore]
     );
     createdSlotIds.push(result.insertId);
@@ -216,18 +211,18 @@ async function makeSlot(gradeId, type, maxScore) {
 
 async function deleteSlots() {
   if (!createdSlotIds.length) return;
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection(dbConfig);
+  const mysql = require('./test-helpers/db');
+  const conn = await mysql.createConnection();
   try {
-    await conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [createdSlotIds]);
+    await conn.query('DELETE FROM assessment_slots WHERE id = ANY(?::int[])', [createdSlotIds]);
   } finally {
     await conn.end();
   }
 }
 
 async function dbCount(table, where = '', params = []) {
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection(dbConfig);
+  const mysql = require('./test-helpers/db');
+  const conn = await mysql.createConnection();
   try {
     const [rows] = await conn.query(`SELECT COUNT(*) AS c FROM ${table} ${where}`, params);
     return Number(rows[0].c);
@@ -403,7 +398,7 @@ async function main() {
     // day's attendance) — snapshotted before the first review, put back first
     // in the cleanup.
     {
-      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      const conn = await require('./test-helpers/db').createConnection();
       try {
         const [[me]] = await conn.query('SELECT student_id FROM users WHERE id = ?', [parentMarwin.id]);
         attendanceSnapshot = await snapshotDays(
@@ -519,7 +514,7 @@ async function main() {
       'the reviewed letter’s "submitted" notification is no longer listed for the adviser'
     );
     {
-      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      const conn = await require('./test-helpers/db').createConnection();
       try {
         const [rows] = await conn.query(
           `SELECT user_id, type, read_at FROM notifications
@@ -1115,7 +1110,7 @@ async function main() {
     // a grade row, never another user's row. Every row asserted on here is one
     // THIS block creates, read straight from the table.
     const vcReadAt = async (userId, type, itemType, itemId) => {
-      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      const conn = await require('./test-helpers/db').createConnection();
       try {
         const [rows] = await conn.query(
           'SELECT read_at FROM notifications WHERE user_id = ? AND type = ? AND item_type = ? AND item_id = ? LIMIT 1',
@@ -1202,7 +1197,7 @@ async function main() {
     // audience — but the admin's Announcements badge carries memos, so that
     // row is inserted directly (it goes with ['memo', vcMemoId] in the cleanup).
     {
-      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      const conn = await require('./test-helpers/db').createConnection();
       try {
         await conn.query("INSERT INTO notifications (user_id, type, item_type, item_id) VALUES (?, 'memo', 'memo', ?)", [
           admin.id,
@@ -1391,7 +1386,7 @@ async function main() {
       // cleanup carries on.
       if (attendanceSnapshot.length) {
         try {
-          const conn = await require('mysql2/promise').createConnection(dbConfig);
+          const conn = await require('./test-helpers/db').createConnection();
           try {
             const touched = await restoreDays(conn, attendanceSnapshot);
             assert(
@@ -1430,8 +1425,8 @@ async function main() {
       // notification rows have no DELETE endpoint (deliberately — none of
       // those is a thing the UI may remove), so they go by direct SQL, the
       // same way test-sections resets its adviser fixtures.
-      const mysql = require('mysql2/promise');
-      const conn = await mysql.createConnection(dbConfig);
+      const mysql = require('./test-helpers/db');
+      const conn = await mysql.createConnection();
       try {
         for (const id of created.excuseLetters) {
           await conn.query('DELETE FROM excuse_letters WHERE id = ?', [id]);
@@ -1447,7 +1442,7 @@ async function main() {
       }
 
       {
-        const conn = await mysql.createConnection(dbConfig);
+        const conn = await mysql.createConnection();
         try {
           await deleteNotificationsFor(conn, notificationItems);
         } finally {

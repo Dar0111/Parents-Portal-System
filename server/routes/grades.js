@@ -2669,12 +2669,19 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     // it always did. The ordering adds slot type and number so a card
     // reads down the class record rather than by whenever a score happened
     // to be typed.
+    //
+    // ON POSTGRESQL (Phase 3, review finding grades-1): a legacy row has no
+    // slot, so s.type and s.slot_no are NULL, and date_recorded may be. MySQL
+    // put NULLs FIRST ascending and PostgreSQL puts them last, so each nullable
+    // key says NULLS FIRST — legacy rows still lead the card. s.type is the
+    // enum portal.component_type, declared ('WW', 'PT') as MySQL's ENUM was,
+    // so it sorts by declaration order on both.
     const { rows: componentRows } = await pool.query(
       `SELECT c.*, s.name AS slot_name, s.slot_no, s.type AS slot_type
          FROM grade_components c
          LEFT JOIN assessment_slots s ON s.id = c.slot_id
         WHERE c.grade_id = ?
-        ORDER BY s.type ASC, s.slot_no ASC, c.date_recorded ASC, c.id ASC`,
+        ORDER BY s.type ASC NULLS FIRST, s.slot_no ASC NULLS FIRST, c.date_recorded ASC NULLS FIRST, c.id ASC`,
       [gradeId]
     );
     const components = componentRows.map((row) => ({

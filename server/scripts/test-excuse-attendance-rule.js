@@ -208,8 +208,15 @@ async function main() {
   );
 
   console.log('\nThe transaction (a scripted stub pool)');
+  // The pg-shaped stub (Phase 3): config/db.js's connect(), a result of
+  // { rows, rowCount }. A script entry is the rows a read returns, or
+  // { rowCount } for a write. The transaction's SET LOCAL is logged on its own
+  // (`settings`), so the statement lists below are the module's statements as
+  // they always were; every stub's log is kept for the check at the end.
+  const stubLogs = [];
   function stubPool(script) {
-    const log = { queries: [], began: 0, committed: 0, rolledBack: 0, released: 0 };
+    const log = { queries: [], settings: [], began: 0, committed: 0, rolledBack: 0, released: 0 };
+    stubLogs.push(log);
     const conn = {
       beginTransaction: async () => {
         log.began += 1;
@@ -224,13 +231,17 @@ async function main() {
         log.released += 1;
       },
       query: async (sql, params) => {
+        if (/^SET LOCAL\b/.test(sql)) {
+          log.settings.push({ sql, first: log.began === 1 && log.queries.length === 0 });
+          return { rows: [], rowCount: 0 };
+        }
         log.queries.push(sql.split(/\s+/).slice(0, 2).join(' '));
         const next = script.shift();
         if (next instanceof Error) throw next;
-        return [next];
+        return Array.isArray(next) ? { rows: next, rowCount: next.length } : { rows: [], rowCount: next.rowCount };
       },
     };
-    return { pool: { getConnection: async () => conn }, log };
+    return { pool: { connect: async () => conn }, log };
   }
   const args = (status = 'Approved') => ({ letterId: 1, status, remarks: null, reviewerId: 3 });
   // The letter as it stands inside the transaction: learner #2 on `date`.
@@ -238,7 +249,7 @@ async function main() {
   const coded = (code) => Object.assign(new Error(code), { code });
 
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), [], { affectedRows: 1 }, [{ id: 7, status: 'Excused' }]]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), [], { rowCount: 1 }, [{ id: 7, status: 'Excused' }]]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(
       r.outcome === 'reviewed' && r.write === 'insert' && r.to === 'Excused' && r.from === null && r.classDay === true && r.row?.id === 7,
@@ -260,29 +271,29 @@ async function main() {
     // The handler's earlier read said one date; the letter, read inside the
     // transaction, says another (a parent's edit landed in between): the day
     // written is the letter's.
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn('2026-10-22'), [], { affectedRows: 1 }, [{ id: 8, status: 'Excused' }]]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn('2026-10-22'), [], { rowCount: 1 }, [{ id: 8, status: 'Excused' }]]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.absenceDate === '2026-10-22' && log.queries[3] === 'INSERT INTO', 'NEGATIVE CONTROL: a date that moved under the review is the one written — the letter and its day cannot part');
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), [{ id: 9, status: 'Absent' }], { affectedRows: 1 }, [{ id: 9, status: 'Excused' }]]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), [{ id: 9, status: 'Absent' }], { rowCount: 1 }, [{ id: 9, status: 'Excused' }]]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.write === 'update' && r.from === 'Absent' && r.to === 'Excused' && log.queries[3] === 'UPDATE attendance' && log.committed === 1, 'an approval over Absent updates the row by id and commits');
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), [{ id: 9, status: 'Present' }], [{ id: 9, status: 'Present' }]]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), [{ id: 9, status: 'Present' }], [{ id: 9, status: 'Present' }]]);
     const r = await rule.reviewWithAttendance(pool, args('Declined'));
     assert(r.write === null && r.to === 'Present' && log.queries.length === 4 && log.committed === 1, 'a decline over Present writes no attendance and commits the letter');
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn('2026-10-24'), [], []]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn('2026-10-24'), [], []]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.write === null && r.classDay === false && r.row === null && log.queries.length === 4 && log.committed === 1, 'an approval on a Saturday writes no attendance');
   }
   {
     // A weekday in the December break holding an Absent mark — on a class day
     // the approval would update it to Excused; here the letter commits alone.
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn('2026-12-23'), [{ id: 11, status: 'Absent' }], [{ id: 11, status: 'Absent' }]]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn('2026-12-23'), [{ id: 11, status: 'Absent' }], [{ id: 11, status: 'Absent' }]]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(
       r.write === null && r.classDay === false && r.from === 'Absent' && r.to === 'Absent' && !log.queries.includes('UPDATE attendance') && log.queries.length === 4 && log.committed === 1,
@@ -290,22 +301,22 @@ async function main() {
     );
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 0 }]);
+    const { pool, log } = stubPool([{ rowCount: 0 }]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.outcome === 'already_reviewed' && log.queries.length === 1 && log.rolledBack === 1 && log.committed === 0 && log.released === 1, 'a letter no longer Pending: rolled back, no attendance read, released');
   }
   for (const code of ['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', '23505', '40P01']) {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), [], coded(code)]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), [], coded(code)]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.outcome === 'conflict' && log.committed === 0 && log.rolledBack === 1 && log.released === 1, `a ${code} on the day's insert: rolled back whole, 'conflict', released`, JSON.stringify(r));
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), coded('ER_LOCK_DEADLOCK')]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), coded('ER_LOCK_DEADLOCK')]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.outcome === 'conflict' && log.rolledBack === 1, "a deadlock on the day's read is a conflict too");
   }
   {
-    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn(CLASS_DAY), [], coded('ER_BAD_FIELD_ERROR')]);
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), [], coded('ER_BAD_FIELD_ERROR')]);
     let error = null;
     try {
       await rule.reviewWithAttendance(pool, args());
@@ -319,6 +330,33 @@ async function main() {
   }
   assert(rule.isWriteConflict(coded('40001')) && rule.isWriteConflict(coded('ER_LOCK_WAIT_TIMEOUT')), 'a serialization failure and a lock wait timeout are conflicts');
   assert(!rule.isWriteConflict(null) && !rule.isWriteConflict(new Error('plain')), 'nothing else is');
+  {
+    // A lock wait past lock_timeout is PostgreSQL's 55P03 — MySQL's
+    // ER_LOCK_WAIT_TIMEOUT — and is a lost race like the others (Phase 3).
+    const { pool, log } = stubPool([{ rowCount: 1 }, letterOn(CLASS_DAY), coded('55P03')]);
+    let r = null;
+    let thrown = null;
+    try {
+      r = await rule.reviewWithAttendance(pool, args());
+    } catch (err) {
+      thrown = err;
+    }
+    assert(
+      !thrown && r.outcome === 'conflict' && log.committed === 0 && log.rolledBack === 1 && log.released === 1,
+      'a lock wait past lock_timeout (55P03) rolls back and is conflict',
+      thrown ? `thrown: ${thrown.code}` : JSON.stringify(r)
+    );
+  }
+  // Every review transaction sets lock_timeout to MySQL's own wait
+  // (innodb_lock_wait_timeout, 50 s), once, as its first statement; PostgreSQL's
+  // default is to wait forever.
+  const began = stubLogs.filter((l) => l.began === 1);
+  assert(
+    began.length === stubLogs.length &&
+      began.every((l) => l.settings.length === 1 && l.settings[0].first && l.settings[0].sql === "SET LOCAL lock_timeout = '50s'"),
+    'every review transaction sets lock_timeout to 50s as its first statement',
+    JSON.stringify(stubLogs.map((l) => l.settings))
+  );
   assert(
     rule.RETRY_MESSAGE === 'Another change arrived at the same moment, so this decision was not saved. Please try again.',
     'the 409 says the decision was not saved and to try again — true for every conflict, not only one on this day'

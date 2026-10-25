@@ -42,10 +42,10 @@ router.get('/mine', authenticate, authorize('parent'), async (req, res) => {
   }
 
   try {
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM excuse_letters WHERE parent_id = ?', [
-      req.user.id,
-    ]);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query('SELECT COUNT(*) AS total FROM excuse_letters WHERE parent_id = ?', [req.user.id]);
+    const { rows } = await pool.query(
       `SELECT * FROM excuse_letters WHERE parent_id = ? ${list.orderBy} LIMIT ? OFFSET ?`,
       [req.user.id, list.limit, list.offset]
     );
@@ -126,8 +126,10 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     const fromClause = `FROM excuse_letters el
        JOIN students s ON s.id = el.student_id
        ${where}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
+    const { rows } = await pool.query(
       `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section
        ${fromClause}
        ${list.orderBy}
@@ -152,7 +154,7 @@ router.get('/:id', authenticate, authorize('parent', 'teacher', 'admin'), async 
 
   try {
     if (req.user.role === 'parent') {
-      const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? AND parent_id = ? LIMIT 1', [
+      const { rows } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? AND parent_id = ? LIMIT 1', [
         id,
         req.user.id,
       ]);
@@ -163,7 +165,7 @@ router.get('/:id', authenticate, authorize('parent', 'teacher', 'admin'), async 
     }
 
     if (req.user.role === 'teacher') {
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT el.* FROM excuse_letters el
          JOIN students s ON s.id = el.student_id
          WHERE el.id = ?
@@ -178,7 +180,7 @@ router.get('/:id', authenticate, authorize('parent', 'teacher', 'admin'), async 
     }
 
     // admin
-    const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Excuse letter not found.' });
     }
@@ -239,13 +241,14 @@ router.post('/', authenticate, authorize('parent'), async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
+    // RETURNING id is mysql2's insertId (config/db.js has none).
+    const { rows: inserted } = await pool.query(
       `INSERT INTO excuse_letters (student_id, parent_id, absence_date, reason, details)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
       [req.user.student_id, req.user.id, absence_date, reason, details || null]
     );
 
-    const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [inserted[0].id]);
     await logActivity(
       req.user.id,
       'submit_excuse_letter',
@@ -312,7 +315,7 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
   try {
     // Read-scope fails first: not found or not this parent's letter both
     // return the same 404, so a parent probing ids can't distinguish them.
-    const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? AND parent_id = ? LIMIT 1', [
+    const { rows } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? AND parent_id = ? LIMIT 1', [
       id,
       req.user.id,
     ]);
@@ -337,18 +340,18 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
     // committed between the read above and this write has already set the
     // day's attendance on the old date, and moving the letter's date now
     // would leave the letter and its day apart. The same 403 as above.
-    const [edit] = await pool.query(
+    const edit = await pool.query(
       "UPDATE excuse_letters SET absence_date = ?, reason = ?, details = ? WHERE id = ? AND status = 'Pending'",
       [nextAbsenceDate, nextReason, nextDetails, id]
     );
-    if (edit.affectedRows !== 1) {
+    if (edit.rowCount !== 1) {
       return res.status(403).json({
         success: false,
         message: 'This excuse letter has already been reviewed and can no longer be edited.',
       });
     }
 
-    const [updated] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'update_excuse_letter', `Updated excuse letter #${id}`);
 
     return res.json({ success: true, message: 'Excuse letter updated.', excuse_letter: updated[0] });
@@ -388,7 +391,7 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
     let existing;
 
     if (req.user.role === 'admin') {
-      const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+      const { rows } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
       existing = rows[0];
     } else {
       // Same existence/read-scope query GET /:id already uses for a teacher —
@@ -401,7 +404,7 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       // not move. Narrowing this back to teacher_assignments would 404 an
       // adviser out before they ever reach the check they would pass — which
       // is exactly the bug fixed on 2026-09-06.
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT el.*, s.grade_level, s.section, s.section_id
          FROM excuse_letters el
          JOIN students s ON s.id = el.student_id
@@ -431,7 +434,7 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       // do not "fix" it back to 404.
       let isAdviser = false;
       if (existing.section_id) {
-        const [adviserRows] = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
+        const { rows: adviserRows } = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
           existing.section_id,
           req.user.id,
         ]);
@@ -479,7 +482,7 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       return res.status(409).json({ success: false, message: RETRY_MESSAGE });
     }
 
-    const [updated] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
     await logActivity(
       req.user.id,
       'review_excuse_letter',

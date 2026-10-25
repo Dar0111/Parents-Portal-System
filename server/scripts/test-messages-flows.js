@@ -118,22 +118,8 @@ async function run() {
   const parent1Id = parent1Login.data?.user?.id;
   assert(parent1Login.status === 200 && parent1Token, 'Parent login (Marwin, Grade 6 - Mabini)');
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
 
   const createdMessageIds = [];
   const createdLoginIds = [];
@@ -141,13 +127,13 @@ async function run() {
 
   async function cleanup() {
     if (createdMessageIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM messages WHERE id IN (?)', [createdMessageIds]));
+      await withDb((conn) => conn.query('DELETE FROM messages WHERE id = ANY(?::int[])', [createdMessageIds]));
     }
     if (createdLoginIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]));
+      await withDb((conn) => conn.query('DELETE FROM users WHERE login_id = ANY(?::text[])', [createdLoginIds]));
     }
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
   }
 
@@ -188,7 +174,7 @@ async function run() {
     const [studentResult] = await withDb((conn) =>
       conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, status, created_by)
-         VALUES (?, 'Other', 'Student', 3, 'Aguinaldo', 'active', ?)`,
+         VALUES (?, 'Other', 'Student', 3, 'Aguinaldo', 'active', ?) RETURNING id`,
         [student2Lrn, adminId]
       )
     );

@@ -48,7 +48,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     let schoolYear = school_year;
     if (schoolYear === undefined) {
-      const [settingRows] = await pool.query(
+      const { rows: settingRows } = await pool.query(
         "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
       );
       schoolYear = settingRows[0]?.setting_value;
@@ -65,7 +65,7 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const [modeRows] = await pool.query(
+    const { rows: modeRows } = await pool.query(
       'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
       [n, schoolYear]
     );

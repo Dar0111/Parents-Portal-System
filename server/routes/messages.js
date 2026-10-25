@@ -24,8 +24,12 @@ const router = express.Router();
 // parent ↔ admin thread from before keeps its messages, and only a NEW
 // send is refused — a scope change removes future authority, never past
 // records.
+//
+// ON POSTGRESQL (Phase 3): recipientId comes from parseId(), which refuses an
+// id past PostgreSQL's integer range (utils/validateId.js MAX_ID), so the
+// lookup below — outside the send handler's try — cannot fail with 22003.
 async function canMessage(senderUser, recipientId) {
-  const [recipientRows] = await pool.query(
+  const { rows: recipientRows } = await pool.query(
     `SELECT id, role, student_id FROM users WHERE id = ? AND status = 'active' LIMIT 1`,
     [recipientId]
   );
@@ -54,7 +58,7 @@ async function canMessage(senderUser, recipientId) {
     // everywhere else in the system. Before this an adviser holding no subject
     // assignment in their own section was unreachable by the parents of that
     // very section.
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT 1 FROM students s WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
       [senderUser.student_id, ...teacherViewScopeParams(recipientId)]
     );
@@ -83,7 +87,7 @@ async function canMessage(senderUser, recipientId) {
       };
     }
     // Same predicate, other direction.
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT 1 FROM students s WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
       [recipient.student_id, ...teacherViewScopeParams(senderUser.id)]
     );
@@ -119,13 +123,15 @@ router.get('/conversations', authenticate, async (req, res) => {
   try {
     // total = the people this user has exchanged messages with (C4: the same
     // set the CTE below ranks), counted without materialising the ranking.
-    const [[{ total }]] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(
       `SELECT COUNT(DISTINCT CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END) AS total
        FROM messages m
        WHERE m.sender_id = ? OR m.receiver_id = ?`,
       [userId, userId, userId]
     );
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `WITH ranked AS (
          SELECT
            m.*,
@@ -228,16 +234,29 @@ router.get('/contacts', authenticate, async (req, res) => {
   const params = [userId, ...scopeParams];
 
   if (search !== undefined && String(search).trim()) {
-    const term = `%${String(search).trim()}%`;
+    // ON POSTGRESQL: the one name fold in config/db.js (the owner's Q5 (b)) —
+    // case- and accent-insensitive, as MySQL's _ci LIKE was; it builds the
+    // %…% pattern itself. A plain LIKE would be case-sensitive here.
+    const term = pool.foldedContains(String(search).trim());
     // Matches the contact's own name OR the linked student's name — a teacher
     // looks for "Marwin's parent", not the guardian's name. Applied on top of
     // the scope condition above, never instead of it.
-    conditions.push('(u.name LIKE ? OR st.student_name LIKE ?)');
+    conditions.push(`(${pool.foldedSql('u.name')} LIKE ? OR ${pool.foldedSql('st.student_name')} LIKE ?)`);
     params.push(term, term);
   }
 
   const list = readListParams(req.query, {
-    sortable: { name: 'u.name', role: 'u.role', student_name: 'st.student_name', last_message_at: 'lm.created_at' },
+    // NULLS sort first ascending and last descending on MySQL, the other way
+    // round on PostgreSQL. student_name (an account with no learner) and
+    // last_message_at (no conversation yet) can be NULL, so each leads with an
+    // IS NOT NULL key, which takes the same direction (the content.js category
+    // sort does the same).
+    sortable: {
+      name: 'u.name',
+      role: 'u.role',
+      student_name: '(st.student_name IS NOT NULL), st.student_name',
+      last_message_at: '(lm.created_at IS NOT NULL), lm.created_at',
+    },
     defaultOrderBy: '(lm.created_at IS NULL), lm.created_at DESC, u.name ASC',
     tiebreaker: 'u.id ASC',
   });
@@ -248,17 +267,22 @@ router.get('/contacts', authenticate, async (req, res) => {
   try {
     // total over the same scope + search (C4). Only the student subquery is
     // needed for the WHERE; the conversation and subject joins are display.
-    const [[{ total }]] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(
       `SELECT COUNT(*) AS total
        FROM users u
        LEFT JOIN (
-         SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS student_name
+         SELECT s.id, concat(s.first_name, ' ', s.last_name) AS student_name
          FROM students s
        ) st ON st.id = u.student_id
        WHERE ${conditions.join(' AND ')}`,
       params
     );
-    const [rows] = await pool.query(
+    // GROUP_CONCAT(… SEPARATOR ', ') is string_agg(…, ', ' ORDER BY …) and
+    // CONCAT is concat(). string_agg has no length cap where GROUP_CONCAT cut
+    // at group_concat_max_len (1024 bytes) — no current label comes near it.
+    const { rows } = await pool.query(
       `SELECT
          u.id, u.name, u.role,
          st.student_name,
@@ -271,12 +295,12 @@ router.get('/contacts', authenticate, async (req, res) => {
           WHERE m2.receiver_id = ? AND m2.sender_id = u.id AND m2.read_status = 0) AS unread_count
        FROM users u
        LEFT JOIN (
-         SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+         SELECT s.id, concat(s.first_name, ' ', s.last_name) AS student_name,
                 s.grade_level, s.section
          FROM students s
        ) st ON st.id = u.student_id
        LEFT JOIN (
-         SELECT ta.teacher_id, GROUP_CONCAT(DISTINCT sub.name ORDER BY sub.name SEPARATOR ', ') AS subject_names
+         SELECT ta.teacher_id, string_agg(DISTINCT sub.name, ', ' ORDER BY sub.name) AS subject_names
          FROM teacher_assignments ta
          JOIN subjects sub ON sub.id = ta.subject_id
          GROUP BY ta.teacher_id
@@ -290,8 +314,8 @@ router.get('/contacts', authenticate, async (req, res) => {
        -- teacher view scope is (utils/teacherScope.js).
        LEFT JOIN (
          SELECT sec.adviser_id,
-                GROUP_CONCAT(CONCAT('Adviser of Grade ', sec.grade_level, ' - ', sec.name)
-                             ORDER BY sec.grade_level, sec.name SEPARATOR ', ') AS adviser_label
+                string_agg(concat('Adviser of Grade ', sec.grade_level, ' - ', sec.name), ', '
+                           ORDER BY sec.grade_level, sec.name) AS adviser_label
          FROM sections sec
          WHERE sec.adviser_id IS NOT NULL
          GROUP BY sec.adviser_id
@@ -361,11 +385,13 @@ router.get('/with/:userId', authenticate, async (req, res) => {
   try {
     const threadWhere = '((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))';
     const threadParams = [req.user.id, otherId, otherId, req.user.id];
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM messages m WHERE ${threadWhere}`, threadParams);
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total FROM messages m WHERE ${threadWhere}`, threadParams);
 
     const cursor = before === null ? '' : 'AND m.id < ?';
     const cursorParams = before === null ? [] : [before];
-    const [newestFirst] = await pool.query(
+    const { rows: newestFirst } = await pool.query(
       `SELECT m.id, m.sender_id, m.receiver_id, m.body, m.read_status, m.created_at,
               s.name AS sender_name, s.role AS sender_role,
               r.name AS receiver_name, r.role AS receiver_role
@@ -381,7 +407,9 @@ router.get('/with/:userId', authenticate, async (req, res) => {
 
     let hasMore = false;
     if (rows.length) {
-      const [[{ older }]] = await pool.query(
+      const {
+        rows: [{ older }],
+      } = await pool.query(
         `SELECT COUNT(*) AS older FROM messages m WHERE ${threadWhere} AND m.id < ?`,
         [...threadParams, rows[0].id]
       );
@@ -422,12 +450,14 @@ router.post('/', authenticate, async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      'INSERT INTO messages (sender_id, receiver_id, body) VALUES (?, ?, ?)',
+    // RETURNING id is mysql2's insertId; the re-select keeps the database's
+    // defaults (read_status, created_at) in the reply and the socket payload.
+    const { rows: inserted } = await pool.query(
+      'INSERT INTO messages (sender_id, receiver_id, body) VALUES (?, ?, ?) RETURNING id',
       [req.user.id, receiverId, body.trim()]
     );
 
-    const [rows] = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows } = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [inserted[0].id]);
     const message = rows[0];
 
     await logActivity(req.user.id, 'send_message', `Sent message #${message.id} to user #${receiverId}`);
@@ -455,7 +485,7 @@ router.patch('/:id/read', authenticate, async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Message not found.' });
@@ -467,7 +497,7 @@ router.patch('/:id/read', authenticate, async (req, res) => {
 
     await pool.query('UPDATE messages SET read_status = 1 WHERE id = ?', [id]);
 
-    const [updated] = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM messages WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'read_message', `Marked message #${id} read`);
 
     return res.json({ success: true, message: 'Message marked read.', data: updated[0] });
@@ -486,7 +516,9 @@ router.patch('/read-all/:userId', authenticate, async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
+    // rowCount is the MATCHED rows, the meaning affectedRows had here; the
+    // read_status = 0 guard makes every matched row a changed one.
+    const result = await pool.query(
       'UPDATE messages SET read_status = 1 WHERE sender_id = ? AND receiver_id = ? AND read_status = 0',
       [otherId, req.user.id]
     );
@@ -494,10 +526,10 @@ router.patch('/read-all/:userId', authenticate, async (req, res) => {
     await logActivity(
       req.user.id,
       'read_all_messages',
-      `Marked ${result.affectedRows} message(s) from user #${otherId} read`
+      `Marked ${result.rowCount} message(s) from user #${otherId} read`
     );
 
-    return res.json({ success: true, message: 'Thread marked read.', count: result.affectedRows });
+    return res.json({ success: true, message: 'Thread marked read.', count: result.rowCount });
   } catch (error) {
     console.error('Mark thread read error:', error);
     return res.status(500).json({ success: false, message: 'Failed to mark thread read.' });

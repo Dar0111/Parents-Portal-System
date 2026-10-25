@@ -87,22 +87,8 @@ async function run() {
   const parentUserId = parentLogin.data?.user?.id;
   assert(parentLogin.status === 200 && Number.isInteger(parentUserId), 'Parent login (for the wrong-role PATCH test)');
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
 
   const [nullSections] = await withDb((conn) =>
     conn.query('SELECT id, name, grade_level FROM sections WHERE adviser_id IS NULL ORDER BY id LIMIT 2')
@@ -148,7 +134,7 @@ async function run() {
 
   async function cleanup() {
     await withDb(async (conn) => {
-      await conn.query('UPDATE sections SET adviser_id = NULL WHERE id IN (?)', [[sectionA.id, sectionB.id]]);
+      await conn.query('UPDATE sections SET adviser_id = NULL WHERE id = ANY(?::int[])', [[sectionA.id, sectionB.id]]);
       if (inactiveTeacherId) {
         await conn.query('DELETE FROM activity_logs WHERE user_id = ?', [inactiveTeacherId]);
         await conn.query('DELETE FROM users WHERE id = ?', [inactiveTeacherId]);

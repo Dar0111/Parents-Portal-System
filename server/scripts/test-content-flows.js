@@ -131,22 +131,8 @@ async function run() {
     "Marwin's grade/section resolved via /me"
   );
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
 
   const createdAnnouncementIds = [];
   const createdMemoIds = [];
@@ -172,13 +158,13 @@ async function run() {
     ];
     await withDb(async (conn) => {
       if (createdAnnouncementIds.length) {
-        await conn.query('DELETE FROM announcements WHERE id IN (?)', [createdAnnouncementIds]);
+        await conn.query('DELETE FROM announcements WHERE id = ANY(?::int[])', [createdAnnouncementIds]);
       }
       if (createdMemoIds.length) {
-        await conn.query('DELETE FROM memos WHERE id IN (?)', [createdMemoIds]);
+        await conn.query('DELETE FROM memos WHERE id = ANY(?::int[])', [createdMemoIds]);
       }
       if (createdEventIds.length) {
-        await conn.query('DELETE FROM events WHERE id IN (?)', [createdEventIds]);
+        await conn.query('DELETE FROM events WHERE id = ANY(?::int[])', [createdEventIds]);
       }
       const deleted = await deleteNotificationsFor(conn, notificationPairs);
       const leftover = await countNotificationsFor(conn, notificationPairs);

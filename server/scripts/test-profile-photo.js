@@ -28,7 +28,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const mysql = require('mysql2/promise');
+// PostgreSQL (Phase 3): the suites' fixture connection, test-helpers/db.js.
+const { createConnection } = require('./test-helpers/db');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const AVATAR_DIR = path.join(__dirname, '..', 'uploads', 'avatars');
@@ -82,13 +83,6 @@ function photoForm(buffer, type, filename, field = 'photo') {
   return form;
 }
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
 
 function listAvatars() {
   try {
@@ -110,7 +104,7 @@ async function run() {
     process.exit(1);
   }
 
-  const db = await mysql.createConnection(dbConfig);
+  const db = await createConnection();
   const [[parentRow]] = await db.query(
     "SELECT id, login_id, profile_pic FROM users WHERE student_id = 1 AND role = 'parent' LIMIT 1"
   );
@@ -119,7 +113,7 @@ async function run() {
   const startParentPic = parentRow.profile_pic;
   const startTeacherPic = teacherRow.profile_pic;
   const startFiles = listAvatars();
-  const [[{ maxLog }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxLog FROM activity_logs');
+  const [[{ maxLog }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS "maxLog" FROM activity_logs');
   const namesSeen = new Set();
   let messageId = null;
 

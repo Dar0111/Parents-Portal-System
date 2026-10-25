@@ -121,22 +121,8 @@ async function run() {
   const marwinId = meParent.data?.user?.student_id;
   assert(Number.isInteger(marwinId), "Resolve Marwin's student_id via /me");
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL (Phase 3): the suites' one fixture connection, test-helpers/db.js.
+  const { withDb } = require('./test-helpers/db');
   async function getSectionId(name, gradeLevel) {
     const [rows] = await withDb((conn) =>
       conn.query('SELECT id FROM sections WHERE name = ? AND grade_level = ? AND school_year = ? LIMIT 1', [
@@ -192,10 +178,10 @@ async function run() {
   async function cleanup() {
     await withDb(async (conn) => {
       if (createdAttendanceIds.length) {
-        await conn.query('DELETE FROM attendance WHERE id IN (?)', [createdAttendanceIds]);
+        await conn.query('DELETE FROM attendance WHERE id = ANY(?::int[])', [createdAttendanceIds]);
       }
       if (createdStudentIds.length) {
-        await conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]);
+        await conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]);
       }
     });
   }
@@ -204,7 +190,7 @@ async function run() {
     const [rosterResult] = await withDb((conn) =>
       conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, status, created_by)
-         VALUES (?, 'Roster', 'Student', 6, 'Malikhain', ?, 'active', 2)`,
+         VALUES (?, 'Roster', 'Student', 6, 'Malikhain', ?, 'active', 2) RETURNING id`,
         [rosterLrn, malikhainId]
       )
     );
