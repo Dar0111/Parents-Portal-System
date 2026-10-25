@@ -640,12 +640,22 @@ async function run() {
       const [rows] = await withDb((conn) =>
         conn.query(
           "SELECT COUNT(*) AS c FROM activity_logs WHERE action = 'update_student_status' AND description LIKE ?",
-          [`%(#${inScopeId}) to %`]
+          [`%student #${inScopeId} to %`]
         )
       );
       return Number(rows[0].c);
     };
+    // The pattern follows the route's template, `Set student #<id> to
+    // <status>` (routes/students.js, since 2026-09-18). It looked for
+    // `(#<id>) to` until the P3-C-R2 fix round, so the counter read 0 before
+    // and after whatever the route did and the check below could not fail;
+    // this one proves the counter sees the run's own change above.
     const statusLogsBefore = await countStatusLogs();
+    assert(
+      statusLogsBefore >= 1,
+      "the status-log counter sees this run's own deactivation (it is not vacuous)",
+      `counted ${statusLogsBefore}`
+    );
     const adminStatusNoop = await request('PATCH', `/api/students/${inScopeId}/status`, {
       token: adminToken,
       body: { status: 'inactive' },
