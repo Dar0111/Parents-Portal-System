@@ -178,7 +178,37 @@ const SINCE = new Date(Date.now() + 60_000);
 const TOKEN_SENTENCE = 'Invalid or expired token.';
 const admitted = (r) => r.message === null && r.nextCalls === 1;
 
+// A token WITHOUT `iat` (Phase 3, commit 7), signed by the real signToken()
+// with its own secret: jsonwebtoken's `noTimestamp` deletes the claim, so
+// sign() is wrapped for this one call.
+function signWithoutIat(payload) {
+  const jwtLib = require('jsonwebtoken');
+  const realSign = jwtLib.sign;
+  jwtLib.sign = (p, secret, options) => realSign(p, secret, { ...options, noTimestamp: true });
+  try {
+    return signToken(payload);
+  } finally {
+    jwtLib.sign = realSign;
+  }
+}
+const noIat = signWithoutIat({ id: TEACHER.id, role: 'teacher', v: 0 });
+const IAT_CHECK = "    if (!Number.isInteger(decoded.iat)) throw new Error('no iat');";
+const CUTOFF_AHEAD = [{ token_valid_after: new Date((NOW + 60) * 1000) }];
+const CUTOFF_BEHIND = [{ token_valid_after: new Date((NOW - 60) * 1000) }];
+
 const CASES = [
+  {
+    label: 'a token with no iat, a restore cutoff in force: refused with the token sentence before the pool, as the HTTP 401',
+    input: { token: noIat, answers: [CUTOFF_AHEAD, [TEACHER]] },
+    check: (r, h) => r.message === TOKEN_SENTENCE && h.status === 401 && h.message === TOKEN_SENTENCE && r.calls === 0,
+    control: [IAT_CHECK, ''],
+  },
+  {
+    label: 'the same claims signed WITH iat, after the cutoff: admitted',
+    input: { token: good, answers: [CUTOFF_BEHIND, [TEACHER]] },
+    check: (r, h) => admitted(r) && r.userId === TEACHER.id && h.status === 200,
+    control: [IAT_CHECK, "    throw new Error('no iat');"],
+  },
   {
     label: 'no token → "Authentication required.", the pool never called',
     input: { token: undefined, answers: [STATE_CLEAR, [TEACHER]] },

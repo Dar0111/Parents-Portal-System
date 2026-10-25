@@ -1425,6 +1425,24 @@ async function run() {
     });
     assert(componentNonexistent.status === 404, 'Nonexistent componentId returns 404');
 
+    // --- A populated DATE through the API (Phase 3, commit 7) ---
+    // The JSON is the stored 'YYYY-MM-DD' whatever the API process's time
+    // zone: the commit runs this suite with the API under TZ=UTC and again
+    // under Asia/Manila (UTC+8). The year boundary is where a DATE built into
+    // a Date at local midnight would print the day before in UTC.
+    for (const day of ['2026-12-31', '2027-01-01']) {
+      const dated = await request('PUT', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
+        token: teacherToken,
+        body: { date_recorded: day },
+      });
+      const read = await request('GET', `/api/grades/${editDeleteGradeId}`, { token: teacherToken });
+      const row = (read.data?.grade_components || []).find((c) => c.id === wwAId);
+      assert(
+        dated.status === 200 && dated.data?.component?.date_recorded === day && row?.date_recorded === day,
+        `a DATE written as ${day} reads back as that string, from the write and from GET /:id`
+      );
+    }
+
     // --- Delete ---
     const deleteOneOfTwo = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${wwBId}`, {
       token: teacherToken,

@@ -162,7 +162,19 @@ Measured matrix (`semantics.js` section D; MySQL side on the isolated copy):
    `rehearse.js` `students.search_with_unaccent_extension`; Supabase ships
    `unaccent`), or accept case-only search. Learner names in this school
    do carry ñ. **Owner's decision; the port inventory carries it as item
-   Q-12.**
+   Q-12.** **Decided — the owner's Q5 (b), 2026-10-25, built in Phase 3
+   commit F: no extension; ONE fold in `config/db.js`** (`foldedSql` /
+   `foldedContains`: NFC, `lower()` under the ICU root collation `und-x-icu`,
+   one `translate()` of the accented Latin letters; the term folded the same
+   way in JavaScript). **Measured in commit 7** (`semantics.js` section G,
+   against MySQL's `utf8mb4_unicode_ci LIKE` on the new scratch): equal on
+   case and Latin accents (`nino`→Niño, `jose`→JOSÉ and back, `PENAFLOR`→Peñaflor,
+   `ñ`→Ñoño, `ána`→Ana, a no-match control); the fold also finds `lukasz`→Łukasz,
+   which MySQL does not; MySQL finds full-width `Ａｎａ` and `İsmail`, which the
+   fold does not; `strasse`→straße neither. The cluster-dependent part
+   (normalize + ICU `lower()`) gives identical text on the local cluster
+   (17.10, ICU collversion 153.14) and the hosted one (17.11, 153.121), so
+   the hosted search folds as the local one does.
 5. `citext` was measured and **not chosen**: case-only equality, no accents,
    no normalization; it would also change every column's type and break
    the `portal.ci`-keyed UNIQUEs' accent behaviour. `lower()` indexes:

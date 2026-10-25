@@ -115,7 +115,42 @@ async function run({ token, answers, reqPath = '/api/students', method = 'GET' }
   return { status: res.statusCode, body: res.body, next: nextCalled, calls: script.calls, req };
 }
 
+// A token WITHOUT `iat`, signed by the real signToken() with its own secret:
+// jsonwebtoken's `noTimestamp` option deletes the claim, so sign() is wrapped
+// for this one call (Phase 3, commit 7 — no secret is named here).
+function signWithoutIat(payload) {
+  const jwtLib = require('jsonwebtoken');
+  const realSign = jwtLib.sign;
+  jwtLib.sign = (p, secret, options) => realSign(p, secret, { ...options, noTimestamp: true });
+  try {
+    return signToken(payload);
+  } finally {
+    jwtLib.sign = realSign;
+  }
+}
+const claimsOf = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+
 (async () => {
+  // --- A token with no iat (Phase 3, commit 7) --------------------------
+  // Refused before the database is asked, so no restore cutoff can be
+  // passed that way; the same claims signed WITH iat still open the API.
+  console.log('\nA token with no iat:');
+  {
+    const noIat = signWithoutIat({ id: ACTIVE.id, role: 'teacher', v: 0 });
+    const withIat = signToken({ id: ACTIVE.id, role: 'teacher', v: 0 });
+    assert(!('iat' in claimsOf(noIat)) && Number.isInteger(claimsOf(withIat).iat), 'the fixture tokens: one carries no iat, the other an integer iat');
+    const pastCutoff = await run({ token: noIat, answers: [[{ token_valid_after: new Date(Date.now() + 60_000) }], [ACTIVE]] });
+    assert(
+      pastCutoff.status === 401 && pastCutoff.body.message === 'Invalid or expired token.' && pastCutoff.calls === 0 && !pastCutoff.next,
+      'no iat, a restore cutoff in force: 401 "Invalid or expired token." with zero pool calls',
+      `got ${pastCutoff.status} after ${pastCutoff.calls} calls`
+    );
+    const noCutoff = await run({ token: noIat, answers: [[{ token_valid_after: null }], [ACTIVE]] });
+    assert(noCutoff.status === 401 && noCutoff.calls === 0, 'no iat and no cutoff: still 401, with zero pool calls', `got ${noCutoff.status}`);
+    const signed = await run({ token: withIat, answers: [[{ token_valid_after: null }], [ACTIVE]] });
+    assert(signed.next && signed.calls === 2, 'the same claims signed with iat reach next() in two pool calls', `got ${signed.status}`);
+  }
+
   console.log('\nmiddleware/auth.js unit tests (stubbed pool)\n');
 
   // A confirmation stamp AFTER the token's sign-in: "confirmed in this

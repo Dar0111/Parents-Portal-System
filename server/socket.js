@@ -38,6 +38,10 @@ async function authenticateHandshake(socket, next) {
   let decoded;
   try {
     decoded = verifyToken(token);
+    // No numeric `iat`, no channel (Phase 3, commit 7) — the HTTP
+    // middleware's check, for its reason: the cutoff below would compare NaN
+    // and admit it. Refused as any token that fails to verify.
+    if (!Number.isInteger(decoded.iat)) throw new Error('no iat');
   } catch {
     return next(new Error('Invalid or expired token.'));
   }

@@ -166,6 +166,33 @@ cast (42P18 otherwise, measured); a best-effort hook inside a transaction
 runs in a SAVEPOINT, because a failed statement aborts a PostgreSQL
 transaction where MySQL kept it open.
 
+**Commit 7 (2026-10-25) — the proof gaps, the golden master and the token
+fix (`05` §0c).** Two findings about `scripts/transfer.js`, measured, **not
+fixed here** (the script is outside that commit's whitelist):
+
+1. **A failed transfer rolls back its rows, not its sequences.** Failed at
+   COMMIT after every sequence step, the target held exactly its old rows
+   while all 25 sequences stood at the source's AUTO_INCREMENT — two moved
+   backwards, one (`login_attempts`) at or below its own highest id.
+   `setval()` is not transactional. **Rule until it is fixed: after a failed
+   transfer, run the transfer again before anything else touches the
+   target** (it resets every sequence — measured). The fix: capture the
+   sequences before `BEGIN` and put them back in the catch, as the restore
+   does (`server/utils/backupArchive.js`).
+2. **The transfer reads AUTO_INCREMENT from a cache.** MySQL 8's
+   `information_schema.TABLES.AUTO_INCREMENT` is cached for the statistics
+   expiry (a day by default): after inserts on the source the figure is stale,
+   and the transfer's guard refuses (`AUTO_INCREMENT … is not above MAX(id)`,
+   measured on the scratch). At cutover the live database will have been
+   written minutes earlier. The fix: `SET SESSION information_schema_stats_expiry
+   = 0` on the read-only session (`lib/mysql.js readOnly()`), or `ANALYZE
+   TABLE` on the source first — an own dispatch, before the cutover rehearsal.
+
+The golden master agrees on every ported endpoint for the three roles; its
+37 differences are this split's other half, the seven route files whose
+reads still destructure mysql2's `[rows]`. `middleware/auth.js` and
+`socket.js` now refuse a token with no numeric `iat` (KNOWN_ISSUES).
+
 ## 6. Open questions carried to the port
 
 - **Q-12** accent-insensitive search (D-1). **Q-13** name ordering (D-2).

@@ -433,6 +433,63 @@ async function sectionE(pgc, my, cfg) {
   note('E', 'insert_returning_id', ret.ok ? ret.rows[0].id : ret.code, 10);
 }
 
+// G. THE SEARCH FOLD (the owner's Q5 (b); measured here since Phase 3 commit
+// 7). config/db.js's ONE helper — NFC, lower() under the ICU root collation,
+// one translate() of the accented Latin letters — against MySQL's
+// utf8mb4_unicode_ci `LIKE '%term%'` on the same name/term pairs (with
+// --mysql-db), plus PostgreSQL's plain ILIKE for reference. The pairs marked
+// `agree` are the case and Latin-accent searches the fold exists for; the rest
+// are reported as measured. translate() is a pure function; the half that can
+// differ between clusters is normalize() and ICU's lower(), so G_LOWER_SQL
+// hashes it over a fixed probe set — the same text is run on the hosted
+// cluster (read-only) and the two hashes compared.
+const G_PROBES = [
+  [1, 'Niño Alcantara', 'nino', true],
+  [2, 'JOSÉ RIZAL', 'jose', true],
+  [3, 'jose rizal', 'JOSÉ', true],
+  [4, 'Ma. Cristina', 'ma. cris', true],
+  [5, 'Peñaflor', 'PENAFLOR', true],
+  [6, 'Ñoño', 'ñ', true],
+  [7, 'Ana Reyes', 'ána', true],
+  [8, 'Łukasz', 'lukasz', null],
+  [9, 'straße', 'strasse', null],
+  [10, 'Ａｎａ', 'ana', null],
+  [11, 'İsmail', 'ismail', null],
+  [12, 'José NFD', 'jose', null],
+  [13, 'Maria Santos', 'xyz', false],
+];
+const G_LOWER_SQL =
+  "SELECT md5(string_agg(lower(normalize(n, NFC) COLLATE \"und-x-icu\"), '|' ORDER BY k)) AS lowered_md5, " +
+  "(SELECT collversion FROM pg_catalog.pg_collation WHERE collname = 'und-x-icu') AS icu_collversion " +
+  "FROM (VALUES (1, U&'Ni\\00F1o Alcantara'), (2, U&'JOS\\00C9 RIZAL'), (3, 'jose rizal'), (4, 'Ma. Cristina'), " +
+  "(5, U&'Pe\\00F1aflor'), (6, U&'\\00D1o\\00F1o'), (7, 'Ana Reyes'), (8, U&'\\0141ukasz'), (9, U&'stra\\00DFe'), " +
+  "(10, U&'\\FF21\\FF4E\\FF41'), (11, U&'\\0130smail'), (12, U&'Jose\\0301 NFD'), (13, 'Maria Santos')) AS v(k, n)";
+
+async function sectionG(pgc, my) {
+  const fold = require('../../server/config/db');
+  try {
+    for (const [k, name, term, agree] of G_PROBES) {
+      const r = (await pgc.query(`SELECT ${fold.foldedSql('$1::text')} LIKE $2 AS fold, $1::text ILIKE $3 AS ilike`, [name, fold.foldedContains(term), `%${term}%`])).rows[0];
+      let mysql = null;
+      if (my) {
+        const [rows] = await my.query(
+          "SELECT CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci, '%') AS m",
+          [name, term]
+        );
+        mysql = Number(rows[0].m) === 1;
+      }
+      if (agree === null) note('G', `pair_${k}`, { fold: r.fold, mysql, ilike: r.ilike });
+      else if (my) note('G', `pair_${k}.fold_equals_mysql`, [r.fold, mysql], [agree, agree]);
+      else note('G', `pair_${k}.fold`, r.fold, agree);
+    }
+    const lowered = (await pgc.query(G_LOWER_SQL)).rows[0];
+    note('G', 'icu_lowered_md5', lowered.lowered_md5);
+    note('G', 'icu_collversion', lowered.icu_collversion);
+  } finally {
+    await fold.end().catch(() => {});
+  }
+}
+
 async function sectionF(p, my) {
   const a = await p.connect();
   const b = await p.connect();
@@ -533,6 +590,7 @@ async function main() {
     await sectionC(pgc, my);
     await sectionD(pgc, my);
     await sectionE(pgc, my, target.pg);
+    await sectionG(pgc, my);
     release();
     await sectionF(p, my);
   } catch (error) {

@@ -132,6 +132,11 @@ async function main() {
     check('throttle.five_failures_counted', perAccount, 5);
     const cleared = await c.query('UPDATE login_attempts SET cleared = 1 WHERE login_key = $1 AND cleared = 0', ['f'.repeat(64)]);
     check('throttle.clear_account_rowCount', cleared.rowCount, 5);
+    // CORRECTED EXPECTATION 1 of 3 (recorded in docs/05 §3, Phase 3 commit 7):
+    // as first written the prune was expected to remove nothing, since the
+    // run's own rows are minutes old; the copied data holds real failures
+    // older than a day, so it now expects to remove exactly the stale rows
+    // counted here, and to leave the run's five.
     const stale = (await c.query('SELECT COUNT(*) AS n FROM login_attempts WHERE attempted_at < (portal.now_s() - make_interval(hours => $1))', [24])).rows[0].n;
     const pruned = await c.query('DELETE FROM login_attempts WHERE attempted_at < (portal.now_s() - make_interval(hours => $1))', [24]);
     check('throttle.prune_older_than_a_day_removes_exactly_the_stale_rows_not_the_fresh_five', [pruned.rowCount === stale, (await c.query('SELECT COUNT(*) AS n FROM login_attempts WHERE login_key = $1', ['f'.repeat(64)])).rows[0].n], [true, 5]);
@@ -196,6 +201,9 @@ async function main() {
 
     // 12. students search: lrn exact (ci) or name ILIKE; accent search gap
     // scoped to the synthetic learner: the seeded roster holds a real learner whose ASCII name would match
+    // (CORRECTED EXPECTATION 2 of 3, docs/05 §3: as first written the probe
+    // searched the whole roster and expected the ASCII term to find nothing;
+    // the seeded learner's ASCII name matched it, so the probe is scoped.)
     const search = async (q) => (await c.query(`SELECT s.id FROM students s WHERE (s.lrn = $1 OR concat(s.first_name, ' ', s.last_name) ILIKE $2) AND s.id = $3`, [q, `%${q}%`, student.id])).rowCount;
     check('students.search_by_lrn_lowercase', await search('zzrehearse01'), 1);
     check('students.search_by_name_case_insensitive', await search('niño rehearsal'), 1);
@@ -207,6 +215,9 @@ async function main() {
     await c.query('ROLLBACK TO SAVEPOINT s2');
 
     // 13. users list: sort by role as text, LIKE on login_id with an explicit deterministic collation
+    // (CORRECTED EXPECTATION 3 of 3, docs/05 §3: the ILIKE count was first
+    // expected to be 3, one per synthetic account; only two of the three
+    // synthetic login ids carry the hyphen the pattern asks for, so it is 2.)
     const sorted = (await c.query('SELECT role::text AS r FROM users WHERE id = ANY($1::int[]) ORDER BY role::text ASC, id DESC', [[admin.id, teacher.id, parent.id]])).rows.map((r) => r.r);
     check('users.sort_role_as_text_alphabetical', sorted, ['admin', 'parent', 'teacher']);
     const likeNative = await attempt(c, 's3', 'SELECT 1 FROM users WHERE login_id LIKE $1', ['ZZ-REH%']);

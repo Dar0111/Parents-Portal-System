@@ -24,6 +24,13 @@ async function authenticate(req, res, next) {
   let decoded;
   try {
     decoded = verifyToken(token);
+    // A TOKEN WITH NO NUMERIC `iat` IS NOT ONE THIS API SIGNED (Phase 3,
+    // commit 7): every token signToken() makes carries one, and without it
+    // the restore cutoff below compares NaN and lets the token through
+    // whatever the cutoff (found by the commit 6 rehearsals). Refused as any
+    // token that fails to verify — before the database is asked. socket.js
+    // does the same.
+    if (!Number.isInteger(decoded.iat)) throw new Error('no iat');
   } catch {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
