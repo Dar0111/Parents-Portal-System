@@ -13,8 +13,10 @@ const pool = require('../config/db');
 // A NEW VERSION ASKS AGAIN. Acceptance is per (document, version): bump a
 // version and everyone's policy_pending is true until they accept it.
 //
-// The text today is a placeholder ("Draft — awaiting the school's approval");
-// no legal text is written here (KNOWN_ISSUES).
+// The text is the owner's draft-2 of both documents (feat/privacy-text,
+// 2026-10-25; D-36, D-124 changed: in before the principal's approval — a
+// change he asks for is a later update under a new version). Each file is
+// plain paragraphs separated by a blank line; the clients render nothing else.
 
 const POLICY_DIR = path.join(__dirname, '..', 'policy');
 

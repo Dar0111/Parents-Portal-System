@@ -210,8 +210,8 @@ async function run() {
       'each version and title is the one in server/policy/versions.json'
     );
     assert(
-      list.every((d) => d.text.startsWith("Draft — awaiting the school's approval")),
-      "both documents are still the placeholder: \"Draft — awaiting the school's approval\""
+      list.every((d) => d.text === fs.readFileSync(path.join(POLICY_DIR, versions[d.document].file), 'utf8').replace(/\r\n/g, '\n').trim() && !d.text.includes('awaiting the school')),
+      "both documents are served word for word from their files, and neither is the placeholder any more (\"Draft — awaiting the school's approval\")"
     );
     const current = Object.fromEntries(list.map((d) => [d.document, d.version]));
 

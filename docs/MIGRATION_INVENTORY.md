@@ -118,7 +118,7 @@ UNIQUE uq_attendance(student_id, date). Also idx_attendance_student_date(student
 | request_ip | varchar(45) | yes | — | |
 | created_at | timestamp | no | CURRENT_TIMESTAMP | |
 
-Indexes: idx_auth_codes_lookup(user_id, purpose, consumed_at, expires_at), idx_auth_codes_rate(user_id, purpose, created_at), idx_auth_codes_ip(request_ip, created_at). The table's rows are never written into a backup dump (C26).
+Indexes: idx_auth_codes_lookup(user_id, purpose, consumed_at, expires_at), idx_auth_codes_rate(user_id, purpose, created_at), idx_auth_codes_ip(request_ip, created_at). The table's rows are never written into a backup dump (C26). **Since P-19 (`feat/sms-e2e-code-purge`) a row older than 24 h is deleted by the next code request** (`utils/authCodes.js:106`) — port: MySQL `DELETE FROM auth_codes WHERE created_at < (NOW() - INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM auth_codes WHERE created_at < NOW() - ($1 * INTERVAL '1 hour')`; no schema change.
 
 #### auth_security_state — 1 row — `schema.sql:494`
 | Column | Type | Null | Default | Keys / FK |
@@ -415,7 +415,7 @@ UNIQUE uq_transmutation_range(school_year, ig_min, ig_max).
 | `VALUES ?` with nested arrays | `utils/notify.js:195` | mysql2's bulk-insert expansion |
 | `INSERT … ON DUPLICATE KEY UPDATE … VALUES(col)` | 5: `attendance.js:416`, `:510`; `backups.js:668`; `settings.js:230`, `:286` | MySQL-only upsert syntax |
 | `INSERT IGNORE` | 2: `policy.js:95`, `utils/notify.js:194` | MySQL-only |
-| `NOW() ± INTERVAL n UNIT` with a bound `n` | 6: `utils/authCodes.js:36`, `:45`, `:75`; `utils/loginThrottle.js:46`, `:52`, `:61` | MySQL interval syntax |
+| `NOW() ± INTERVAL n UNIT` with a bound `n` | 7: `utils/authCodes.js:47`, `:56` (both a literal `1 HOUR`), `:100`, `:106` (P-19's purge); `utils/loginThrottle.js:46`, `:52`, `:61` | MySQL interval syntax |
 | `GROUP_CONCAT(… SEPARATOR …)` | 2: `messages.js:279`, `:293` | MySQL-only |
 | `CONCAT()` | 4: `students.js:130`, `messages.js:255`, `:274`, `:293`. **`students.js:130` puts the space in double quotes**, which is a string in MySQL but an identifier in PostgreSQL | |
 | `CAST(x AS CHAR)` | `users.js:421-422` | |
@@ -708,7 +708,7 @@ Three templates changed in B2's commit 2 (`create_teacher`, `update_user`,
 | C14 | Password hashing | `utils/password.js:3-11` | bcrypt via the `bcryptjs` package, cost 10 |
 | C15 | Password rule | `utils/passwordRule.js:16-27` | At least 8 characters and at least 1 digit. Applied where a password is set: `users.js:31`, `:104`; `auth.js:185`, `:541` |
 | C16 | Sign-in throttle | `utils/loginThrottle.js:27-66`; `routes/auth.js:80-103` | 15-minute window: 5 failures per account, 100 per IP, checked before the password. The key is an HMAC-SHA256 of the lower-cased typed id under `JWT_SECRET` (:34-41). Rows are pruned after 24 h (:61). Uses `req.ip`, and `server.js` sets no `trust proxy` |
-| C17 | One-time codes | `utils/authCodes.js:24-135` | 6 digits from `crypto.randomInt`, bcrypt-hashed. TTL 10 minutes, 5 attempts, 3 per account per hour, 10 per IP per hour. Only the newest code works. `burnTiming` evens out response time |
+| C17 | One-time codes | `utils/authCodes.js:24-164` | 6 digits from `crypto.randomInt`, bcrypt-hashed. TTL 10 minutes, 5 attempts, 3 per account per hour, 10 per IP per hour. Only the newest code works. `burnTiming` evens out response time. Rows older than 24 h are deleted by the next code request (P-19, :106) |
 | C18 | Forgot / reset (no oracle) | `routes/auth.js:418-574` | One 202 sentence always (:418-421). The code goes to every confirmed channel (:443-449). The reply is sent before the send happens, and failures are logged (:503-516). Reset has a single failure message |
 | C19 | Contact and email confirmation | `routes/auth.js:252-302`, `:578-730` | Email is school-owned: `PUT /contact` refuses it (:252). Changing a number clears its confirmation and burns codes. Confirm checks the snapshot (:715-723) |
 | C20 | Per-user sign-out | `routes/auth.js:217-219`, `:237-240`, `:563-566`; `routes/users.js:702-704`; `socket.js:67` | token_version + 1 on change, reset and temporary password. A change returns a replacement token. `password_changed_at` is audit only |
@@ -809,8 +809,9 @@ from client arithmetic.
 | CORS_ORIGIN | `utils/corsOrigins.js:50` | Allowed origins for HTTP and the socket |
 | SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM | `utils/mailer.js:40-44` | Outgoing email |
 | MAIL_TRANSPORT | `utils/mailer.js:36` | `file` = write mail to disk (suites); not set in `.env` |
-| SMS_TRANSPORT | `utils/smsTransport.js:140` | `gateway` / `file` / off |
-| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:143-155` | The SMS gateway (cloud mode's https API base since 2026-10-24) |
+| SMS_TRANSPORT | `utils/smsTransport.js:163` (`:140` until feat/sms-e2e-code-purge) | `gateway` / `file` / off |
+| SMS_ENCRYPTION_PASSPHRASE | `utils/smsTransport.js:168-179` | Since feat/sms-e2e-code-purge (2026-10-24): the end-to-end passphrase, the same one in the phone's SMSGate app; both modes; in gateway mode no text is sent without it. Its own key in the host's environment — never in a file |
+| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:168-179` (`:143-155` until feat/sms-e2e-code-purge) | The SMS gateway (cloud mode's https API base since 2026-10-24) |
 | MYSQLDUMP_PATH | `routes/backups.js:110` | The mysqldump binary (default: on PATH); not set in `.env` |
 | NODE_ENV | — | In `.env` and the template; read by no server code |
 | SMS_CHECK_PASSWORD | — | In `server/.env` only (not in the template); read by no code |

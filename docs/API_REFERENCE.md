@@ -602,7 +602,7 @@ the bottom must equal 104 handlers (105 with `GET /api/health`).
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field). **Sign-in limits since 2026-10-10** (`server/utils/loginThrottle.js`): **5 failures in a row on one typed login id within 15 minutes, or 100 failures from one IP**, then `429` "Too many sign-in attempts. Please wait 15 minutes, then try again." — checked BEFORE the password, so a locked account refuses the right one too; a correct password clears that account's count (never the IP's). **An unknown login id is counted and locked exactly like a real one**, with the same `401` and the same `429` byte for byte. A failure on a real account is logged `login_failed` with the user id only; `login_attempts` stores an HMAC of the typed id (keyed on `JWT_SECRET`), never the id. `user` carries `policy_pending` |
-| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500`. **`policy_pending`** (since 2026-10-10): `true` for a parent who has not accepted the current Data Privacy Notice and Terms of Use — what the clients route on; always `false` for staff. `student_first_name` is what the consent screen names the child by (never the LRN). **`contact_pending` + `contact_step`** (since 2026-10-18, feat/first-signin): the contact gate (§5b) — `contact_step` is `'add'` (nothing confirmed), `'reconfirm'` (a forced change on an account with a confirmed contact it has not used this sign-in) or `null`. The login reply carries the same fields |
+| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500`. **`policy_pending`** (since 2026-10-10): `true` for an account that has not accepted the current Data Privacy Notice and Terms of Use — every role since feat/staff-acceptance; what the clients route on. `student_first_name` is what the consent screen names the child by (never the LRN). **`contact_pending` + `contact_step`** (since 2026-10-18, feat/first-signin): the contact gate (§5b) — `contact_step` is `'add'` (nothing confirmed), `'reconfirm'` (a forced change on an account with a confirmed contact it has not used this sign-in) or `null`. The login reply carries the same fields |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. **No gate lets it through since feat/first-signin** — an account in the forced-change state gets `403 MUST_CHANGE_PASSWORD` (or the earlier gate's 403) and uses `PUT /first-password`. **Sends the password alert after the reply** (§5b, feat/password-alert) |
 | PUT | `/first-password` | any authenticated — **in the forced-change state, contact confirmed SINCE THIS SIGN-IN** (feat/first-signin, 2026-10-18) | `new_password`* (the password rule) — **no current password**: the temporary one was typed at sign-in and the code just confirmed is the second proof | `message` "Password saved." + **`token`** (a replacement, like change-password: the version is bumped and read back). The guard, in order: not in the forced state → `409` "Your password is already set. Change it in Settings."; no confirmation since this sign-in → `403` "Confirm your Gmail or mobile number first." + `code: "CONTACT_VERIFICATION_REQUIRED"`; the rule → `400` with `field: "new_password"`; the password it already has → `400` "Choose a new password, not the temporary one." with `field: "new_password"`; the UPDATE repeats the first check (`AND must_change_password = 1`), so a race is the same `409`. Logged `change_password` "Password set at first sign-in". **Sends the password alert after the reply** — a brand-new account too, one rule (§5b, feat/password-alert) |
 | PUT | `/email` | any authenticated — your own account (feat/first-signin, 2026-10-18) | `email`* (non-empty; the one email rule, `server/utils/emailRule.js` — `400` "Email must look like name@example.com." with `field: "email"`) | `user` + message "Email address updated." **A CHANGED address clears `email_verified_at` and burns pending email codes**; compared exactly, as `PUT /users/:id` compares it, so a re-cased address is a change. The same address may be on several accounts (a guardian with two children). `name`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status`/`contact_number` are `400` if present. Logged `update_email` with no address |
@@ -668,6 +668,10 @@ Added R1 (server) / R2 (client), 2026-09-19. Codes are 6 digits, **bcrypt-
 hashed at rest** in `auth_codes`, valid 10 minutes, 5 attempts, single use,
 3 per account per hour and 10 per IP per hour, and **only the newest code
 for an account+purpose is valid** — issuing one consumes the older ones.
+**A code row older than 24 hours is deleted, its `request_ip` with it, by
+the next code anyone requests** (P-19, `feat/sms-e2e-code-purge`; request-
+driven, no timer — the failed-sign-in prune's shape). It never reaches a
+live code or a row a limit still counts.
 
 1. **`POST /forgot-password` answers `202` with one sentence, always** —
    *"If this account has a confirmed email or mobile number, we sent a code
@@ -730,6 +734,19 @@ the hotspot LAN, which stays the fallback); `docs/KNOWN_ISSUES.md`.
   (`password_reset_sms_failed`, `contact_verification_sms_failed`) and on
   the console. Never the fetch error's message, which can carry the
   gateway's host and port; never the URL, credentials, number or code.
+- **End-to-end encrypted, in both modes (feat/sms-e2e-code-purge,
+  2026-10-24; D-119).** `utils/smsEncryption.js` encrypts the text and the
+  number with SMSGate's passphrase scheme — PBKDF2-HMAC-SHA1 (75,000
+  iterations, a fresh 16-byte salt per value) and AES-256-CBC with the IV
+  equal to the salt, written `$aes-256-cbc/pbkdf2-sha1$i=<n>$<salt>$<data>` —
+  and the request carries `isEncrypted: true`; `ttl` stays plain. The phone's
+  app holds the same passphrase (`SMS_ENCRYPTION_PASSPHRASE` on the server)
+  and decrypts before it sends, so the cloud relay — or the hotspot, in local
+  mode — reads neither. **Fail closed** (the owner's Q2 (a)): in gateway
+  mode without the passphrase nothing is sent and the send fails as
+  `bad_config`, logged like any other; forgot-password's reply does not
+  change. The startup line names a missing `SMS_ENCRYPTION_PASSPHRASE` by
+  name only. File mode (the suites) stays plain.
 - **The texts** are ASCII, one GSM-7 part, and carry no LRN, login id or
   student name.
 
@@ -1538,11 +1555,13 @@ page depends on it — and the caller asks for what it needs.
 ### Policy (3) — `/api/policy`
 
 The consent gate's own endpoints (feat/privacy, 2026-10-10). All three are
-reachable while the gate is shut (§5b) — after the forced change. **The text
+reachable while the gate is shut (§5b) — consent is the first of the three
+sign-in steps since feat/first-signin. **The text
 ships with the app**: `server/policy/privacy-notice.md`, `terms-of-use.md` and
 `versions.json`, read once when the server starts — a new text is an edit, a
-version bump and a restart. Both are still the placeholder ("Draft — awaiting
-the school's approval"; KNOWN ISSUES).
+version bump and a restart. **Both are the owner's draft-2** (feat/privacy-text,
+2026-10-25; the placeholder until then): plain paragraphs separated by a blank
+line, which is all the clients render (FRONTEND §29b).
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|

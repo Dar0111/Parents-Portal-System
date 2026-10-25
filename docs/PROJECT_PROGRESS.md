@@ -11,8 +11,23 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-24: `main` is the post-merge docs of `4b8be36` — B7
-`chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
+**Snapshot, 2026-10-25: `main` is the post-merge docs of `3d1521b` —
+`feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five
+commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the
+merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's
+draft-2 Data Privacy Notice and Terms of Use, both versions `draft-2`, so
+every account accepts them once after the restart; gated after backup 383,
+device-checked 2026-10-25 on the web (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`
+§5), cleaned up by id after backup 389. Before it, `6beae15`, the post-merge
+docs of `5eb2127` — `feat/sms-e2e-code-purge` merged fast-forward from
+`5426b70` by the ref move (four commits: P-19 `e8236ac`, the SMS end-to-end
+encryption `fe53aad`, the gate `82b8cf8`, the device check and the probe's
+fix round `5eb2127`): a code row older than 24 hours goes with the next code,
+and every text and number is encrypted before it leaves the server; gated
+after backup 377, device-checked 2026-10-25 (`encryption: on`, a real code
+arrived in plain words), cleaned up by id after backup 382. Before it,
+`5426b70`, the post-merge docs of
+`4b8be36` — B7 `chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
 commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102
 `bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet
 `6611af3`, finding #1's fix `415064c`, the merge-ready docs `4b8be36`): the
@@ -114,7 +129,7 @@ A module with tables and no handlers is not started; there are none.
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
 | Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 14 (`PUT /email` and `PUT /first-password` since `feat/first-signin`, merged 2026-10-21) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
-| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are placeholders |
+| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are the owner's draft-2 (feat/privacy-text, both `draft-2`) |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
@@ -203,19 +218,33 @@ built in its own worktree, gated after backup 363; the device check PASSED
 2026-10-24, §1–§5 on the web, no findings; the cleanup after the owner's SMS
 test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
-detached at `774b98c`).
-**Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) Session A: the E2E + P-19 branch (SMS end-to-end encryption and the old
-code-row purge; D-119), PLAN ONLY first; (2) Session B
-(`migrate/postgres-prep`), beside it — the sync with `main`, then the D-65 fix
-round, then Phase 3 (the owner writes `supabase.env` after Session A),
-copying everything; the sync adds B1's 26th table `grade_acknowledgements`
+detached at `774b98c`). **Merged (2026-10-24):** B7 `chore/pre-migration`
+(`4b8be36` — the docs before the migration and D-102's demo data; the restore
+point backup 376). **Merged (2026-10-25):** `feat/sms-e2e-code-purge`
+(`5eb2127` — P-19 and the SMS end-to-end encryption; the device check PASSED,
+`docs/SMS_E2E_DEVICE_CHECK.md` §4; the probe's exit-time abort guarded, the
+Node ≥ 24.20.0 upgrade the owner's decision; `main` fast-forwarded from
+`5426b70` by the ref move). **Merged (2026-10-25):** `feat/privacy-text`
+(`3d1521b` — the owner's draft-2 notice and terms, both `draft-2`; D-124
+changed by the owner — in now, without waiting for the principal's approval;
+the web device check PASSED, `docs/PRIVACY_TEXT_DEVICE_CHECK.md` §5, the phone
+joining the D-67 phone pass; a reported contact clearing was withdrawn —
+KNOWN_ISSUES, CLOSED; `main` fast-forwarded from `6beae15` by the ref move;
+the worktree `Parents_Portal-privacy-text` left detached at `a613e1a`). #3
+(Marwin's parent) stays as the demo's first-sign-in account — no confirmed
+contact, no acceptance.
+**Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
+(1) the independent verification; (2) then Session A's half of
+the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
+sync with `main` (its next sync carries the two `server/policy/` texts and
+`versions.json`, `draft-2`, with no SQL; P-19's DELETE in both forms; and the
+SMS change), then the D-65 fix round, then Phase 3 (the owner writes
+`supabase.env` after Session A), copying everything; the sync adds B1's 26th table `grade_acknowledgements`
 and the two `notifications.type` values `grades_locked` and
 `grades_acknowledged` (B1's build CHANGELOG row, 2026-10-21); B2 adds no
 schema change, and its new SQL to port is MIGRATION_INVENTORY B16; B7 adds
 none either — port its seed Grade 1 block, the demo-grade1 migration and
-`verify-grading-seed`'s new SQL (CLAUDE.md NEXT); (3) the privacy text in the app (D-36) after
-the principal's approval on Mon 2026-10-26 (D-124); (4) the reset of the old
+`verify-grading-seed`'s new SQL (CLAUDE.md NEXT); (4) the reset of the old
 activity rows at the end, after the last gate and before the demo, on
 Supabase (D-122; B7's survey for it: `docs/ACTIVITY_RESET.md`); (5) hosting
 last, once the whole system is complete — before going online, the seeded
@@ -225,9 +254,10 @@ included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is backup 376, `parents_portal_2026-10-24_150020.sql` (after
 B7's demo data; it still holds the old activity rows — D-122; 317,
 `parents_portal_2026-10-13_233314.sql`, the previous one). 324, 338, 346, 354,
-362 and 369 are the six checks' pre-cleanup dumps, 361, 368 and 375 B8's, B2's
-and B7's pre-check dumps, 347 the demo records', and 339, 344, 345, 348, 353,
-355, 360, 363 and 370 pre-write dumps, not restore points.
+362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375
+and 388 B8's, B2's, B7's and the privacy text's pre-check dumps, 347 the demo
+records', and 339, 344, 345, 348, 353, 355, 360, 363, 370, 377 and 383
+pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged;
@@ -273,9 +303,10 @@ and the phone teacher picker's empty groups.
 - [ ] **RA 10173 (Data Privacy Act).** Ask the school whether loading real
       names and LRNs needs a consent process, and whether a form exists.
       **The in-app consent step exists since the privacy build
-      (2026-10-10)**, but the Data Privacy Notice and Terms of Use it shows
-      are placeholders — **the school's approved text replaces them**
-      (`server/policy/`, a version bump; KNOWN_ISSUES).
+      (2026-10-10)**, and since feat/privacy-text the Data Privacy Notice and
+      Terms of Use it shows are the owner's draft-2, sent to the principal —
+      **a change he asks for is a later update** (`server/policy/`, a version
+      bump that asks every account again).
 - [ ] **Confirm ADMIN001's email or mobile number** — a confirmed one is the
       only in-app way back in if the one admin loses its password (CLAUDE.md
       KNOWN ISSUES hazard).

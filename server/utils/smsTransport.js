@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { toE164 } = require('./contactRule');
+const { encryptValue } = require('./smsEncryption');
 
 // Outbound text messages (feat/sms-transport, 2026-09-29). The twin of
 // utils/mailer.js: one place, the transport chosen ONCE at module load from
@@ -15,7 +16,12 @@ const { toE164 } = require('./contactRule');
 //                          http://<phone-ip>:8080); this file appends /message
 //                          and /health. SMS_GATEWAY_USER, SMS_GATEWAY_PASS are
 //                          the Basic-auth credentials the app shows for that
-//                          mode.
+//                          mode. SMS_ENCRYPTION_PASSPHRASE (feat/sms-e2e-code-
+//                          purge, 2026-10-24) is the end-to-end passphrase the
+//                          phone's SMSGate app holds too: every text and number
+//                          is encrypted before it leaves (utils/smsEncryption.js),
+//                          in BOTH modes, cloud and local, and WITHOUT it
+//                          nothing is sent — fail closed (the owner's Q2 (a)).
 //   SMS_TRANSPORT=file     write server/tmp/sms/*.json instead (git-ignored).
 //                          The suites read codes from there; no proof or
 //                          suite ever sends a real text.
@@ -33,7 +39,8 @@ const { toE164 } = require('./contactRule');
 //   unreachable | timeout | http_<status> | bad_config
 // with NO `cause` attached, so nothing downstream can print the original.
 // Callers log that reason and nothing else. Never logged anywhere in this
-// file: the URL, the credentials, the number, the code or the message body.
+// file: the URL, the credentials, the passphrase, the number, the code or the
+// message body. A missing passphrase, like a missing URL, is `bad_config`.
 // test-sms-transport.js refuses a real connection and asserts no IP or port
 // survives into anything a caller could print.
 
@@ -64,7 +71,7 @@ function baseUrl(url) {
   }
 }
 
-function createTransport({ mode, url, user, pass, fetchImpl = fetch, dir = SMS_DIR, timeoutMs = TIMEOUT_MS } = {}) {
+function createTransport({ mode, url, user, pass, passphrase, fetchImpl = fetch, dir = SMS_DIR, timeoutMs = TIMEOUT_MS } = {}) {
   const base = baseUrl(url);
   const configured = mode === 'gateway' && Boolean(base && user && pass);
   const authHeader = configured ? `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}` : null;
@@ -93,13 +100,27 @@ function createTransport({ mode, url, user, pass, fetchImpl = fetch, dir = SMS_D
       return { transport: 'file', file };
     }
     if (!configured) throw failure('bad_config');
+    // FAIL CLOSED (the owner's Q2 (a)): no passphrase, no text — a code never
+    // crosses the relay readable. The caller logs `bad_config`, as for a
+    // missing URL, and forgot-password still answers its one sentence.
+    if (!passphrase) throw failure('bad_config');
+
+    // The message and EVERY phone number, each with its own salt; `ttl` stays
+    // plain, as SMSGate's docs say. The text the phone sends is unchanged.
+    let encryptedText;
+    let encryptedNumber;
+    try {
+      [encryptedText, encryptedNumber] = await Promise.all([encryptValue(text, passphrase), encryptValue(number, passphrase)]);
+    } catch {
+      throw failure('bad_config');
+    }
 
     let res;
     try {
       res = await fetchImpl(`${base}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: authHeader },
-        body: JSON.stringify({ textMessage: { text }, phoneNumbers: [number], ttl: ttlSeconds }),
+        body: JSON.stringify({ textMessage: { text: encryptedText }, phoneNumbers: [encryptedNumber], ttl: ttlSeconds, isEncrypted: true }),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
@@ -131,7 +152,9 @@ function createTransport({ mode, url, user, pass, fetchImpl = fetch, dir = SMS_D
     for (const [key, value] of Object.entries(body.checks || {})) {
       checks[key] = { status: value && value.status, observed: value && value.observedValue };
     }
-    return { reachable: true, mode, httpStatus: res.status, status: body.status, version: body.version, checks };
+    // `encryption`: whether a passphrase is SET (its presence only — the probe
+    // prints on/off). /health itself does not change with encryption.
+    return { reachable: true, mode, httpStatus: res.status, status: body.status, version: body.version, checks, encryption: Boolean(passphrase) };
   }
 
   return { mode, isEnabled, send, health };
@@ -142,9 +165,10 @@ const FILE_TRANSPORT = MODE === 'file';
 
 // Once, naming the missing variables by NAME, never by value.
 if (MODE === 'gateway') {
-  const missing = ['SMS_GATEWAY_URL', 'SMS_GATEWAY_USER', 'SMS_GATEWAY_PASS'].filter((k) => !process.env[k]);
+  const missing = ['SMS_GATEWAY_URL', 'SMS_GATEWAY_USER', 'SMS_GATEWAY_PASS', 'SMS_ENCRYPTION_PASSPHRASE'].filter((k) => !process.env[k]);
   if (missing.length) console.error(`SMS is set to gateway but ${missing.join(', ')} is missing in server/.env. No text will be sent.`);
   else if (!baseUrl(process.env.SMS_GATEWAY_URL)) console.error('SMS_GATEWAY_URL in server/.env is not an http(s) URL. No text will be sent.');
+  else if (process.env.SMS_ENCRYPTION_PASSPHRASE.length < 24) console.error('SMS_ENCRYPTION_PASSPHRASE in server/.env is shorter than 24 characters. Texts are still sent; use a longer one.');
 }
 
 const transport = createTransport({
@@ -152,6 +176,7 @@ const transport = createTransport({
   url: process.env.SMS_GATEWAY_URL,
   user: process.env.SMS_GATEWAY_USER,
   pass: process.env.SMS_GATEWAY_PASS,
+  passphrase: process.env.SMS_ENCRYPTION_PASSPHRASE,
 });
 
 // ---------------------------------------------------------------------------

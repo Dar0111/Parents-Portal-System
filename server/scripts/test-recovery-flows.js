@@ -246,9 +246,32 @@ async function main() {
     // -----------------------------------------------------------------------
     console.log('\nEmail verification');
     // -----------------------------------------------------------------------
+    // P-19 (feat/sms-e2e-code-purge): two consumed code rows for the
+    // no-contact teacher, one past authCodes.KEEP_HOURS (24) and one inside it.
+    // The next code anyone requests — the verify-email request just below —
+    // must delete the old row and leave the other. Both are this run's own
+    // rows, removed with the account in the finally block.
+    const plantAged = async (hours) => {
+      const [res] = await withDb((c) =>
+        c.query(
+          `INSERT INTO auth_codes (user_id, purpose, code_hash, expires_at, consumed_at, created_at)
+           VALUES (?, 'email_verification', 'planted-aged-row', (NOW() - make_interval(hours => ?) + INTERVAL '10 minutes'),
+                   (NOW() - make_interval(hours => ?)), (NOW() - make_interval(hours => ?))) RETURNING id`,
+          [mkNc.data.user.id, hours, hours, hours]
+        )
+      );
+      return res.insertId;
+    };
+    const agedOut = await plantAged(25);
+    const agedIn = await plantAged(23);
+
     const before1 = mailFilesBefore();
     const vreq = await request('POST', '/api/auth/verify-email/request', { token: teacher.token });
     requireFixture(vreq.status === 202, 'verification code requested', why(vreq));
+    const [agedLeft] = await withDb((c) => c.query('SELECT id FROM auth_codes WHERE id IN (?, ?)', [agedOut, agedIn]));
+    const agedIds = agedLeft.map((r) => Number(r.id));
+    assert(!agedIds.includes(Number(agedOut)), 'P-19: a new code deletes a code row older than 24 hours');
+    assert(agedIds.includes(Number(agedIn)), 'P-19: a code row younger than 24 hours stays');
     const mail1 = newestCodeSince(before1);
     requireFixture(mail1 != null, 'the file transport wrote the message', 'no new file in server/tmp/mail');
     assert(mail1.to === TEACHER_EMAIL, 'sent to the account email');

@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-24, `main` `4b8be36` plus this commit (the post-merge docs) — B7 `chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102 `bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet `6611af3`, finding #1's fix `415064c`, the merge-ready docs `4b8be36`): gated after backup 370, device-checked 2026-10-24 on the web (one finding fixed and re-checked), nothing to clean up, the new restore point backup 376; before it `01495e5`, the post-merge docs of B2 `feat/activity-log` (`f4cc8c4`: Admin → Activity log, §36, device-checked 2026-10-24, cleaned up by id after backup 369); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-25, `main` `3d1521b` plus this commit (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
@@ -974,8 +974,9 @@ confirms one again in that session); then your own password
 Three ticks in the principal's draft words
 (§29a), the child by first name, never the LRN; a stale version is 409. **The
 socket refuses the same gates, and a restore re-runs the privacy step
-itself** (fix round). **The text (`server/policy/`) is a
-placeholder; staff tick two boxes, no child tick.** New teachers and parents change
+itself** (fix round). **The text (`server/policy/`) is the
+owner's draft-2 of both documents (feat/privacy-text, plain paragraphs); staff
+tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Every password change is announced to its
 holder on every confirmed channel — the password alert (feat/password-alert,
 2026-10-21; §11).** **Sign-in: 5 failures in a row / 100 per IP
@@ -1451,7 +1452,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
-| **In SMSGate cloud mode (since 2026-10-24) every text, its code included, passes through the cloud relay unencrypted** — added 2026-10-24 (B7) | `utils/smsTransport.js` `send()` + SMSGate's cloud server | https protects the hop, but the relay reads number and message. Fix: the SMS end-to-end encryption branch (NEXT). The plain-HTTP LAN risk now applies only to the local-mode fallback |
+| **Node 24.14.1 on Windows: `fetch` then `process.exit()` can abort at exit with the libuv `UV_HANDLE_CLOSING` assertion** (nodejs/node#56645) — added 2026-10-25 | every HTTP suite + `proof-backup-loop.js`; the SMS probe has two guards | Results print first, so no figure changes, but the exit code becomes 0xC0000409. Fixed in Node 24.20.0: upgrade this machine and the host (the owner's decision; then re-measure every baseline) |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
 | **Restoring a backup taken before `feat/grade-acknowledgement` (2026-10-21) drops `grade_acknowledgements` and the two newer `notifications.type` values** — the report card and the class summary answer `500` until the migration is re-run | `server/backups/*.sql` | Re-run `npm run db:migrate:grade-acknowledgements` afterwards (idempotent) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
@@ -1459,7 +1460,6 @@ gate in full on its `POST /api/users/parents` row.
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Five phone / APK notes, one row (2026-09-27 → 10-04): Expo Go on the Play Store moves to SDK 58 in October 2026 (auto-update is OFF on the phone; the SDK 57 APK or a USB install is the fallback, or an SDK 58 upgrade before November); a release build refuses plain `http://` (a cleartext setting or a network security config); the message tone plays during DND and the 150 ms vibration ignores DND and the ringer (the APK fix); the status bar colour is ignored under enforced edge-to-edge (re-check on every SDK upgrade, on Android 15+ and in the APK)** | `mobile/` | Not code defects — dates and the APK to watch. The five rows in full: `docs/KNOWN_ISSUES.md`, and as they stood here in `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21 (docs/trim-10, the tenth trim)" |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
-| **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
 | **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
 | **An attendance register open elsewhere can write a day's old mark back over an excuse decision** — added 2026-10-23 (`feat/excuse-attendance`; accepted, the owner's Q7) | both registers' Save (`entries`, every mark on screen) + `POST /attendance/bulk` | A second tab, another device, or a phone register holding unsaved marks (its focus re-read skips it). The day is then the adviser's mark, correctable; the letter stands. Fix: Save only the changed marks, its own dispatch |
@@ -1668,19 +1668,31 @@ Merged after the close, each device-checked, with their item pointers:
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin`, `feat/account-create`
-with `feat/password-alert`, B1, B3, B8, B2 and B7 are MERGED, the last `4b8be36`
-(2026-10-24 — B7 `chore/pre-migration` by the ref move from `01495e5`; gated
-after backup 370, device-checked on the web with one finding fixed and
-re-checked, nothing to clean up, the new restore point backup 376); each one's
-check, cleanup and backup: its CHANGELOG row and `docs/ARCHIVE.md` → "Blocks
-moved from CLAUDE.md on 2026-10-23". **Next, in the owner's order (2026-10-24;
-D-119, D-122, D-124):**
+with `feat/password-alert`, B1, B3, B8, B2, B7, `feat/sms-e2e-code-purge`
+and `feat/privacy-text` are MERGED, the last `3d1521b` (2026-10-25 — by the
+ref move from `6beae15`: the owner's draft-2 Data Privacy Notice and Terms of
+Use, both `draft-2`, every account accepting them once; gated after backup
+383, device-checked on the web, cleaned up by id after backup 389; the phone
+joins the D-67 phone pass); each one's check, cleanup and backup: its
+CHANGELOG row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
+2026-10-23". **Never read live contact or acceptance state while a suite or
+the smoke runs** — their helpers stamp, then put back (a finding withdrawn
+2026-10-25, KNOWN_ISSUES). **#3 (Marwin's parent) stays as the demo's
+first-sign-in account** — no confirmed contact, no acceptance. **Next, in the
+owner's order (2026-10-25; D-122, D-124 changed):**
 
-1. **Session A: the E2E + P-19 branch** (D-119: SMS end-to-end encryption,
-   approved 2026-10-24, and the old code-row purge, P-19, approved) — **PLAN
-   ONLY first.**
-2. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
-   then Phase 3; the owner writes `supabase.env` after Session A. **It copies
+1. **The independent verification.**
+2. **Then Session A's half of the Phase 3 split.**
+3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
+   then Phase 3; the owner writes `supabase.env` after Session A. **Its next
+   sync carries the two `server/policy/` texts and `versions.json`
+   (`draft-2`; no SQL — the policy SQL to port is unchanged), P-19's
+   DELETE** — MySQL `DELETE FROM auth_codes WHERE created_at < (NOW() -
+   INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM auth_codes WHERE created_at <
+   NOW() - ($1 * INTERVAL '1 hour')` (`utils/authCodes.js`, `KEEP_HOURS =
+   24`) — **and the SMS change** (`utils/smsEncryption.js`,
+   `utils/smsTransport.js`, the env key `SMS_ENCRYPTION_PASSPHRASE`; no SQL).
+   **It copies
    everything, the old activity rows included** — their reset is step 4, on
    Supabase. The sync adds B1's
    26th table `grade_acknowledgements` and the two `notifications.type` values
@@ -1699,8 +1711,6 @@ D-119, D-122, D-124):**
    seed), the demo-grade1 migration (`db:migrate:demo-grade1`, a MySQL
    one-off — its rows already in the copied data) and `verify-grading-seed`'s
    new SQL (the same columns).
-3. **The privacy text in the app** (D-36), after the principal's approval on
-   Mon 2026-10-26 (D-124).
 4. **The reset of the old activity rows, at the end** — after the last gate
    and before the demo, on Supabase (D-122; moved out of B7); its scope is
    decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
@@ -1713,10 +1723,10 @@ The owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 backup 376 (`parents_portal_2026-10-24_150020.sql`, after B7's demo data; it
 still holds the old activity rows, D-122; 317 the previous one) — 324, 338,
-346, 354, 362 and 369 are the six checks' pre-cleanup dumps, 361, 368 and 375
-B8's, B2's and B7's pre-check dumps,
+346, 354, 362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375 and 388
+B8's, B2's, B7's and the privacy text's pre-check dumps,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
-345, 348, 353, 355, 360, 363 and 370 pre-write dumps, not restore points. The manuscript delta list stays with the
+345, 348, 353, 355, 360, 363, 370, 377 and 383 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
 

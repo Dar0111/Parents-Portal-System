@@ -234,6 +234,14 @@ through the **SMSGate** ("SMS Gateway for Android") app on a phone:
   `http://<the phone's ip>:8080`) — the server appends `/message` and
   `/health` — and `SMS_GATEWAY_USER` / `SMS_GATEWAY_PASS` from the app.
   **Never commit the values.**
+- **End-to-end encryption, in both modes (cloud and local):**
+  `SMS_ENCRYPTION_PASSPHRASE` in `server\.env` and the **same** passphrase in
+  the app (**Settings** tab → **Encryption** → **Passphrase**) — a long random
+  one, 24 characters or more.
+  Every text and number is encrypted before it leaves the server, so the
+  cloud relay (or the hotspot) reads neither. **In gateway mode, without it no
+  text is sent** (forgot-password still answers its one sentence; the failure
+  is logged). `npm run sms:probe` prints `encryption: on` or `off`.
 - **It stays off except during a test:** a blank `SMS_TRANSPORT` = SMS off,
   email only. `npm run sms:probe` (in `server/`) checks that the gateway is
   reachable. The detail: `docs/KNOWN_ISSUES.md` (the SMS rows) and
