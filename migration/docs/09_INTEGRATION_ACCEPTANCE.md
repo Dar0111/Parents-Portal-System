@@ -49,14 +49,15 @@ non-destructive hosted checks.
 
 1. **D-2** — the name sort: `COLLATE portal.ci` (MySQL's order, measured) or the database collation.
    **Answered 2026-10-25: the database collation; the different tie order is
-   accepted (the decision approved under Q5 kept); `COLLATE portal.ci` is not
+   accepted (D-135 Q5, reaffirmed in D-141); `COLLATE portal.ci` is not
    applied.** The measurement and the option not taken: `02` §E, D-2.
 2. **The int4 cap** — 400 above 2,147,483,647 (implemented) or the old per-route answers.
-   **Answered 2026-10-25: confirmed — an id above 2,147,483,647 answers 400**
-   (`02` §E).
+   **Answered 2026-10-25 (D-141): confirmed — an id above 2,147,483,647
+   answers 400** (`02` §E).
 3. **NUL in text, the 64 KB TEXT cap, impossible dates in filters** — refuse / keep.
-   **Answered 2026-10-25: refuse all three at the request boundary (MySQL's
-   64 KB cap kept on the same fields) — built, §5.**
+   **Answered 2026-10-25 (D-141, with the golden master's 23 affected
+   requests): refuse all three at the request boundary (MySQL's 64 KB cap kept
+   on the same fields) — built, §5.**
 4. **`test:students`' vacuous assertion** — a one-line fix on `main` (`08` §3).
    **Answered 2026-10-25: fixed on this branch (it reaches `main` with the
    cutover merge) — §5.**
@@ -74,8 +75,8 @@ non-destructive hosted checks.
 
 ## 5. The owner's answers and the fix round (2026-10-25/26)
 
-The owner answered §3 on 2026-10-25: D-2 kept (the database collation), the
-int4 cap confirmed, NUL / the 64 KB cap / impossible dates in filters refused at
+The owner answered §3 on 2026-10-25: D-2 kept (the database collation; D-135
+Q5, reaffirmed in D-141), the int4 cap confirmed (D-141), NUL / the 64 KB cap / impossible dates in filters refused at
 the request boundary, `test:students` fixed on this branch, the lost-COMMIT
 proof run ten times. One commit per item, each with its tests:
 
@@ -116,8 +117,8 @@ notifications and codes at 0 and the login rows +25, the recorded figure.
 A = `main` `64200f7` on 5030, B = this branch on 5010): `compare` 84 requests,
 83 the same, 1 by design (`/api/backups`); `golden-values` 90 requests, 86 the
 same, 4 known (the int4 cap's two `400`s, the D-2 tie order asc and desc),
-0 rows left on either side; **the affected requests** (a scratchpad probe, 23
-requests — NUL ×5, the cap ×10 with two at-the-limit controls, dates ×6 with
+0 rows left on either side; **the affected requests** (D-141; a scratchpad
+probe, 23 requests — NUL ×5, the cap ×10 with two at-the-limit controls, dates ×6 with
 two controls), 23 as measured, 0 rows left. **It corrected one record:** `05`
 §0f said MySQL answered an impossible date in a filter with an empty `200`; it
 answers **`500`** (strict mode refuses the comparison) for every case but a
@@ -187,8 +188,9 @@ to it, and what is still open:
    `snapshot` → `snapshot:restore-check`; then `pg:schema --target staging`
    on an **empty** schema — the rehearsal data this phase left (the admin's two
    `draft-2` acceptances, the 2 archive rows, the extra log rows) goes when the
-   owner drops the schema by hand as `portal_migrate`, since `--drop-first`
-   is refused for staging (D-65); then `transfer` and `reconcile` (`RECONCILE
+   owner drops the schema as `portal_migrate` with
+   `scripts/drop-staging-schema.js --target staging` (`07` Phase 2), since
+   `--drop-first` is refused for staging (D-65); then `transfer` and `reconcile` (`RECONCILE
    OK`, `grown=0`). The schema to apply is the one compared IDENTICAL in §6.
 3. **The API host's clock** measured against the database (`06` item 4) —
    under one second, fixed on the host otherwise. It drifted to 2.9 s on this
@@ -202,7 +204,10 @@ to it, and what is still open:
    is not the production launcher.
 5. **`07` Phase 3's smoke** — now proven possible on the hosted target: the
    browser smoke through `staging-api.js --smoke`'s flag (§6 d) and Backup &
-   Restore through the API (§6 e).
+   Restore through the API (§6 e). After the cutover the web smoke runs
+   against the owner's own 5000 / 3000 through `staging-api.js --smoke-live`
+   (the owner's Q8 (b)), and the email and SMS codes are checked as `07`
+   Phase 3 item 5 says (the owner's Q3).
 6. **Still open in `06` §4:** item 6 (the pooler's own idle limit) and item 12
    (the plan's backup cadence and PITR); and the phone pass (§6a).
 7. **The merge** of `migrate/postgres-prep`, with `08`'s context-sync

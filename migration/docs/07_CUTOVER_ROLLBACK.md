@@ -50,7 +50,12 @@ to approve, with the command shown first.
    left a schema, `--drop-first` is refused for staging on purpose, by the
    flag before any secret is read and by the connection after (D-65, the
    owner's Q2.3): the owner drops it by hand as `portal_migrate` after
-   confirming it holds rehearsal data only, the command shown first.
+   confirming it holds rehearsal data only, the command shown first — with
+   `node scripts/drop-staging-schema.js --target staging` (the owner's Q5,
+   2026-10-26): the read-only survey, the statement printed, the typed
+   `DROP portal`, one transaction through the pooler with verify-full, the
+   read-back. Its test runs on a disposable local database only
+   (`scripts/test-drop-staging-schema.js`).
 2. `transfer --target staging` — one transaction, every FK deferred, every
    sequence set to the source AUTO_INCREMENT. Any error → automatic
    ROLLBACK → fix → rerun. There is no partial state to clean up.
@@ -85,6 +90,19 @@ to approve, with the command shown first.
    with the new mechanism and confirm it lists), then delete what the smoke
    wrote by id. `npm run smoke` (the read-only Playwright run) against the
    new API.
+5. **The post-cutover checks (the owner's answers of 2026-10-26).** The web
+   smoke: `node scripts/staging-api.js --smoke-live` in `migration/` against
+   the owner's API on 5000 and web on 3000 — the flag in the smoke child's
+   environment only, read-only counts by role before and after, which must
+   match (Q8 (b)). The phone: the SHORT starred check, not the full sheet
+   (Q3), with real mail and SMS:
+   - **the email code** from **Forgot password on Ana Reyes** (the
+     adviser-only teacher, whose confirmed email is the project's own Gmail)
+     — read the code, then **stop before any reset**. **Never #7's Verify
+     email:** #7's address on file is a seed address, and #7's data must not
+     change;
+   - **the SMS code** from **Forgot password on Lito** — read the code, then
+     **stop before any reset**.
 
 ## Phase 4 — after the switch: writes that happen after cutover
 
