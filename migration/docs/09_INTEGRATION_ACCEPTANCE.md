@@ -22,7 +22,7 @@ non-destructive hosted checks.
 | 6 | Safe sequence allocation | **met** | C1 and C2 closed (`05` §0d); the archive manifest's sequence reading fixed (14 of 25 wrong → 0 of 25, §0h); the golden master's new ids equal on both sides; `restore-e2e.js`: no sequence backwards |
 | 7 | Successful and failed restore verification | **met** | `restore-e2e.js` — a real restore through the API on a disposable database (200, the old session 401, the catalog kept + its safety archive, every count as it was); `restore-commit-drop.js` (a COMMIT lost after and before the server); `test:restore` 39 (MySQL-era, incomplete, corrupt and mismatched archives refused before any write); `backup-during-restore.js` (an archive made during a restore waits and holds every row) |
 | 8 | Consistent API response contracts | **met** | the golden master: 86 of 87 the same by path and type (the 87th by design, `/api/backups`); 53 reads the same by value and array order (`05` §0g) |
-| 9 | Acceptable golden-master results | **met; D-2 the owner's** | every difference classified: `/api/backups` by design (`04`); the int4 cap's two 400s documented (`05` §0f); the name sort measured — it differs only among names MySQL treats as equal, and `COLLATE portal.ci` reproduces MySQL exactly (`05` §0g) |
+| 9 | Acceptable golden-master results | **met** | every difference classified: `/api/backups` by design (`04`); the int4 cap's two 400s documented (`05` §0f) and confirmed by the owner (§3); the name sort measured — it differs only among names MySQL treats as equal, and `COLLATE portal.ci` reproduces MySQL exactly (`05` §0g); the owner kept the database default (D-2, §3) |
 | 10 | Complete applicable regression execution | **met; one item NOT RUN** | 33 suites, `verify:grading-seed`, the client's oxlint / tokens / contrast / build and its one affected render proof at their figures, the browser smoke 20/20 (`05` §0i); **mobile NOT RUN** — no mobile file differs from `main` and the worktree has no mobile dependencies |
 | 11 | Preserved source systems | **met** | the main tree, its server on 5000 and the live `parents_portal` were not touched (nothing listened on 5000, 3000, 5001 or 3001 when checked); the MySQL side was read through `lib/mysql.js` READ ONLY sessions and written only in `parents_portal_migsrc_*` scratches and one disposable `parents_portal_migtest_*` (dropped); the smoke fixture's mysql2 default — which would have reached the live database — was ported before any sweep (`05` §0i) |
 | 12 | Recorded remaining hosted dependencies | **met** | `06` (staging), `07` (cutover and rollback), `08` §5 (the owner's decisions); Phase L not started |
@@ -47,7 +47,12 @@ non-destructive hosted checks.
 ## 3. Decisions that are the owner's (none blocks Phase L)
 
 1. **D-2** — the name sort: `COLLATE portal.ci` (MySQL's order, measured) or the database collation.
+   **Answered 2026-10-25: the database collation; the different tie order is
+   accepted (the decision approved under Q5 kept); `COLLATE portal.ci` is not
+   applied.** The measurement and the option not taken: `02` §E, D-2.
 2. **The int4 cap** — 400 above 2,147,483,647 (implemented) or the old per-route answers.
+   **Answered 2026-10-25: confirmed — an id above 2,147,483,647 answers 400**
+   (`02` §E).
 3. **NUL in text, the 64 KB TEXT cap, impossible dates in filters** — refuse / keep.
 4. **`test:students`' vacuous assertion** — a one-line fix on `main` (`08` §3).
 

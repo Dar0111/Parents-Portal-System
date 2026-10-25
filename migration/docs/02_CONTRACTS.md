@@ -183,17 +183,20 @@ Measured matrix (`semantics.js` section D; MySQL side on the isolated copy):
    `C`-order (uppercase first) under the database default. Visible in sorted
    tables (Admin → Users by name). The sort-only candidate `und-u-ks-level1`
    *deterministic* collation gives `A,a,Á,á,B,b,z` without affecting
-   equality or LIKE; **recommended for the `ORDER BY name` expressions**
+   equality or LIKE; it was recommended for the `ORDER BY name` expressions
    (a `COLLATE` in the pagination allow-list), to be decided with Q-13.
    Supabase's database default is `en_US.UTF-8` (libc), which orders
    `a,A,á,Á…` — different from both; the hosted check records it.
+   **Decided — D-2 below (the owner, 2026-10-25): the database default
+   stays; no `COLLATE` is added to any sort.**
 
 ## E. Unresolved decisions (for the owner)
 
 | # | Decision | Default if nothing is said |
 |---|---|---|
 | D-1 | Accent-insensitive name search (`unaccent`) or case-only | case-only (no extension) |
-| D-2 | `ORDER BY name` with the ICU sort collation or the database default | ICU sort collation on the three name sorts |
+| D-2 | `ORDER BY name` with the ICU sort collation or the database default | **DECIDED 2026-10-25 (the owner, the decision approved under Q5 kept): the database default — the different tie order is accepted; `COLLATE portal.ci` is NOT applied.** The measurement (`05` §0g): the order differs only among names MySQL treats as EQUAL (case and accent variants — `Abad`/`abad`, `Ábrego`/`Abrego`, `Ñuñez`/`Nunez`/`nuñez`, `Zuñiga`/`zuniga`), which MySQL breaks by the route's id tiebreaker and the default collation orders lowercase-first and unaccented-first; every other name is in MySQL's order. **The option, recorded and not taken:** `ORDER BY <name keys> COLLATE portal.ci, <tiebreaker>` on the name sorts (students, users, contacts, excuse letters, the conversations name sort) reproduced MySQL's order exactly on the same sixteen names, independent of the hosted default collation. The hosted default's own tie order: `06` §4 |
+| — | **The int4 id cap** (`utils/validateId.js MAX_ID`) | **CONFIRMED 2026-10-25 (the owner):** an id above 2,147,483,647 answers the route's own `400` (MySQL answered `404` or an empty `200`; on PostgreSQL such a bound value is `22003` → `500`). `05` §0f |
 | D-3 | LIKE on `login_id`: `COLLATE "C" ILIKE` now, native LIKE if PG 18 | `COLLATE "C" ILIKE` |
 | D-4 | Keep `smallint` 0/1 for the five flags (contract unchanged) vs `boolean` (changes JSON and 41 SQL sites) | smallint 0/1 |
 | D-5 | Isolation: stay READ COMMITTED with the existing `FOR UPDATE` and guarded `UPDATE … WHERE is_locked <> ?` patterns; do **not** switch the grade transactions to REPEATABLE READ (PG aborts with 40001 on a write after a concurrent commit — measured — where MySQL blocks and proceeds) | READ COMMITTED |
