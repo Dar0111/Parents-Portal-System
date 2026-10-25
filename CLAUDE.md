@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-25, `main` `5eb2127` plus this commit (the post-merge docs) — `feat/sms-e2e-code-purge` merged fast-forward from `5426b70` by the ref move (four commits: P-19 `e8236ac`, the SMS end-to-end encryption `fe53aad`, the gate `82b8cf8`, the device check and the probe's fix round `5eb2127`): gated after backup 377, device-checked 2026-10-25 (`encryption: on`, a real code arrived in plain words), cleaned up by id after backup 382; before it `5426b70`, the post-merge docs of B7 `chore/pre-migration` (`4b8be36`: D-102's demo data, device-checked 2026-10-24, the restore point backup 376); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-25, `main` `3d1521b` plus this commit (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
@@ -1668,35 +1668,31 @@ Merged after the close, each device-checked, with their item pointers:
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin`, `feat/account-create`
-with `feat/password-alert`, B1, B3, B8, B2, B7 and `feat/sms-e2e-code-purge`
-are MERGED, the last `5eb2127` (2026-10-25 — by the ref move from `5426b70`:
-P-19 and the SMS end-to-end encryption, gated after backup 377,
-device-checked 2026-10-25, cleaned up by id after backup 382, the probe's
-exit-time abort guarded); each one's check, cleanup and backup: its CHANGELOG
-row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
-**Next, in the owner's order (2026-10-25; D-36, D-122, D-124 changed):**
+with `feat/password-alert`, B1, B3, B8, B2, B7, `feat/sms-e2e-code-purge`
+and `feat/privacy-text` are MERGED, the last `3d1521b` (2026-10-25 — by the
+ref move from `6beae15`: the owner's draft-2 Data Privacy Notice and Terms of
+Use, both `draft-2`, every account accepting them once; gated after backup
+383, device-checked on the web, cleaned up by id after backup 389; the phone
+joins the D-67 phone pass); each one's check, cleanup and backup: its
+CHANGELOG row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
+2026-10-23". **Never read live contact or acceptance state while a suite or
+the smoke runs** — their helpers stamp, then put back (a finding withdrawn
+2026-10-25, KNOWN_ISSUES). **#3 (Marwin's parent) stays as the demo's
+first-sign-in account** — no confirmed contact, no acceptance. **Next, in the
+owner's order (2026-10-25; D-122, D-124 changed):**
 
-1. **The privacy text in the app** (D-36) — `feat/privacy-text` (worktree
-   `Parents_Portal-privacy-text`), PLAN APPROVED 2026-10-25: the owner's
-   draft-2 Data Privacy Notice and Terms of Use, both versions `draft-2`
-   (D-124 changed by the owner: in now, without waiting for the principal's
-   approval; a change he asks for is a later update under a new version,
-   which asks every account again); gated 2026-10-25 after backup 383,
-   device-checked on the web 2026-10-25 (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`
-   §5; the phone joins the D-67 phone pass), cleaned up by id after backup
-   389; merge on the owner's word (a reported contact clearing was withdrawn —
-   KNOWN_ISSUES, CLOSED; **never read live contact or acceptance state while
-   a suite or the smoke runs**: their helpers stamp, then put back).
-   **After the restart every account accepts again once.**
+1. **The independent verification.**
 2. **Then Session A's half of the Phase 3 split.**
 3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
    then Phase 3; the owner writes `supabase.env` after Session A. **Its next
-   sync carries P-19's DELETE** — MySQL `DELETE FROM auth_codes WHERE
-   created_at < (NOW() - INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM
-   auth_codes WHERE created_at < NOW() - ($1 * INTERVAL '1 hour')`
-   (`utils/authCodes.js`, `KEEP_HOURS = 24`) — **and the SMS change**
-   (`utils/smsEncryption.js`, `utils/smsTransport.js`, the env key
-   `SMS_ENCRYPTION_PASSPHRASE`; no SQL). **It copies
+   sync carries the two `server/policy/` texts and `versions.json`
+   (`draft-2`; no SQL — the policy SQL to port is unchanged), P-19's
+   DELETE** — MySQL `DELETE FROM auth_codes WHERE created_at < (NOW() -
+   INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM auth_codes WHERE created_at <
+   NOW() - ($1 * INTERVAL '1 hour')` (`utils/authCodes.js`, `KEEP_HOURS =
+   24`) — **and the SMS change** (`utils/smsEncryption.js`,
+   `utils/smsTransport.js`, the env key `SMS_ENCRYPTION_PASSPHRASE`; no SQL).
+   **It copies
    everything, the old activity rows included** — their reset is step 4, on
    Supabase. The sync adds B1's
    26th table `grade_acknowledgements` and the two `notifications.type` values
@@ -1727,10 +1723,10 @@ The owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 backup 376 (`parents_portal_2026-10-24_150020.sql`, after B7's demo data; it
 still holds the old activity rows, D-122; 317 the previous one) — 324, 338,
-346, 354, 362, 369 and 382 are the seven checks' pre-cleanup dumps, 361, 368 and 375
-B8's, B2's and B7's pre-check dumps,
+346, 354, 362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375 and 388
+B8's, B2's, B7's and the privacy text's pre-check dumps,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
-345, 348, 353, 355, 360, 363, 370 and 377 pre-write dumps, not restore points. The manuscript delta list stays with the
+345, 348, 353, 355, 360, 363, 370, 377 and 383 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
 

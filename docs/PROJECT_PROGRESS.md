@@ -11,14 +11,22 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-25: `main` is the post-merge docs of `5eb2127` —
-`feat/sms-e2e-code-purge` merged fast-forward from `5426b70` by the ref move
-(four commits: P-19 `e8236ac`, the SMS end-to-end encryption `fe53aad`, the
-gate `82b8cf8`, the device check and the probe's fix round `5eb2127`): a code
-row older than 24 hours goes with the next code, and every text and number is
-encrypted before it leaves the server; gated after backup 377, device-checked
-2026-10-25 (`encryption: on`, a real code arrived in plain words), cleaned up
-by id after backup 382. Before it, `5426b70`, the post-merge docs of
+**Snapshot, 2026-10-25: `main` is the post-merge docs of `3d1521b` —
+`feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five
+commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the
+merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's
+draft-2 Data Privacy Notice and Terms of Use, both versions `draft-2`, so
+every account accepts them once after the restart; gated after backup 383,
+device-checked 2026-10-25 on the web (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`
+§5), cleaned up by id after backup 389. Before it, `6beae15`, the post-merge
+docs of `5eb2127` — `feat/sms-e2e-code-purge` merged fast-forward from
+`5426b70` by the ref move (four commits: P-19 `e8236ac`, the SMS end-to-end
+encryption `fe53aad`, the gate `82b8cf8`, the device check and the probe's
+fix round `5eb2127`): a code row older than 24 hours goes with the next code,
+and every text and number is encrypted before it leaves the server; gated
+after backup 377, device-checked 2026-10-25 (`encryption: on`, a real code
+arrived in plain words), cleaned up by id after backup 382. Before it,
+`5426b70`, the post-merge docs of
 `4b8be36` — B7 `chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
 commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102
 `bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet
@@ -216,17 +224,20 @@ point backup 376). **Merged (2026-10-25):** `feat/sms-e2e-code-purge`
 (`5eb2127` — P-19 and the SMS end-to-end encryption; the device check PASSED,
 `docs/SMS_E2E_DEVICE_CHECK.md` §4; the probe's exit-time abort guarded, the
 Node ≥ 24.20.0 upgrade the owner's decision; `main` fast-forwarded from
-`5426b70` by the ref move).
+`5426b70` by the ref move). **Merged (2026-10-25):** `feat/privacy-text`
+(`3d1521b` — the owner's draft-2 notice and terms, both `draft-2`; D-124
+changed by the owner — in now, without waiting for the principal's approval;
+the web device check PASSED, `docs/PRIVACY_TEXT_DEVICE_CHECK.md` §5, the phone
+joining the D-67 phone pass; a reported contact clearing was withdrawn —
+KNOWN_ISSUES, CLOSED; `main` fast-forwarded from `6beae15` by the ref move;
+the worktree `Parents_Portal-privacy-text` left detached at `a613e1a`). #3
+(Marwin's parent) stays as the demo's first-sign-in account — no confirmed
+contact, no acceptance.
 **Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
-(1) the privacy text in the app (D-36; D-124 changed by the owner — in now,
-without waiting for the principal's approval) — `feat/privacy-text`, both
-documents' draft-2 text, both versions `draft-2`, gated after backup 383,
-device-checked on the web and cleaned up after backup 389
-(`docs/PRIVACY_TEXT_DEVICE_CHECK.md`; the phone joins the D-67 phone pass;
-a reported contact clearing was withdrawn — KNOWN_ISSUES, CLOSED); merge on
-the owner's word; (2) then Session A's half of
+(1) the independent verification; (2) then Session A's half of
 the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
-sync with `main` (its next sync carries P-19's DELETE in both forms and the
+sync with `main` (its next sync carries the two `server/policy/` texts and
+`versions.json`, `draft-2`, with no SQL; P-19's DELETE in both forms; and the
 SMS change), then the D-65 fix round, then Phase 3 (the owner writes
 `supabase.env` after Session A), copying everything; the sync adds B1's 26th table `grade_acknowledgements`
 and the two `notifications.type` values `grades_locked` and
@@ -243,9 +254,10 @@ included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is backup 376, `parents_portal_2026-10-24_150020.sql` (after
 B7's demo data; it still holds the old activity rows — D-122; 317,
 `parents_portal_2026-10-13_233314.sql`, the previous one). 324, 338, 346, 354,
-362, 369 and 382 are the seven checks' pre-cleanup dumps, 361, 368 and 375 B8's, B2's
-and B7's pre-check dumps, 347 the demo records', and 339, 344, 345, 348, 353,
-355, 360, 363, 370 and 377 pre-write dumps, not restore points.
+362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375
+and 388 B8's, B2's, B7's and the privacy text's pre-check dumps, 347 the demo
+records', and 339, 344, 345, 348, 353, 355, 360, 363, 370, 377 and 383
+pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged;
