@@ -17,6 +17,11 @@
 //   4. after: every session is invalid (the old token 401), every table's row
 //      count is what it was but backups (+2: the archive and the safety one)
 //      and activity_logs (the restore rewinds it, then writes its own rows);
+//      the cutoff row (auth_security_state) is checked on its own, as the
+//      P3-C-R2 fix round settled for restore-commit-drop.js: a database never
+//      restored has none (a fresh setup — MySQL never seeded one) and the
+//      committed restore creates it while writing the cutoff, so it is 0 -> 1
+//      on a first restore and 1 -> 1 after; either way exactly the row id 1;
 //      no sequence moved backwards; the archive and the safety archive are
 //      deleted through the API and their files are gone.
 //
@@ -60,6 +65,12 @@ async function sequenceNexts(c) {
   return out;
 }
 
+// The cutoff's singleton row, by id (restore-commit-drop.js's cutoffRows).
+async function cutoffRows(c) {
+  const { rows } = await c.query('SELECT id FROM portal.auth_security_state ORDER BY id');
+  return rows.map((r) => Number(r.id));
+}
+
 async function main() {
   const API = arg('--api');
   if (!LOOPBACK.test(API || '')) throw new Error('--api must be a loopback base URL');
@@ -99,6 +110,7 @@ async function main() {
     const refusedBefore = Number((await c.query("SELECT count(*) AS n FROM portal.activity_logs WHERE action = 'restore_refused' AND user_id = $1", [adminRow.id])).rows[0].n);
     const countsBefore = await tableCounts(c);
     const seqBefore = await sequenceNexts(c);
+    const cutoffBefore = await cutoffRows(c);
     const filesBefore = new Set(fs.readdirSync(BACKUPS_DIR));
 
     const body = { password: acct.password, confirm_filename: target.filename };
@@ -144,10 +156,15 @@ async function main() {
     if (!markers.find((m) => m.action === 'restore_backup') || !markers.find((m) => m.action === 'restore_wiped_activity_logs')) problems.push('the restore did not write its own two activity rows');
 
     const countsAfter = await tableCounts(c);
-    const changed = Object.keys(countsBefore).filter((t) => countsBefore[t] !== countsAfter[t] && !['backups', 'activity_logs', 'auth_codes', 'login_attempts', 'policy_acceptances'].includes(t));
+    const changed = Object.keys(countsBefore).filter((t) => countsBefore[t] !== countsAfter[t] && t !== 'auth_security_state' &&!['backups', 'activity_logs', 'auth_codes', 'login_attempts', 'policy_acceptances'].includes(t));
     console.log(`backups ${countsBefore.backups} -> ${countsAfter.backups}; tables otherwise changed: ${changed.length ? changed.join(', ') : 'none'}`);
     if (countsAfter.backups !== countsBefore.backups + 1) problems.push('the backups catalog did not keep its rows plus the safety archive');
     if (changed.length) problems.push(`row counts changed: ${changed.join(', ')}`);
+    // The cutoff row on its own: exactly [1] after the committed restore,
+    // whether it was there before (1 -> 1) or not (0 -> 1).
+    const cutoffAfter = await cutoffRows(c);
+    console.log(`auth_security_state rows ${cutoffBefore.length} -> ${cutoffAfter.length}; the cutoff row after the restore: ${JSON.stringify(cutoffAfter)}`);
+    if (done.status === 200 && JSON.stringify(cutoffAfter) !== '[1]') problems.push(`the cutoff row after the restore is ${JSON.stringify(cutoffAfter)}, not [1]`);
     const seqAfter = await sequenceNexts(c);
     const backwards = Object.keys(seqBefore).filter((s) => seqAfter[s] < seqBefore[s]);
     console.log(`sequences moved backwards: ${backwards.length ? backwards.join(', ') : 'none'}`);
