@@ -218,3 +218,72 @@ to it, and what is still open:
 8. **After the cutover:** the old MySQL scratches dropped by the owner by
    hand; this worktree's two staging archives in `server/backups/` (copied
    live records) kept or removed by the owner.
+
+## 7. The pre-merge gate and its follow-up (2026-10-26)
+
+### 7a. The gate (the cutover plan's step 7, at `47290ae`)
+
+Local only, on a fresh `db:setup` of `parents_portal_fixround_20261025`, one
+command per suite, the API on 5010 with file mail and file SMS. **At their
+baselines:** `verify:grading-seed` 55; the ten units (sanitize 9,
+grade-computation 77, pg-driver 33, school-calendar 34, cors-origins 44,
+auth-middleware 52, socket-auth 51, sms-transport 94, excuse-attendance-rule
+60, fixture-guard 10); the 23 HTTP suites at §5's figures; `test:privacy` 85
+and `rehearse.js` `REHEARSAL OK` (95 cases, its MySQL leg read-only and
+equal) on `parents_portal_pg`; `committed-workflow` OK (10);
+`backup-during-restore` OK and `restore-commit-drop` OK, each mutant failing
+as it must; `proof:backups` 10 of 10 complete, 0 resets; the source-zip proof
+24; oxlint 40 warnings / 0 errors (no `no-undef`), `lint:tokens` 0,
+`lint:contrast` 0 unwaived, `npm run build` exit 0; 34 of the 35 SSR proofs
+with their run-books; `smoke:isolated` 20/20. Mobile not run (no mobile file
+differs from `main`; no mobile dependencies in the worktree). The new tests:
+`test-drop-staging-schema.js` 31/31 and `test-smoke-live.js` 7/7, 9/9 with
+`--e2e`. **Two red, closed in §7b:** `restore-e2e` (the cutoff row 0 → 1 on a
+first restore; a re-run passed) and `ssr-visit-clear` 18/20. **Not run, by
+the dispatch:** the golden master, `semantics`, `component-order` (each
+writes to a MySQL scratch), `transfer-failures` and `sequence-rollback` —
+and the fix round's scratch `parents_portal_migsrc_20261025_140024` no longer
+transfers: a NUL byte (0x00) in `activity_logs`, written there by the fix
+round's own affected-requests probe (MySQL accepted the NUL requests, `02`
+§B). The transfer rolled back; the scratch is left for the owner's step 13.
+
+### 7b. The follow-up (the owner's approval of 2026-10-26)
+
+**Today's live data transfers cleanly.** `npm run snapshot` and
+`npm run snapshot:restore-check` (the live `parents_portal` only read): two
+dumps, `source_parents_portal_20261026_105453.sql` and
+`source_parents_portal_20261026_105509.sql` (each 2,887,283 bytes, 26
+`CREATE TABLE`, the footer present; manifests `snapshot_20261026_105453.json`
+and `snapshot_20261026_105509.json`) — the restore-check makes its own dump,
+so the second is the one loaded — and the new scratch
+**`parents_portal_migsrc_20261026_105509`**, 26 of 26 equal (counts,
+AUTO_INCREMENT, `CHECKSUM TABLE`). A rehearsal, not the cutover's snapshot;
+both dumps and both scratches stay for step 13. Transferred into
+`parents_portal_pg` (`--truncate`): **COMMITTED, READY**, 25 sequences at the
+source's AUTO_INCREMENT, no NUL anywhere (`activity_logs` 31,807 rows);
+**`RECONCILE OK`**, 26 tables, `grown=0`, every sequence equal; then
+`test:privacy` **85/85** on it.
+
+**The proofs not run: where each last passed, and what changed since** (`git
+diff --stat <commit> 47290ae`, one range each; read-only, nothing run):
+
+| Proof | Last passed | Its dependencies changed by `47290ae`? |
+|---|---|---|
+| The golden master — `compare`, `golden-values` (reads, the 33 writes, the four known differences), the affected-requests probe | the fix round, on the tree of `3fac5d4`, recorded in `3382f7b` (§5) | **No.** 14 files changed, none it uses: no application file (`server/` routes, utils, config, middleware, `server.js`, `socket.js`, `policy/`, the schema), and `golden-master.js`, `golden-values.js` and `migration/lib/` unchanged. The three server-side changes are `package.json` (the `test:fixture-guard` alias), `scripts/test-fixture-guard.js` (new) and `scripts/test-helpers/db.js` (the hosted-smoke flag), which no golden-master script loads (0 references); the rest are docs and the new launcher, drop and test scripts |
+| `semantics.js` | Phase 3 commit 7, `61ffb44` (`05` §0c) | **Two dependencies changed; neither affects a measured case.** `migration/lib/mysql.js` (`63b70fb`, Phase C): every MySQL session — the `scratch()` connection `semantics` opens included — now sets `information_schema_stats_expiry = 0` and reads it back; `semantics` reads no table statistics or AUTO_INCREMENT. `server/config/db.js` (`80adb7f`, Phases D–E): a 10 s connect timeout and `guardClient` on checked-out clients; the name fold section G measures (`foldText`, `foldedSql`, `foldedContains`) is unchanged. `semantics.js`, `lib/pg.js`, `lib/env.js` and `lib/paths.js` unchanged |
+| `component-order.js` | Phase F, `b97849b` (`05` §0f) | **One dependency changed, not the statement it compares.** `server/routes/grades.js` gained only the `refuseNul` import and its `router.use` (`c41eabf`); the `GET /grades/:id` components statement and its `NULLS FIRST` are unchanged. `component-order.js`, `config/db.js` and `migration/lib/` unchanged; `transfer.js` changed (`7ed1f1c`, sequences only), and the proof's descriptors carry no sequence-made id |
+| `transfer-failures.js` | Phase H's re-run, `7ed1f1c` (`05` §0h) | **No.** `transfer-failures.js`, `transfer.js`, `reconcile.js`, `migration/lib/` and the schema unchanged |
+| `sequence-rollback.js` | Phase C, `63b70fb` (`05` §0d, 0 of 25 moved) | **One dependency changed, and its claim was re-proved after it.** `transfer.js` changed once (`7ed1f1c`, Phase H: `ALTER SEQUENCE … START WITH n RESTART`, so an uncalled sequence archives its real value); `transfer-failures.js`' trigger-at-COMMIT case — the same scenario — passed at `7ed1f1c` with every sequence unchanged. `sequence-rollback.js` and `migration/lib/` unchanged |
+
+**The two red items of §7a, fixed (test files only):**
+- `migration/scripts/restore-e2e.js` (`bb6a0ba`) checks the cutoff row on its
+  own, as `restore-commit-drop.js` does since `3fac5d4`: `auth_security_state`
+  is out of the row-count comparison and must be exactly `[1]` after the
+  restore. On a fresh `db:setup`, the first run: **`RESTORE E2E OK`**,
+  `auth_security_state` 0 → 1, `[1]`.
+- `client/scripts/ssr-visit-clear.jsx` (`cdafb8d`): its two static checks of
+  `server/routes/notifications.js` follow the ported text — the mark-all-read
+  with `portal.now_s()` and `result.rowCount`, and the no-ids skip before an
+  UPDATE on `id = ANY(?::int[])` — and each still fails its in-memory mutant.
+  **20/20** (18/20 since the Phase F port). `notifications.js` unchanged, so
+  `test:notifications` (227) needed no re-run.
