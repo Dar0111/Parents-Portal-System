@@ -29,7 +29,7 @@ matches `GET /api/memos` having no scope clause.
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 26 tables |
+| Database | PostgreSQL, schema `portal` on Supabase (session pooler, verify-full; local cluster on 54329 for rehearsals) — 26 tables. MySQL `parents_portal` is the disconnected fallback since the 2026-10-27 cutover (D-157, D-66) |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -103,6 +103,8 @@ behind is the rule and the pointer, nothing else.
 ---
 
 ## CURRENT STATE
+
+**Since the PostgreSQL cutover of 2026-10-27 (D-157), `migration/docs/09` §8 is the authority wherever this file still describes MySQL; the Part C docs pass that rewrites it follows after 2026-10-30.**
 
 **Last verified:** 2026-10-25, `main` `3d1521b` plus this commit (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
@@ -1139,7 +1141,7 @@ was fixed: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
 
 | Layer | Technology |
 |---|---|
-| Backend | Node.js, Express, MySQL, JWT, bcrypt, Socket.io |
+| Backend | Node.js, Express, PostgreSQL (`pg`; MySQL until the 2026-10-27 cutover, D-157), JWT, bcrypt, Socket.io |
 | Web | React, Tailwind CSS, Font Awesome — no other UI library |
 | Mobile | React Native (Expo). Not PWA. Not Flutter. |
 

@@ -287,3 +287,34 @@ diff --stat <commit> 47290ae`, one range each; read-only, nothing run):
   UPDATE on `id = ANY(?::int[])` — and each still fails its in-memory mutant.
   **20/20** (18/20 since the Phase F port). `notifications.js` unchanged, so
   `test:notifications` (227) needed no re-run.
+
+## 8. The cutover (2026-10-26/27) — the owner's GO, D-157
+
+**The application runs on PostgreSQL (Supabase) since 2026-10-27; MySQL is
+the disconnected fallback (D-66).** Part B of the plan of 2026-10-26 01:53,
+steps 1–6 and 8–12 as approved in D-147; step 7 was the gate at `47290ae`
+with the two test fixes at `0364c1e` (§7). Josh reviews the GO/NO-GO report
+afterwards; it did not hold the run.
+
+| Step | Result |
+|---|---|
+| 1 | main clean at `64200f7`; `staging-api.js --check`: TLS verify-full, both roles, RLS 26/26, clock skew +172 ms |
+| 2 | the last MySQL write: the app backup, row **390** (`parents_portal_2026-10-27_002329.sql`, 2,863,317 bytes, footer) — the pre-cutover dump; the restore point stays **376**. MySQL API, web and Expo stopped; no listener on 5000, 3000, 5001, 3001, 8081 |
+| 3 | `snapshot`: `source_parents_portal_20261027_002732.sql` (2,887,674 bytes, 26 tables, footer), kept (D-19); `snapshot:restore-check`: its own dump `source_parents_portal_20261027_002828.sql`, scratch **`parents_portal_migsrc_20261027_002828`**, 26 of 26 equal |
+| 4 | the owner ran `drop-staging-schema.js --target staging` after the planning chat's approval of its survey and statement: `portal schemas: 0`, both roles and their settings unchanged; confirmed by a read-only query |
+| 5 | `pg:schema`: COUNTS 26 / 86 / 35 / 15 / 25 / 26 / 13 / 7 / 25, POLICIES as `06` item 7; `rls:check`: `RLS CHECK OK`; `transfer` from the scratch: READY, 26 tables, 25 sequences; `reconcile`: **`RECONCILE OK`**, 26 tables, `grown=0`, every sequence equal (D-67 check 1); the schema comparator: **IDENTICAL** |
+| 6 | tag `mysql-fallback-64200f7` (annotated, on `64200f7`), pushed |
+| 8 | main fast-forwarded `64200f7..0364c1e`; `npm ci` in `server/` (153 packages; npm reports 7 known dependency vulnerabilities, left for after 2026-10-30) |
+| 9 | `server/.env` copied to `server/.env.mysql.local` by the owner; the nine `PG_*` keys `config/db.js` reads written once each from `supabase.env` by a script (the owner's scope addition; names and counts only printed), `PG_OWNER_URL` and the two role passwords' keys removed from it; mail stays real (`MAIL_TRANSPORT` absent = SMTP) |
+| 10 | clock skew +204 ms; health on 5000 `db ok`; `staging-api.js --smoke-live` (5000 / 3000): **20/20** (8.6 min), the counts by role **MATCH**, login rows +25 (D-67 check 2, web) |
+| 11 | the owner's short ★ phone check on the Tecno against `http://<hotspot IPv4>:5000/api`: **PASS** — sign-ins (the admin, Lito Bautista with the draft-2 consent, #7), Lito's attendance for Nino shown on #7's dashboard, the live toast and badge, the real email code (Ana Reyes, Forgot password) and the real SMS code (Lito Bautista, Forgot password via SMSGate), no code entered and no reset |
+| 12 | **the owner's go (D-67 check 3)**, 2026-10-27 about 02:00 Manila — the end of the smoke window (`07` Phase 4); `DB_*` removed from `server/.env` by a script (the `.local` copy keeps them), the API restarted: health `db ok`; MySQL80 set to Manual and stopped (D-66, D-147 Q9) |
+
+**Waits until after the weekly reset (2026-10-30):** step 13 (the D-122
+activity reset, a backup on Supabase as the new restore point, the cleanup
+list of the plan), the Part C docs pass except its items 1–2 (done in
+`CLAUDE.md` with this record), the idle measurement (`06` §4 item 6), the
+`server/.env` `SMS_GATEWAY_*` duplicate cleanup (D-117), and the npm
+vulnerabilities above. **Rollback from here is forward-fix on PostgreSQL**;
+`mysql-fallback-64200f7`, `server/.env.mysql.local` and backup 390 remain
+the documented way back (`07`).
