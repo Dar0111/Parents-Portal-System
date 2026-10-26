@@ -139,8 +139,8 @@ proved(
   'no body is the old Mark all as read, unchanged',
   (s) =>
     s.includes('if (body.section === undefined) {') &&
-    s.includes("'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL',") &&
-    s.includes("message: 'All notifications marked as read.', updated: result.affectedRows"),
+    s.includes("'UPDATE notifications SET read_at = portal.now_s() WHERE user_id = ? AND read_at IS NULL',") &&
+    s.includes("message: 'All notifications marked as read.', updated: result.rowCount"),
   server,
   server.replace('if (body.section === undefined) {', 'if (!body.section) {')
 );
@@ -163,8 +163,8 @@ proved(
   server.replace("return res.json({ success: true, message: 'Marked as read.', section, updated: 0 });", '// fall through')
 );
 proved(
-  'no ids found, no UPDATE (an empty IN () is not SQL)',
-  (s) => /if \(rows\.length\) \{\s*const \[result\] = await pool\.query\(\s*'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = \? AND read_at IS NULL AND id IN \(\?\)'/.test(s),
+  'no ids found, no UPDATE (an empty IN () was not SQL on MySQL; the skip stays)',
+  (s) => /if \(rows\.length\) \{\s*const result = await pool\.query\(\s*'UPDATE notifications SET read_at = portal\.now_s\(\) WHERE user_id = \? AND read_at IS NULL AND id = ANY\(\?::int\[\]\)'/.test(s),
   server,
   server.replace('if (rows.length) {', 'if (true) {')
 );
