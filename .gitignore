@@ -6,6 +6,13 @@ server/.env
 *.pem
 *.key
 
+# A copy of server/.env taken before an edit (scripts/dedupe-env-duplicates.js).
+# None of the four rules above matches `.env.bak` — `.env` matches that name
+# exactly and `.env.*.local` needs the `.local` suffix — so without this line a
+# backup copy holding every secret would be an ordinary untracked file, one
+# `git add -A` from the remote. Confirmed with `git check-ignore -v`.
+server/.env.bak*
+
 # Test-only mail drop: utils/mailer.js writes here when MAIL_TRANSPORT=file.
 # These files contain live reset codes — never commit one.
 server/tmp/

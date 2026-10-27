@@ -30,6 +30,19 @@ const { corsOriginsFromEnv } = require('./utils/corsOrigins');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// BEHIND NGINX ON THE SAME HOST, so req.ip is the real client and not the
+// proxy. It keys the sign-in throttle and the one-time-code limits
+// (utils/loginThrottle.js, utils/authCodes.js, routes/auth.js) and it is
+// stored in login_attempts.ip; without this every hosted request would count
+// as 127.0.0.1 and the per-IP limits — 100 failed sign-ins and 10 codes an
+// hour — would be shared by everyone at once.
+//
+// 'loopback', not a hop count: only 127.0.0.1 and ::1 are trusted to have
+// written X-Forwarded-For, so a header forged by a client reaching the API
+// any other way is ignored. With no proxy in front (the laptop) this changes
+// nothing — req.ip is already the direct peer.
+app.set('trust proxy', 'loopback');
+
 // CORS_ORIGIN is a comma-separated list (utils/corsOrigins.js) — the laptop's
 // localhost and the LAN address a phone's Chrome uses, never a wildcard. The
 // SAME list goes to Socket.io (socket.js), read once here at startup.
