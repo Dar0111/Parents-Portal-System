@@ -164,7 +164,13 @@ assert(!declineThenSignOut(flat.replace('Declining ends', 'Leaving ends')), 'con
 
 const security = src('screens/settings/SecurityPolicyScreen.jsx');
 assert(/Accepted on \$\{timestampDay\(at, \{ style: 'long' \}\)\}/.test(security) && /import \{ timestampDay \} from '\.\.\/\.\.\/format\/date';/.test(security), 'the accepted date is the mirrored Manila-day formatter, never computed here');
-assert(/required \? \(at \? /.test(security) && /: ' · Not accepted yet'\) : ''/.test(security), 'a parent sees a date or "Not accepted yet"; staff see neither');
+assert(
+  /\{at \? `Accepted on \$\{timestampDay\(at, \{ style: 'long' \}\)\}` : 'Not accepted yet'\}/.test(security) &&
+    /\) : null\}/.test(security) &&
+    !/Version /.test(security) &&
+    !/ · /.test(security),
+  'a parent sees a date or "Not accepted yet"; staff see neither, with no version and no separator'
+);
 assert(/Parents accept them before using the portal\./.test(security), "staff are told parents accept them");
 assert(/<RefreshControl refreshing=\{refreshing\} onRefresh=\{reread\}/.test(security), 'pull-to-refresh keeps what is on screen (M23)');
 assert(/const phase = useSkeleton\(loading\);/.test(security), "a first load shows Build 2's skeleton");

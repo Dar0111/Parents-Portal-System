@@ -124,15 +124,16 @@ export default function SecurityPolicyScreen() {
           ) : (
             data.documents.map((doc) => {
               const at = acceptedAt(doc.document);
-              // The leading separator stays in this expression so the phone
-              // proof's source check still matches, and is removed before render.
-              const acceptance = (required ? (at ? ` · Accepted on ${timestampDay(at, { style: 'long' })}` : ' · Not accepted yet') : '').replace(/^ · /, '');
               return (
                 <View key={doc.document}>
                   <Text accessibilityRole="header" className="font-serif text-base text-fg">
                     {doc.title}
                   </Text>
-                  {acceptance ? <Text className="mt-0.5 text-sm text-fg-muted">{acceptance}</Text> : null}
+                  {required ? (
+                    <Text className="mt-0.5 text-sm text-fg-muted">
+                      {at ? `Accepted on ${timestampDay(at, { style: 'long' })}` : 'Not accepted yet'}
+                    </Text>
+                  ) : null}
                   <View className="mt-2 gap-3 rounded-lg border border-edge bg-surface-subtle p-4">
                     {paragraphs(doc.text).map((p, i) => (
                       <Text key={i} className="text-sm text-fg-body">
