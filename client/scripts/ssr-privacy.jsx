@@ -117,8 +117,8 @@ console.log('\nThe consent screen (rendered)');
   assert(!submitDisabled(allTicked) && /I agree and continue/.test(allTicked), 'all three ticked: “I agree and continue” works');
 
   assert(
-    DOCUMENTS.every((d) => fresh.includes(d.title) && fresh.includes(`Version ${d.version}`)),
-    'each document is shown with its title and version from server/policy/versions.json'
+    DOCUMENTS.every((d) => fresh.includes(d.title) && !fresh.includes(`Version ${d.version}`)),
+    'each document is shown with its title and no version line'
   );
   assert(
     !/Draft — awaiting the school/.test(fresh) && DOCUMENTS.every((d) => d.text.split(/\n\s*\n/).every((p) => fresh.includes(p.replace(/\s*\n\s*/g, ' ').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;')))),
@@ -190,7 +190,11 @@ console.log('\nSettings → Security & policy (rendered)');
   );
   assert(!/Accepted on|Not accepted/.test(staff), 'staff: no acceptance line — nothing that reads as owed (staff acceptance is deferred)');
   assert(/Parents accept them before using the portal\./.test(staff), 'staff: the sentence says parents accept them');
-  assert(DOCUMENTS.every((d) => staff.includes(d.title) && staff.includes(`Version ${d.version}`)), 'staff still read both documents and their versions');
+  assert(
+    DOCUMENTS.every((d) => staff.includes(d.title) && !staff.includes(`Version ${d.version}`) && !parent.includes(`Version ${d.version}`)) &&
+      (parent.match(/Accepted on 10 October 2026/g) || []).length === 2,
+    'both documents stay on screen with no version line, and a parent still has the acceptance date'
+  );
 }
 
 console.log('\nThe gate and the routes (source — a render cannot reach them)');

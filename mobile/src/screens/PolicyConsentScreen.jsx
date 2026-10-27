@@ -33,9 +33,9 @@ import { useTheme } from '../theme/ThemeProvider';
 // terms, and the parent's consent for their child — "As the parent or legal
 // guardian of <first name>, …" — the FIRST NAME from /auth/me, never the LRN
 // (§5c). The wording is the web's, word for word: the draft the principal
-// will approve (fix round PF4). The accept sends the versions this screen
-// SHOWED; a version that changed meanwhile is a 409, and the screen reloads the
-// documents and clears the ticks. The exit is the re-read: `refresh()` brings
+// will approve (fix round PF4). The accept sends the versions returned with
+// the documents; a version that changed meanwhile is a 409, and the screen
+// reloads the documents and clears the ticks. The exit is the re-read: `refresh()` brings
 // `policy_pending` back false from the SERVER and RootNavigator mounts the next
 // step (nextStep(), auth/accountSteps.js) or the home.
 // Sign out is always there and changes nothing; the line above it says
@@ -189,7 +189,6 @@ export default function PolicyConsentScreen() {
                     {[0, 1].map((i) => (
                       <View key={i} className="gap-2">
                         <SkeletonBar className="h-5 w-48" />
-                        <SkeletonBar className="h-4 w-24" />
                         <SkeletonBar className="h-28 w-full" round="rounded-lg" />
                       </View>
                     ))}
@@ -202,7 +201,6 @@ export default function PolicyConsentScreen() {
                       <Text accessibilityRole="header" className="font-serif text-base text-fg">
                         {doc.title}
                       </Text>
-                      <Text className="mt-0.5 text-xs text-fg-muted">Version {doc.version}</Text>
                       {/* A box for the text, nested in the screen's scroll: the
                           approved text will be long, and the screen scrolls it. */}
                       <View className="mt-2 gap-3 rounded-lg border border-edge bg-surface-subtle p-4">

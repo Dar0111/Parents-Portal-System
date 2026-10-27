@@ -104,10 +104,11 @@ export function PolicyDocumentsView({ data, error, phase, onRetry }) {
               <h3 id={`security-${doc.document}`} className="font-serif text-base font-bold text-fg">
                 {doc.title}
               </h3>
-              <p className="mt-0.5 text-sm text-fg-muted">
-                Version {doc.version}
-                {required ? (at ? ` · Accepted on ${timestampDay(at, { style: 'long' })}` : ' · Not accepted yet') : null}
-              </p>
+              {required ? (
+                <p className="mt-0.5 text-sm text-fg-muted">
+                  {at ? `Accepted on ${timestampDay(at, { style: 'long' })}` : 'Not accepted yet'}
+                </p>
+              ) : null}
               <div
                 role="region"
                 aria-label={`${doc.title} text`}

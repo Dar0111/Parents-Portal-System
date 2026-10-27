@@ -33,9 +33,9 @@ import seal from '../assets/school-seal.png';
 // terms, and the parent's consent for their child — "As the parent or legal
 // guardian of <first name>, …" — the child's FIRST NAME from /auth/me, never
 // the LRN (§5c). The wording is the draft the principal will approve (fix
-// round PF4). The accept sends the versions this page SHOWED; a version that
-// changed meanwhile is a 409, the page reloads the documents and the parent
-// reads them again. Sign out is always there and changes nothing — the flag
+// round PF4). The accept sends the versions returned with the documents; a
+// version that changed meanwhile is a 409, the page reloads the documents and
+// the parent reads them again. Sign out is always there and changes nothing — the flag
 // is still set at the next sign-in, and the line above it says declining
 // leaves the child's school records as they are.
 //
@@ -261,7 +261,6 @@ export function ConsentBody({
             {[0, 1].map((i) => (
               <div key={i} className="space-y-2">
                 <SkeletonBar className="h-5 w-48" />
-                <SkeletonBar className="h-4 w-24" />
                 <SkeletonBar className="h-28 w-full" round="rounded-lg" />
               </div>
             ))}
@@ -274,7 +273,6 @@ export function ConsentBody({
               <h2 id={`policy-${doc.document}`} className="font-serif text-lg font-bold text-fg">
                 {doc.title}
               </h2>
-              <p className="mt-0.5 text-xs text-fg-muted">Version {doc.version}</p>
               {/* A scroll box for the approved text, which will be long. It
                   takes focus so a keyboard can scroll it. */}
               <div
