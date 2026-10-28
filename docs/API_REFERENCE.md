@@ -53,14 +53,12 @@ it.
 - **Dates** (`birthday`, `date`, `due_date`, `absence_date`,
   `event_date`) are DATE columns and always come back as plain
   `"YYYY-MM-DD"` strings — never a JS `Date`, never a time component.
-  This is `dateStrings: ['DATE']` on the connection pool, applied
-  pool-wide, not per-query.
-- **Timestamps** (`created_at`, `updated_at`) are TIMESTAMP columns and
-  are *not* covered by the setting above — they come back as full ISO
-  8601 strings. Two different column types, two different string shapes.
-  Don't assume one date-parsing strategy covers both.
-- **DECIMAL columns come back as strings**, not numbers — a mysql2
-  behavior, not a choice made here. `"90.00"`, not `90`. Affects:
+  `config/db.js` parses oid 1082 that way.
+- **Timestamps** (`created_at`, `updated_at`) are timestamptz. The driver
+  returns a JS `Date`, and `res.json()` sends an ISO 8601 string. DATE stays
+  a `YYYY-MM-DD` string. Don't assume one shape covers both.
+- **numeric columns come back as strings**, not numbers — oid 1700 in
+  `config/db.js`. `"90.00"`, not `90`. Affects:
   `grades.ww_percentage` / `pt_percentage` / `ex_percentage` /
   `ww_weighted` / `pt_weighted` / `ex_weighted` / `initial_grade` /
   `term_grade`.
@@ -71,9 +69,12 @@ it.
   (Until B2's docs this line said "No pagination anywhere" — true of the 76
   endpoints that stood when it was written.)
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
-  `:userId`) are validated by `parseId()` — a positive integer, or the
-  request is rejected with `400` before any query runs. One exception:
-  see Gotchas.
+  `:userId`) are validated by `parseId()` — a positive integer at most
+  2147483647, or the request is rejected with `400` before any query runs.
+  One exception: see Gotchas. Four more `400`s at the request boundary:
+  a NUL byte; a former TEXT field over 65,535 UTF-8 bytes; an impossible
+  filter date. A body over 100 KB is `500` (the default `express.json()`
+  limit, through the generic handler).
 - **Error shape** is `{ success: false, message: "..." }` on essentially
   every 4xx/5xx across the whole API — this is uniform enough that you
   can assume it by default. The two places it isn't are in the Gotchas

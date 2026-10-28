@@ -8194,3 +8194,59 @@ OPEN QUESTIONS → Engineering, manuscript, and logistics, as it stood:
 The owner confirmed the manuscript's wording on 2026-10-23: activity logs
 appear only in Figure 4's description (DFD 0, p. 29), among the system's
 outputs to the admin; Figure 5's description names no activity-log process.
+
+## BUILD ORDER → NEXT, the PostgreSQL porting essay, moved 2026-10-28
+
+Moved verbatim from `CLAUDE.md` under the REFILL RULE. It described work
+that has since landed. What remains is in `CLAUDE.md` → BUILD ORDER → NEXT.
+
+**Next, in the owner's order (2026-10-25; D-122, D-124 changed):**
+
+1. **The independent verification.**
+2. **Then Session A's half of the Phase 3 split.**
+3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
+   then Phase 3; the owner writes `supabase.env` after Session A. **Its next
+   sync carries the two `server/policy/` texts and `versions.json`
+   (`draft-2`; no SQL — the policy SQL to port is unchanged), P-19's
+   DELETE** — MySQL `DELETE FROM auth_codes WHERE created_at < (NOW() -
+   INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM auth_codes WHERE created_at <
+   NOW() - ($1 * INTERVAL '1 hour')` (`utils/authCodes.js`, `KEEP_HOURS =
+   24`) — **and the SMS change** (`utils/smsEncryption.js`,
+   `utils/smsTransport.js`, the env key `SMS_ENCRYPTION_PASSPHRASE`; no SQL).
+   **It copies
+   everything, the old activity rows included** — their reset is step 4, on
+   Supabase. The sync adds B1's
+   26th table `grade_acknowledgements` and the two `notifications.type` values
+   `grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
+   2026-10-21). **B2 adds no schema change**; its new SQL to port
+   (`docs/MIGRATION_INVENTORY.md` B16, `routes/activityLogs.js`): the
+   `COUNT(*)` (`:143`), the page `SELECT … FROM activity_logs a LEFT JOIN
+   users u … ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?` (`:166`),
+   `SELECT DISTINCT action FROM activity_logs` (`:188`) and the export's
+   `SELECT … LIMIT ?` (`:236`), their WHERE from `a.created_at >= ?` / `< ?`
+   (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
+   `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
+   (`routes/users.js`) is description text only. **B7 adds no schema change;
+   port** its seed Grade 1 block (Nino's 10 slots, 10 components and computed
+   columns, from `scripts/demoGrade1.js`, run by `setup-db.js` after the
+   seed), the demo-grade1 migration (`db:migrate:demo-grade1`, a MySQL
+   one-off — its rows already in the copied data) and `verify-grading-seed`'s
+   new SQL (the same columns).
+4. **The reset of the old activity rows, at the end** — after the last gate
+   and before the demo, on Supabase (D-122; moved out of B7); its scope is
+   decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
+5. **Hosting last**, once the whole system is complete. **Before going
+   online, change or remove the seeded accounts' default passwords** — they
+   are committed in `seed.sql`'s comments (and `setup-db.js`, BEFORE THE
+   PARENT DEMO).
+
+The owner's target is everything finished, the Supabase migration included, by
+Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
+backup 376 (`parents_portal_2026-10-24_150020.sql`, after B7's demo data; it
+still holds the old activity rows, D-122; 317 the previous one) — 324, 338,
+346, 354, 362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375 and 388
+B8's, B2's, B7's and the privacy text's pre-check dumps,
+347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
+345, 348, 353, 355, 360, 363, 370, 377 and 383 pre-write dumps, not restore points. The manuscript delta list stays with the
+team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
+that day's attendance, the owner's change of the school's earlier rule.

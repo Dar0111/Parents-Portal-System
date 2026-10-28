@@ -11,7 +11,16 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-25: `main` is the post-merge docs of `3d1521b` —
+**Snapshot, 2026-10-28: `main` at the start of this docs pass is `8a90789`.**
+The app runs on PostgreSQL (schema `portal`, Supabase, 26 tables). MySQL
+`parents_portal` is the disconnected fallback. D-168/D-170 are done: the
+policy version is not shown; `versions.json` stays `draft-2`; nobody
+re-accepts. Ahead: hosting on Friday 2026-10-30, then the D-122 activity-log
+reset after a backup through the app. D-169 is after Friday and before
+2026-11-04. Learner transfer stays on hold (D-160). No suite was re-run
+for this snapshot.
+
+**Previous snapshot, 2026-10-25 (history): `main` was the post-merge docs of `3d1521b` —
 `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five
 commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the
 merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's
@@ -233,7 +242,7 @@ KNOWN_ISSUES, CLOSED; `main` fast-forwarded from `6beae15` by the ref move;
 the worktree `Parents_Portal-privacy-text` left detached at `a613e1a`). #3
 (Marwin's parent) stays as the demo's first-sign-in account — no confirmed
 contact, no acceptance.
-**Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
+**Next, as of 2026-10-25 (history; done except the D-122 reset and hosting):**
 (1) the independent verification; (2) then Session A's half of
 the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
 sync with `main` (its next sync carries the two `server/policy/` texts and
@@ -260,9 +269,9 @@ records', and 339, 344, 345, 348, 353, 355, 360, 363, 370, 377 and 383
 pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
-admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged;
-the cloud (Supabase) migration is
-planning only.
+admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged.
+The PostgreSQL cutover landed 2026-10-27. Hosting is the Friday 2026-10-30
+check.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications

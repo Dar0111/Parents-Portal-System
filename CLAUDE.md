@@ -29,7 +29,7 @@ matches `GET /api/memos` having no scope clause.
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | PostgreSQL, schema `portal` on Supabase (session pooler, verify-full; local cluster on 54329 for rehearsals) — 26 tables. MySQL `parents_portal` is the disconnected fallback since the 2026-10-27 cutover (D-157, D-66) |
+| Database | PostgreSQL, schema `portal` on Supabase (session pooler, verify-full; local rehearsal database `parents_portal_pg` on the cluster at port 54329) — 26 tables. MySQL `parents_portal` is the disconnected fallback since the 2026-10-27 cutover (D-157, D-66) |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -104,9 +104,9 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Since the PostgreSQL cutover of 2026-10-27 (D-157), `migration/docs/09` §8 is the authority wherever this file still describes MySQL; the Part C docs pass that rewrites it follows after 2026-10-30.**
+**PostgreSQL since the cutover of 2026-10-27 (D-157).** Where a sentence below still names MySQL, it is history. The cutover record is `migration/docs/09` §8. A golden master compares the ported API with the MySQL tree at the sync boundary, `main` `64200f7`, not an older base (`migration/docs/05_VALIDATION_MATRIX.md` §0g).
 
-**Last verified:** 2026-10-25, `main` `3d1521b` plus this commit (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-28, `main` `8a90789` (this docs pass; no suite was re-run here). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` stays `draft-2`; nobody re-accepts. The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eleven migrations**, `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-two test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-four test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -186,12 +186,13 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 
 Stated nowhere else in this file; each costs a dispatch when forgotten.
 
-- **`config/db.js` — two.** `dateStrings: ['DATE']`: DATE columns come back
-  as raw `YYYY-MM-DD` strings, never JS `Date`, or `res.json()` calls
-  `toISOString()` and a DATE is a full calendar day off at UTC+8 — wrong
-  every time, not an edge case (TIMESTAMP/DATETIME unaffected). And the pool
-  is a **proxy**, so `resetPool()` can swap it after a restore; a plain
-  `module.exports` reassignment could not reach existing `require`s.
+- **`config/db.js` — the type parsers.** DATE (oid 1082) comes back as a
+  raw `YYYY-MM-DD` string, never a JS `Date`. int8 (oid 20) is a number when
+  it is safe. numeric (oid 1700) stays a string. `toPg()` numbers `?` and
+  refuses a hand-written `$n`. Results are `{ rows, rowCount }`; an insert
+  that needs the new id uses `RETURNING id`. There is no `resetPool`.
+  `connectionTimeoutMillis` is 10000. An array comparison is
+  `= ANY(?::type[])`. `guardClient` discards a broken client.
 - **`utils/teacherScope.js` — the hazard is the parameter COUNT (two).**
   Use `teacherViewScopeParams()`; passing one where two are needed shifts
   every later placeholder, and a swap is undetectable because both values
@@ -206,17 +207,34 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 - **`utils/gradeComputation.js` — every function returns `null` on a missing
   input, never a partial number; percentages over 100 are deliberately NOT
   clamped.** A cap belongs in route validation as explicit policy, if ever.
-- **`scripts/setup-db.js` — `backfillSectionIds()` REPORTS every row left
-  NULL. Do not remove the reporting step.**
-- **`scripts/migrate-notifications.js` is THE MIGRATION TEMPLATE** — the
-  first this repo ever had. Never drop; be idempotent and PRINT the evidence;
-  announce created / already present per object; mirror into `schema.sql`.
+- **`scripts/setup-db.js` — drops schema `portal` of the database
+  `PG_DATABASE` names, and only when `PG_HOST` is loopback.** It does not
+  drop another database. `backfillSectionIds()` REPORTS every row left
+  NULL. Do not remove the reporting step.
+- **`scripts/migrate-notifications.js` is the MySQL-era migration
+  template.** The eleven `migrate-*.js` scripts are that history. Do not
+  run `migrate-demo-grade1.js` on PostgreSQL (`mysql2` only). Do not remove
+  its npm script. The PostgreSQL schema is
+  `migration/schema/001_portal_schema.sql`.
 - **`utils/corsOrigins.js` — `CORS_ORIGIN` is a comma-separated LIST, read
   once for the API and Socket.io; a `*` is never accepted.** The client's
   API base is `client/src/api/apiBase.js` alone: `VITE_API_BASE_URL` if set,
   else the page's own host on port 5000.
 - **`seed.sql` — adviser assignments are keyed by a `login_id` subquery,
   never a numeric id.**
+- **`utils/validateId.js` — `MAX_ID` is 2147483647**, confirmed 2026-10-25.
+  An id above it is `400` before any query.
+- **`utils/excuseAttendance.js` — the review lock wait is 50 seconds**
+  (`SET LOCAL lock_timeout`). `55P03` is a lost race. The archive waits 60
+  seconds and the restore 15 (`utils/backupArchive.js`). Other transactions
+  set no `lock_timeout`.
+- **`utils/requestLimits.js` — `refuseNul` is first on every router in
+  `server/routes/`.** A former TEXT field over 65,535 UTF-8 bytes is `400`.
+  `isCalendarDate` refuses an impossible filter date with `400`.
+- **Suites and fixtures use a loopback database.** The one exception is the
+  scoped smoke: `PORTAL_FIXTURE_HOSTED=staging-smoke` in that child process
+  only (`migration/scripts/staging-api.js` `--smoke` and `--smoke-live`).
+  That exception is not permission to test production.
 
 Full per-file text: `docs/ARCHIVE.md` → CURRENT STATE → Files that exist,
 and the 2026-09-19 section-trim block.
@@ -1141,7 +1159,7 @@ was fixed: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
 
 | Layer | Technology |
 |---|---|
-| Backend | Node.js, Express, PostgreSQL (`pg`; MySQL until the 2026-10-27 cutover, D-157), JWT, bcrypt, Socket.io |
+| Backend | Node.js, Express, PostgreSQL on Supabase (`pg`), JWT, bcrypt, Socket.io |
 | Web | React, Tailwind CSS, Font Awesome — no other UI library |
 | Mobile | React Native (Expo). Not PWA. Not Flutter. |
 
@@ -1371,14 +1389,13 @@ The stale percentage claim this section once carried: `docs/ARCHIVE.md` → "Blo
 
 ## RESTORE — built
 
-`POST /api/backups/:id/restore`, admin only, `routes/backups.js`. Restoring
-drops and recreates the whole database; a bad implementation is unrecoverable
-in a way almost nothing else here is. Every guard below is in the shipped
-code. The full record — including the two live-restore bugs, how each was
-found by hand rather than by the suite, and why a content-inspection test
-proves only what it checks for — is verbatim in `docs/RESTORE.md`, the text
-`server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's
-RESTORE section".
+`POST /api/backups/:id/restore`, admin only, `routes/backups.js`. A backup
+is a `.zip` of one CSV per table plus `manifest.json`
+(`server/utils/backupArchive.js` `writeArchive`: `data/<table>.csv` at
+lines 565 and 581, `manifest.json` at line 606). JPEG files under
+`uploads/avatars/` are not members of that zip: that writer never reads
+`uploads/`. The built list is `migration/docs/04_BACKUP_RESTORE_DESIGN.md`
+§2a. The long record, including the MySQL implementation, is `docs/RESTORE.md`.
 
 - **Source validation is structural** — the only input is `backups.id`, no
   upload path, no filename parameter. Row and file checked before step-up.
@@ -1387,48 +1404,24 @@ RESTORE section".
   refusal logs `restore_refused` naming the backup and reason, **never the
   typed value**.
 - **Type-the-name confirmation:** `confirm_filename` **must** match exactly.
-- **Automatic safety dump FIRST.** If it fails the restore aborts and nothing
-  is changed — **the single most important line in the module.**
-- **`backups`' own rows and `auth_codes`' rows are NEVER in a dump**, via
-  `--ignore-table` plus a `--no-data` pass, and `stripBackupsTableDdl()`
-  strips `backups`' `DROP`/`CREATE TABLE` from the SQL a restore executes.
-  Without both, **every restore wiped the live `backups` table.** **Do not
-  remove either flag to "make the dump complete"** — a six-digit code has a
-  10⁶ plaintext space, so bcrypt is not enough on a file that is never
-  deleted. `auth_codes` needs no strip counterpart: recreating it empty is
-  correct.
-- **Orphaned `.sql` files are never auto-adopted** — a fabricated
-  `created_by` is a guess. Adoption is a by-hand fix logged as
-  `manual_backup_adoption`. **Do not recreate lost rows from memory.**
-- **`activity_logs` is rewound on purpose** (it is a snapshot restore), with a
-  `restore_wiped_activity_logs` marker written afterwards naming the source,
-  the boundary and the count lost — **the count is off by one, KNOWN ISSUES.**
-- **The restore runs on a dedicated one-off `mysql2` connection**
-  (`multipleStatements: true`), **never the shared pool** — safe only because
-  the SQL is our own mysqldump output via a tracked row. **If this ever takes
-  an uploaded file, that stops being true.** MySQL DDL cannot roll back.
-- **Pool reset** after success (`pool.resetPool()`), and **every active JWT
-  invalidated** via `auth_security_state.token_valid_after` — one global row,
-  no user or role, because a restore can replace every `users` row; **never a
-  `system_settings` key.**
-- **Synchronous by decision.** Revisit only if a dump ever takes more than a
-  few seconds.
+- **Automatic safety archive FIRST.** If it fails the restore aborts and
+  nothing is changed — **the single most important line in the module.**
+- **`auth_codes` and `backups` are the only tables left out of the zip.**
+  A MySQL-era `.sql` is `409` `MYSQL_ERA_BACKUP` before any password.
+  Restoring one is the by-hand procedure (`04` §2b), not this API.
+- **Orphaned files are never auto-adopted.** Do not recreate lost rows
+  from memory.
+- **`activity_logs` is rewound on purpose.** The lost-entries count uses the
+  archive's own highest id. The old off-by-one is closed (KNOWN ISSUES).
+- **One transaction.** Sequences are never set backwards. There is no pool
+  reset. Every active JWT is invalidated via
+  `auth_security_state.token_valid_after` — one global row, never a
+  `system_settings` key.
+- **Synchronous by decision.**
 
-**`npm run test:restore` NEVER triggers a real restore** — that would
-`DROP DATABASE` under every other suite and the running server. It tests the
-pre-flight gates and `token_valid_after` with crafted JWTs, and **no request
-in it ever combines the real password with the real `confirm_filename`.** A
-real end-to-end restore is a deliberate manual step; **`db:setup` is NOT the
-recovery path** (it drops `activity_logs`). **Five things a restore of an old
-dump does, all KNOWN ISSUES:** before 2026-09-13 it brings back the two
-Contributions tables; before 2026-09-22 it reverts the Grade 1 subject rename;
-**before CR1 the dump has no `assessment_slots` at all**, so a restore
-drops the table and every `grade_components.slot_id` with it — the class
-record stops loading until the migration is re-run; before `feat/sms-transport`
-(2026-09-29) it brings back the old `users` / `auth_codes` shape
-(`db:migrate:contact-verification`); and before `feat/grade-acknowledgement`
-(2026-10-21) it drops `grade_acknowledgements` and two `notifications.type`
-values (`db:migrate:grade-acknowledgements`).
+**`npm run test:restore` NEVER triggers a real restore.** It tests the
+pre-flight gates. A real restore is a deliberate manual step. `db:setup`
+is not the recovery path.
 
 ---
 
@@ -1444,22 +1437,19 @@ gate in full on its `POST /api/users/parents` row.
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (the front matter's; the restore re-creates the privacy build's two tables itself; the history: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"). Do not delete or edit the old dumps |
-| **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
+| **A MySQL-era `.sql` backup is refused by the API (`409 MYSQL_ERA_BACKUP`)** | `routes/backups.js` | Restoring one is the by-hand procedure (`migration/docs/04` §2b). The old "restoring a backup taken before…" hazards apply only there |
+| **HAZARD — `db:setup` drops schema `portal` of the database `PG_DATABASE` names**, on a loopback host only | `scripts/setup-db.js` | It never drops another database. Do not point `PG_DATABASE` at a database whose `portal` schema matters |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
-| **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
+| **Ten `.sql` files on disk have no `backups` row** | `server/backups/` | They list as `engine: mysql` and the API cannot restore them. Do not delete them |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
-| **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Node 24.14.1 on Windows: `fetch` then `process.exit()` can abort at exit with the libuv `UV_HANDLE_CLOSING` assertion** (nodejs/node#56645) — added 2026-10-25 | every HTTP suite + `proof-backup-loop.js`; the SMS probe has two guards | Results print first, so no figure changes, but the exit code becomes 0xC0000409. Fixed in Node 24.20.0: upgrade this machine and the host (the owner's decision; then re-measure every baseline) |
-| **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
-| **Restoring a backup taken before `feat/grade-acknowledgement` (2026-10-21) drops `grade_acknowledgements` and the two newer `notifications.type` values** — the report card and the class summary answer `500` until the migration is re-run | `server/backups/*.sql` | Re-run `npm run db:migrate:grade-acknowledgements` afterwards (idempotent) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
-| **Profile photos are NOT in any backup** — a restore can point at a deleted photo (initials show) or orphan a newer one | `server/uploads/avatars/` + restore | Deliberate: the restore stays mysqldump-only. Never auto-delete an orphan photo; never add uploads to the dump without its own plan |
-| **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
+| **Profile photos' JPEG files are not members of a backup zip** | `server/uploads/avatars/` + `server/utils/backupArchive.js` | The zip is one CSV per table. A restore can point `users.profile_pic` at a file that is not on disk. Never auto-delete an orphan photo |
+| **The 2026-09-15 truncated `.sql` orphan is a MySQL-era file** | `server/backups/parents_portal_2026-09-15_003822.sql` | The API cannot restore it. A new archive is renamed from `.partial` only after it is read back whole. Check a MySQL-era orphan for the dump footer before any by-hand adoption |
 | **Five phone / APK notes, one row (2026-09-27 → 10-04): Expo Go on the Play Store moves to SDK 58 in October 2026 (auto-update is OFF on the phone; the SDK 57 APK or a USB install is the fallback, or an SDK 58 upgrade before November); a release build refuses plain `http://` (a cleartext setting or a network security config); the message tone plays during DND and the 150 ms vibration ignores DND and the ringer (the APK fix); the status bar colour is ignored under enforced edge-to-edge (re-check on every SDK upgrade, on Android 15+ and in the APK)** | `mobile/` | Not code defects — dates and the APK to watch. The five rows in full: `docs/KNOWN_ISSUES.md`, and as they stood here in `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21 (docs/trim-10, the tenth trim)" |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
@@ -1468,6 +1458,10 @@ gate in full on its `POST /api/users/parents` row.
 | **DO NOT select `activity_logs.description` into any response, page or export** — added 2026-10-23 (`feat/activity-log`, the owner's Q1) | `routes/activityLogs.js` + every `logActivity` template | Old rows keep old wording: an LRN in six templates until 2026-09-18 (291 rows), a login id in three until 2026-10-23; typed titles, names and setting values still. The Activity log shows the server's label (§36) |
 | **`activity_logs` has no index on `created_at`** — added 2026-10-23 (B2's survey) | `schema.sql` + `routes/activityLogs.js` | A page cost about 0.2 s at 29,000 rows; past about 0.5 s, `(created_at, id)` by its own migration |
 | **Admin → Backup & Restore shows times in the device's zone; the Activity log in Philippine time** — added 2026-10-23 (the owner's Q9.7) | `admin/BackupsPage.jsx` `formatWhen` | The same on the school's Philippine-time devices. No code change |
+| **Outside the excuse review, the archive, and the restore, a row-lock wait has no limit** | transactions other than `excuseAttendance.js` (50s), the archive (60s) and the restore (15s) | PostgreSQL waits. Reached only behind a stuck transaction |
+| **A request body over 100 KB is `500`** | `server.js` `express.json()` | The default limit. The generic error handler answers 500. Not remeasured in this docs pass |
+| **Measure the API host's clock against the database before every restore and every demo** | hosting | On 2026-10-25/26 the laptop was +2,906 ms, then synced to +1 ms. That figure is that measurement |
+| **Supabase `statement_timeout` was 2 minutes on staging** | `migration/docs/09` §6 (2026-10-25/26) | Not remeasured in this docs pass. The API does not set it |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1680,57 +1674,19 @@ CHANGELOG row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
 2026-10-23". **Never read live contact or acceptance state while a suite or
 the smoke runs** — their helpers stamp, then put back (a finding withdrawn
 2026-10-25, KNOWN_ISSUES). **#3 (Marwin's parent) stays as the demo's
-first-sign-in account** — no confirmed contact, no acceptance. **Next, in the
-owner's order (2026-10-25; D-122, D-124 changed):**
+first-sign-in account** — no confirmed contact, no acceptance. **Done since that order (2026-10-27):** the independent verification,
+Session A, Session B and Phase 3, the fix round, Phase L, and the
+PostgreSQL cutover. The porting list that stood here is verbatim in
+`docs/ARCHIVE.md` → "BUILD ORDER → NEXT, the PostgreSQL porting essay,
+moved 2026-10-28". The cutover record is `migration/docs/09` §8.
 
-1. **The independent verification.**
-2. **Then Session A's half of the Phase 3 split.**
-3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
-   then Phase 3; the owner writes `supabase.env` after Session A. **Its next
-   sync carries the two `server/policy/` texts and `versions.json`
-   (`draft-2`; no SQL — the policy SQL to port is unchanged), P-19's
-   DELETE** — MySQL `DELETE FROM auth_codes WHERE created_at < (NOW() -
-   INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM auth_codes WHERE created_at <
-   NOW() - ($1 * INTERVAL '1 hour')` (`utils/authCodes.js`, `KEEP_HOURS =
-   24`) — **and the SMS change** (`utils/smsEncryption.js`,
-   `utils/smsTransport.js`, the env key `SMS_ENCRYPTION_PASSPHRASE`; no SQL).
-   **It copies
-   everything, the old activity rows included** — their reset is step 4, on
-   Supabase. The sync adds B1's
-   26th table `grade_acknowledgements` and the two `notifications.type` values
-   `grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
-   2026-10-21). **B2 adds no schema change**; its new SQL to port
-   (`docs/MIGRATION_INVENTORY.md` B16, `routes/activityLogs.js`): the
-   `COUNT(*)` (`:143`), the page `SELECT … FROM activity_logs a LEFT JOIN
-   users u … ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?` (`:166`),
-   `SELECT DISTINCT action FROM activity_logs` (`:188`) and the export's
-   `SELECT … LIMIT ?` (`:236`), their WHERE from `a.created_at >= ?` / `< ?`
-   (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
-   `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
-   (`routes/users.js`) is description text only. **B7 adds no schema change;
-   port** its seed Grade 1 block (Nino's 10 slots, 10 components and computed
-   columns, from `scripts/demoGrade1.js`, run by `setup-db.js` after the
-   seed), the demo-grade1 migration (`db:migrate:demo-grade1`, a MySQL
-   one-off — its rows already in the copied data) and `verify-grading-seed`'s
-   new SQL (the same columns).
-4. **The reset of the old activity rows, at the end** — after the last gate
-   and before the demo, on Supabase (D-122; moved out of B7); its scope is
-   decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
-5. **Hosting last**, once the whole system is complete. **Before going
-   online, change or remove the seeded accounts' default passwords** — they
-   are committed in `seed.sql`'s comments (and `setup-db.js`, BEFORE THE
-   PARENT DEMO).
-
-The owner's target is everything finished, the Supabase migration included, by
-Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
-backup 376 (`parents_portal_2026-10-24_150020.sql`, after B7's demo data; it
-still holds the old activity rows, D-122; 317 the previous one) — 324, 338,
-346, 354, 362, 369, 382 and 389 are the eight checks' pre-cleanup dumps, 361, 368, 375 and 388
-B8's, B2's, B7's and the privacy text's pre-check dumps,
-347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
-345, 348, 353, 355, 360, 363, 370, 377 and 383 pre-write dumps, not restore points. The manuscript delta list stays with the
-team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
-that day's attendance, the owner's change of the school's earlier rule.
+**Remaining:** hosting on Friday 2026-10-30 (the Hostinger VPS, the
+domain, HTTPS; `deploy/` is on this tree). After those checks and a
+backup through the app, the D-122 activity-log reset, then a new
+restore-point backup (`docs/ACTIVITY_RESET.md`). D-169 (the DO 72 sentence
+in the Privacy Notice) is after Friday and before 2026-11-04. Learner
+transfer stays on hold until the professor asks (D-160). The manuscript
+delta list stays with the team.
 
 ### Stage 6 — Integration
 
@@ -1971,7 +1927,7 @@ school questions:**
 - When you stop, name the reason: BASELINE MISMATCH, SCOPE EXPANSION, CONTENT DRIFT, or a specific behavioral reason.
 - **Any view of a seed, suite or proof is MASKED from the FIRST view, and since 2026-10-10 any view of suites, seeds or scripts masks EVERY string literal except API paths.** Never print a login id, LRN, password, email, phone or `.env` value, in tool output too.
 - **Every dispatch report ENDS with `Shell content writes: N`.** N should be **0**; any non-zero lists the file and the commit.
-- **Before any live-DB write outside a suite — a migration, a by-hand cleanup delete — `GET /api/health` must answer, then `POST /api/backups` must return `201`, then write; a failed backup call means wait and retry, never proceed without it.**
+- **Before any live-DB write outside a suite — a migration, a by-hand cleanup delete — `GET /api/health` must answer, then `POST /api/backups` must return `201` (a `.zip` archive), then write; a failed backup call means wait and retry, never proceed without it.**
 - **Set HPS → Done on Teacher → Grades is a DRY RUN; "Save all" writes.** A browser check that saves ends with cleanup by id, backup first.
 - Test assertions against shared tables must be scoped to rows the run itself created, or written as invariants (`.every(...)`) that additional real rows still satisfy — never an exact row count or exact list contents on a table the application also writes to.
 - Before any module dispatch, confirm the current branch; new module work starts on `feature/<module>`, never on `main`.

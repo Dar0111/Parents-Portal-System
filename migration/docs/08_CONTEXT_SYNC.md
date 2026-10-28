@@ -145,15 +145,17 @@ Proposed, not applied:
 
 ---
 
-## 5. Decisions left for the owner (none blocks the merge of the local work)
+## 5. Decisions left for the owner
 
-1. **D-2** — the name sort: `COLLATE portal.ci` on the name sort keys
-   (reproduces MySQL, measured) or the database collation as it is.
-2. **The int4 cap** — an id above 2,147,483,647 answers 400 (implemented);
-   MySQL answered 404 or an empty 200. Confirm, or ask for the exact old
-   answers per route.
-3. **NUL in text** and **the 64 KB TEXT cap** — refuse (400) / keep as is.
-4. **`test:students`' vacuous assertion** — the one-line fix belongs on `main`.
+None open. The four that stood here are answered in
+`migration/docs/09_INTEGRATION_ACCEPTANCE.md` §3:
+
+1. **D-2** — the database collation; the different tie order is accepted;
+   `COLLATE portal.ci` is not applied to name sorts.
+2. **The int4 cap** — an id above 2,147,483,647 answers 400.
+3. **NUL, the 64 KB cap, and impossible filter dates** — refused at the
+   request boundary. The cap is kept on the same fields.
+4. **`test:students`' vacuous assertion** — fixed.
 
 ---
 
