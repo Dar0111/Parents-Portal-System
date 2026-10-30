@@ -1621,6 +1621,10 @@ Five figures, one set, run from `mobile/` AFTER the last file is written:
 | `npm run lint:tokens` | **71 tokens × 2 themes, both files match** | `scripts/check-tokens.mjs` — `src/theme/tokens.js` and `global.css` regenerate equal from `client/src/index.css` |
 | `npm run lint:colors` | **0** | the web's token lint plus a hex / rgb / hsl literal rule outside `theme/tokens.js` |
 
+### npm audit (mobile)
+
+`npm audit --package-lock-only --ignore-scripts`, from `mobile/`. Measured 2026-10-30 on `main` `f97703a` (after Module 3): **12 findings — 0 critical, 3 high, 3 moderate, 6 low.** High: `zod`, `@expo/cli`, `expo`. Moderate: `uuid`, `xcode`, `@expo/config-plugins`. Low: `deepmerge`, `@expo/config`, `@expo/prebuild-config`, `@expo/metro-config`, `@expo/local-build-cache-provider`, `@react-native-community/datetimepicker`. `shell-quote` is 1.11.0 (the critical finding cleared in Module 3). All twelve are laptop-side tooling; none runs in the app bundle or on the VPS. Accepted, with the reasons, in `docs/KNOWN_ISSUES.md` (2026-10-30 rows). No lockfile change was made by Modules 4–5.
+
 ## The source-zip proof — `scripts/`, the repository root
 
 `node scripts/proof-source-zip.mjs`, from the repository root — plain Node,
