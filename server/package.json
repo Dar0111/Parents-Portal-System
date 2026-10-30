@@ -49,6 +49,7 @@
     "test:recovery": "node scripts/test-recovery-flows.js",
     "test:profile-photo": "node scripts/test-profile-photo.js",
     "test:cors-origins": "node scripts/test-cors-origins.js",
+    "test:jwt-secret": "node scripts/test-jwt-secret.js",
     "test:privacy": "node scripts/test-privacy-flows.js",
     "test:activity-log": "node scripts/test-activity-log-flows.js",
     "test:excuse-attendance-rule": "node scripts/test-excuse-attendance-rule.js",

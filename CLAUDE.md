@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-four test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-five test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -202,6 +202,9 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
   teacher must not learn a grade level by probing with a wrong `subject_id`.
 - **`routes/gradingModes.js` — the `grading_mode` wrapper is an OBJECT here
   and a STRING on the report card. Do not flatten either to match.**
+- **`utils/jwt.js` — with `NODE_ENV` production (trimmed, any case) a
+  missing, blank or default `JWT_SECRET` stops the API at load** (Module 10).
+  Outside production the fallback is unchanged; the unit suites need it.
 - **`routes/auth.js` — `fetchUserByLoginId` does not SELECT `s.lrn`.**
   `login_id` is the one LRN copy on the session (§5c).
 - **`utils/gradeComputation.js` — every function returns `null` on a missing

@@ -369,6 +369,8 @@ must not inspect environment-file or secrets-folder contents.
    | `NODE_ENV` | `production` |
    | `PORT` | `5000` |
 
+   If `pm2 status` shows the API errored, `pm2 logs parents-portal-api --lines 20` names the key.
+
 ---
 
 ## 7. Nginx
