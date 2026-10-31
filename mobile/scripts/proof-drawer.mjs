@@ -100,6 +100,10 @@ assert(
   ),
   'phone: /admin/backups and /admin/activity-log are in no group'
 );
+assert(
+  ![...adminPhone.top, ...adminPhone.groups.flatMap((g) => g.items), ...adminPhone.bottom].some((i) => i.to === '/admin/assignments'),
+  'phone: /admin/assignments is in no group (web only, Module 11)'
+);
 const adminWeb = groupNav('admin', NAV_BY_ROLE.admin);
 assert(
   adminWeb.groups.some((g) => g.label === 'System' && same(paths(g.items), ['/admin/backups', '/admin/activity-log'])),

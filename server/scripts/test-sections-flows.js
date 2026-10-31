@@ -132,9 +132,18 @@ async function run() {
   });
   assert(deactivate.status === 200, 'Deactivate the fixture teacher');
 
+  let letterId = null;
+
   async function cleanup() {
     await withDb(async (conn) => {
       await conn.query('UPDATE sections SET adviser_id = NULL WHERE id = ANY(?::int[])', [[sectionA.id, sectionB.id]]);
+      // The Module 11 block clears this one on purpose; it goes back here even
+      // if an assertion throws between the clear and the restore.
+      await conn.query('UPDATE sections SET adviser_id = ? WHERE id = ?', [adviserId, malikhainId]);
+      if (letterId) {
+        await conn.query("DELETE FROM notifications WHERE item_type = 'excuse_letter' AND item_id = ?", [letterId]);
+        await conn.query('DELETE FROM excuse_letters WHERE id = ?', [letterId]);
+      }
       if (inactiveTeacherId) {
         await conn.query('DELETE FROM activity_logs WHERE user_id = ?', [inactiveTeacherId]);
         await conn.query('DELETE FROM users WHERE id = ?', [inactiveTeacherId]);
@@ -291,6 +300,46 @@ async function run() {
       malikhainStillIntact.data?.section?.adviser_id === adviserId,
       "Malikhain's own seeded adviser assignment is untouched by this suite"
     );
+
+    // --- Module 11: an adviser cleared while a letter waits. TCH-001 keeps
+    // their assignments in Malikhain, so they still see the letter; review is
+    // the adviser's alone, so nobody teaching the class can decide it. The
+    // screen warns and never blocks (the owner's Q3): this is what it warns of.
+    console.log('\nClearing an adviser with an excuse letter waiting (Module 11):');
+    const parentToken = parentLogin.data?.token;
+    await policy.accept(parentToken);
+
+    const letter = await request('POST', '/api/excuse-letters', {
+      token: parentToken,
+      body: { absence_date: '2026-09-01', reason: 'Module 11 fixture' },
+    });
+    letterId = letter.data?.excuse_letter?.id ?? null;
+    assert(letter.status === 201 && Number.isInteger(letterId), "A parent in Malikhain submits a letter");
+
+    const cleared = await request('PATCH', `/api/sections/${malikhainId}/adviser`, {
+      token: adminToken,
+      body: { adviser_id: null },
+    });
+    assert(cleared.status === 200 && cleared.data?.section?.adviser_id === null, 'Clearing the adviser is not blocked by a Pending letter');
+
+    const formerAdviserReview = await request('PATCH', `/api/excuse-letters/${letterId}/review`, {
+      token: adviserToken,
+      body: { status: 'Approved' },
+    });
+    assert(
+      formerAdviserReview.status === 403 &&
+        formerAdviserReview.data?.message === "Only the adviser of this student's section can review excuse letters.",
+      'The former adviser, still assigned to the class, is refused the review'
+    );
+
+    const letterAfter = await request('GET', `/api/excuse-letters/${letterId}`, { token: adminToken });
+    assert(letterAfter.data?.excuse_letter?.status === 'Pending', 'The letter stays Pending');
+
+    const restored = await request('PATCH', `/api/sections/${malikhainId}/adviser`, {
+      token: adminToken,
+      body: { adviser_id: adviserId },
+    });
+    assert(restored.status === 200 && restored.data?.section?.adviser_id === adviserId, "Malikhain's adviser is restored");
   } finally {
     await cleanup();
     await policy.cleanup();

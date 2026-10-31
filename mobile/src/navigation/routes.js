@@ -22,8 +22,9 @@
 // item entirely rather than dimming it (a dimmed row would claim the page is
 // coming), and a link to it falls back to the role's home. Branch 4. The
 // Activity log joined it (feat/activity-log, the owner's Q6: web only — the
-// phone has no way to save its CSV without a new dependency).
-export const WEB_ONLY = Object.freeze(['/admin/backups', '/admin/activity-log']);
+// phone has no way to save its CSV without a new dependency). Assignments &
+// advisers joined it (Module 11, the owner's Q2, 2026-10-31).
+export const WEB_ONLY = Object.freeze(['/admin/backups', '/admin/activity-log', '/admin/assignments']);
 
 export function isWebOnly(path) {
   return WEB_ONLY.includes(path);

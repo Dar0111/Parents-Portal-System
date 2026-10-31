@@ -15,6 +15,7 @@ import AdminUsers from './pages/admin/UsersPage';
 import AdminStudents from './pages/admin/StudentsPage';
 import AdminStudentDetail from './pages/admin/StudentDetailPage';
 import AdminAttendance from './pages/admin/AttendancePage';
+import AdminAssignments from './pages/admin/AssignmentsPage';
 import AdminAnnouncements from './pages/admin/AnnouncementsPage';
 import AdminGrades from './pages/admin/GradesPage';
 import AdminBackups from './pages/admin/BackupsPage';
@@ -118,6 +119,7 @@ export default function App() {
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
             <Route path="attendance" element={<AdminAttendance />} />
+            <Route path="assignments" element={<AdminAssignments />} />
             <Route path="announcements" element={<AdminAnnouncements />} />
             {/* The admin's inbox (2026-10-05): the PARENT pages, which take
                 their base path from the signed-in role — teacher ↔ admin

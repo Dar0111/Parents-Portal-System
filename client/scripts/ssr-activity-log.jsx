@@ -180,7 +180,7 @@ const about = nav.indexOf("to: '/admin/about'");
 check('the nav item sits after Backup & Restore and before About', backups !== -1 && item > backups && about > item);
 check("in the admin's System group", /\{ label: 'System', paths: \['\/backups', '\/activity-log'\] \}/.test(read('src/layout/navGroups.js')));
 check('the route is registered', /<Route path="activity-log" element=\{<AdminActivityLog \/>\} \/>/.test(read('src/App.jsx')));
-check('the phone hides it (WEB_ONLY)', /WEB_ONLY = Object\.freeze\(\['\/admin\/backups', '\/admin\/activity-log'\]\)/.test(read('../mobile/src/navigation/routes.js')));
+check('the phone hides it (WEB_ONLY)', /WEB_ONLY = Object\.freeze\(\[[^\]]*'\/admin\/activity-log'[^\]]*\]\)/.test(read('../mobile/src/navigation/routes.js')));
 check('both nav mirrors equal their phone copies', read('src/layout/nav.js') === read('../mobile/src/navigation/nav.js') && read('src/layout/navGroups.js') === read('../mobile/src/navigation/navGroups.js'));
 
 console.log(`\n${passed}/${passed + failed} passed${failed ? ` — ${failed} FAILED` : ''}`);

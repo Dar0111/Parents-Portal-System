@@ -144,7 +144,7 @@ export default function AttendanceScreen() {
     if (applied.section) {
       const label = `Grade ${applied.grade_level} - ${applied.section}`;
       if (appliedSection && appliedSection.adviser_id == null) {
-        return { icon: 'fa-user-slash', title: `${label} has no adviser`, message: "Attendance is recorded by the section's adviser, so none has been recorded here." };
+        return { icon: 'fa-user-slash', title: `${label} has no adviser`, message: "Attendance is recorded by the section's adviser, so none has been recorded here. Set one on the web under Assignments." };
       }
       return { icon: 'fa-clipboard-user', title: `No attendance recorded for ${label} yet`, message: 'Records appear here after the adviser saves a day.' };
     }

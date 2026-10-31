@@ -414,6 +414,97 @@ async function run() {
         (tch003Unchanged.data?.assignments || []).length === tch003Rows.length,
       'TCH-003 seeded assignments were not deleted'
     );
+
+    // --- Module 11: what an add and a removal do to a subject teacher who is
+    // not the class's adviser. TCH-002 advises Masigasig only, so Grade 6
+    // Malikhain is reachable through these rows alone. Attendance stays the
+    // adviser's whatever the rows say. Dry runs only: nothing here saves a grade.
+    console.log('\nA subject teacher outside their advisory class (Module 11):');
+    const CLASS_RECORD = { grade_level: 6, section: 'Malikhain', term: 1, school_year: '2026-2027' };
+    const grade6 = (subjectsAll.data?.subjects || []).filter((s) => s.grade_level === 6);
+    const science = grade6.find((s) => s.name === 'Science');
+    const gmrc = grade6.find((s) => s.name === 'GMRC');
+    assert(science && gmrc, 'Resolve two Grade 6 subjects TCH-001 does not hold');
+
+    const readRecord = (subject) =>
+      request(
+        'GET',
+        `/api/grades/class-record?subject_id=${subject.id}&grade_level=6&section=Malikhain&term=1&school_year=2026-2027`,
+        { token: tch002Token }
+      );
+    const dryRun = (subject) =>
+      request('PUT', '/api/grades/class-record', {
+        token: tch002Token,
+        body: { ...CLASS_RECORD, subject_id: subject.id, dry_run: true, exam_max: { st1: 20 } },
+      });
+    const assignToTch002 = async (subject) => {
+      const res = await request('POST', '/api/assignments', {
+        token: adminToken,
+        body: { teacher_id: tch002Id, subject_id: subject.id, section: 'Malikhain' },
+      });
+      if (res.data?.assignment?.id) createdAssignmentIds.push(res.data.assignment.id);
+      return res;
+    };
+    const removeFromTch002 = async (assignmentId) => {
+      const res = await request('DELETE', `/api/assignments/${assignmentId}`, { token: adminToken });
+      if (res.status === 200) createdAssignmentIds.splice(createdAssignmentIds.indexOf(assignmentId), 1);
+      return res;
+    };
+    const gradeRowsOf = async (subject) => {
+      const [rows] = await withDb((conn) => conn.query('SELECT COUNT(*) AS n FROM grades WHERE subject_id = ?', [subject.id]));
+      return Number(rows[0].n);
+    };
+
+    const beforeAdd = await readRecord(science);
+    assert(beforeAdd.status === 404, 'Before an assignment, the class record is 404 to TCH-002');
+
+    const scienceRow = await assignToTch002(science);
+    const gmrcRow = await assignToTch002(gmrc);
+    assert(scienceRow.status === 201 && gmrcRow.status === 201, 'Admin assigns TCH-002 two subjects in a class they do not advise');
+
+    const afterAdd = await readRecord(science);
+    assert(afterAdd.status === 200 && afterAdd.data?.can_encode === true, 'After the add, GET class-record says can_encode: true');
+
+    const addedDryRun = await dryRun(science);
+    assert(addedDryRun.status === 200, 'After the add, a dry-run PUT class-record is allowed');
+
+    const sections6 = await request('GET', '/api/sections?grade_level=6', { token: tch002Token });
+    const malikhain = (sections6.data?.sections || []).find((s) => s.name === 'Malikhain');
+    const learnerId = afterAdd.data?.learners?.[0]?.id;
+    assert(Number.isInteger(learnerId), 'Malikhain has a learner to name in the attendance attempt');
+    const attendanceAttempt = await request('POST', '/api/attendance/bulk', {
+      token: tch002Token,
+      body: { section_id: malikhain?.id, date: '2026-09-01', entries: [{ student_id: learnerId, status: 'Present' }] },
+    });
+    assert(
+      attendanceAttempt.status === 403 && attendanceAttempt.data?.message === 'You are not the adviser of this section.',
+      'An assignment gives no attendance authority: bulk attendance is 403'
+    );
+
+    const gradeRowsBefore = await gradeRowsOf(science);
+    const removedScience = await removeFromTch002(scienceRow.data?.assignment?.id);
+    assert(removedScience.status === 200, 'Admin removes one of the two');
+
+    const afterOneRemoved = await readRecord(science);
+    assert(
+      afterOneRemoved.status === 200 && afterOneRemoved.data?.can_encode === false,
+      'Still assigned in the class: the removed subject reads can_encode: false'
+    );
+    const refusedDryRun = await dryRun(science);
+    assert(
+      refusedDryRun.status === 403 && refusedDryRun.data?.message === 'You are not assigned to teach Science in Grade 6 - Malikhain.',
+      'Still assigned in the class: PUT class-record is 403 naming the subject'
+    );
+
+    const removedGmrc = await removeFromTch002(gmrcRow.data?.assignment?.id);
+    assert(removedGmrc.status === 200, 'Admin removes the last one');
+
+    const afterAllRemoved = await readRecord(science);
+    assert(afterAllRemoved.status === 404, 'Nothing left in the class: GET class-record is 404');
+    const goneDryRun = await dryRun(science);
+    assert(goneDryRun.status === 404, 'Nothing left in the class: PUT class-record is 404');
+    assert((await gradeRowsOf(science)) === gradeRowsBefore, 'The removals changed no grade row');
+
     // --- Pagination contract (2026-09-19, utils/pagination.js): every list
     // carries page { limit, offset, total, has_more }; limit default 50, max
     // 200; sort against an allow-list. Invariants only — never an exact count

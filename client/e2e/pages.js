@@ -53,6 +53,9 @@ export const PAGES = {
     '/admin/students',
     '/admin/grades',
     '/admin/attendance',
+    // Assignments & advisers (Module 11): visiting is a read — four lists.
+    // Add, Remove and Change are writes and are never clicked.
+    '/admin/assignments',
     '/admin/announcements',
     // The admin's inbox (2026-10-05): the conversation list only. New
     // message opens a picker and never sends; nothing here clicks it.

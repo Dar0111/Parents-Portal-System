@@ -340,7 +340,7 @@ export default function AttendanceScreen({ navigation }) {
           <EmptyState
             icon="fa-clipboard-user"
             title="You are not the adviser of any section"
-            message="Attendance is recorded by the section adviser. An admin can assign you to a section from the Sections page."
+            message="Attendance is recorded by the section adviser. Ask an admin to set you as a section's adviser under Assignments on the web."
           />
         </View>
       </View>

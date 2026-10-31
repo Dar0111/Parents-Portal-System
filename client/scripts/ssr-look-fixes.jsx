@@ -264,7 +264,7 @@ console.log("Admin Messages — the nav item and its group (driven)");
 const adminNav = navForRole('admin');
 const adminMsgAt = adminNav.findIndex((i) => i.to === '/admin/messages');
 const adminMsg = adminNav[adminMsgAt];
-assert(adminNav.length === 11 && adminMsg?.built === true && adminMsg.label === 'Messages' && adminMsg.icon === 'fa-comments', "the admin's nav has 11 items (the Activity log since B2), Messages among them, built, with the other roles' Messages icon");
+assert(adminNav.length === 12 && adminMsg?.built === true && adminMsg.label === 'Messages' && adminMsg.icon === 'fa-comments', "the admin's nav has 12 items (Assignments since Module 11), Messages among them, built, with the other roles' Messages icon");
 assert(adminMsgAt > 0 && adminNav[adminMsgAt - 1].to === '/admin/announcements', '…directly after Announcements');
 assert(['teacher', 'parent'].every((r) => navForRole(r).find((i) => i.to === `/${r}/messages`)?.icon === adminMsg?.icon), "CONTROL: the teacher's and parent's Messages carry that same icon");
 const adminGroups = groupNav('admin', adminNav).groups;

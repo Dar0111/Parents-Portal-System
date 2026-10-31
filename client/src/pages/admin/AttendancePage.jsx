@@ -193,7 +193,7 @@ export default function AdminAttendancePage() {
           icon: 'fa-user-slash',
           title: `${label} has no adviser`,
           message:
-            "Attendance is recorded by the section's adviser, so none has been recorded here.",
+            "Attendance is recorded by the section's adviser, so none has been recorded here. Set one under Assignments.",
           showReset: false,
         };
       }

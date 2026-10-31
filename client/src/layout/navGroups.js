@@ -16,7 +16,7 @@
 
 const GROUPS_BY_ROLE = {
   admin: [
-    { label: 'Manage', paths: ['/users', '/students', '/grades', '/attendance'] },
+    { label: 'Manage', paths: ['/users', '/students', '/grades', '/attendance', '/assignments'] },
     { label: 'Communicate', paths: ['/announcements', '/messages'] },
     { label: 'System', paths: ['/backups', '/activity-log'] },
   ],

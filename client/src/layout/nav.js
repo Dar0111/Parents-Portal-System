@@ -79,6 +79,9 @@ export const NAV_BY_ROLE = {
     { to: '/admin/students', label: 'Students', icon: 'fa-user-graduate', built: true },
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
     { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
+    // Who teaches what, and who advises which class (Module 11, the owner's
+    // SCOPE DECISION of 2026-10-31). Web only: the phone lists it in WEB_ONLY.
+    { to: '/admin/assignments', label: 'Assignments', icon: 'fa-chalkboard-user', built: true },
     { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: true },
     { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
