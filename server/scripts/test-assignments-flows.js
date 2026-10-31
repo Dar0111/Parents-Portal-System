@@ -421,10 +421,10 @@ async function run() {
     // adviser's whatever the rows say. Dry runs only: nothing here saves a grade.
     console.log('\nA subject teacher outside their advisory class (Module 11):');
     const CLASS_RECORD = { grade_level: 6, section: 'Malikhain', term: 1, school_year: '2026-2027' };
-    const grade6 = (subjectsAll.data?.subjects || []).filter((s) => s.grade_level === 6);
-    const science = grade6.find((s) => s.name === 'Science');
-    const gmrc = grade6.find((s) => s.name === 'GMRC');
-    assert(science && gmrc, 'Resolve two Grade 6 subjects TCH-001 does not hold');
+    const sixSubjects = (subjectsAll.data?.subjects || []).filter((s) => s.grade_level === 6);
+    const sixScience = sixSubjects.find((s) => s.name === 'Science');
+    const sixGmrc = sixSubjects.find((s) => s.name === 'GMRC');
+    assert(sixScience && sixGmrc, 'Resolve two Grade 6 subjects TCH-001 does not hold');
 
     const readRecord = (subject) =>
       request(
@@ -455,22 +455,22 @@ async function run() {
       return Number(rows[0].n);
     };
 
-    const beforeAdd = await readRecord(science);
+    const beforeAdd = await readRecord(sixScience);
     assert(beforeAdd.status === 404, 'Before an assignment, the class record is 404 to TCH-002');
 
-    const scienceRow = await assignToTch002(science);
-    const gmrcRow = await assignToTch002(gmrc);
+    const scienceRow = await assignToTch002(sixScience);
+    const gmrcRow = await assignToTch002(sixGmrc);
     assert(scienceRow.status === 201 && gmrcRow.status === 201, 'Admin assigns TCH-002 two subjects in a class they do not advise');
 
-    const afterAdd = await readRecord(science);
+    const afterAdd = await readRecord(sixScience);
     assert(afterAdd.status === 200 && afterAdd.data?.can_encode === true, 'After the add, GET class-record says can_encode: true');
 
-    const addedDryRun = await dryRun(science);
+    const addedDryRun = await dryRun(sixScience);
     assert(addedDryRun.status === 200, 'After the add, a dry-run PUT class-record is allowed');
 
     const sections6 = await request('GET', '/api/sections?grade_level=6', { token: tch002Token });
     const malikhain = (sections6.data?.sections || []).find((s) => s.name === 'Malikhain');
-    const learnerId = afterAdd.data?.learners?.[0]?.id;
+    const learnerId = afterAdd.data?.learners?.[0]?.student_id;
     assert(Number.isInteger(learnerId), 'Malikhain has a learner to name in the attendance attempt');
     const attendanceAttempt = await request('POST', '/api/attendance/bulk', {
       token: tch002Token,
@@ -481,16 +481,16 @@ async function run() {
       'An assignment gives no attendance authority: bulk attendance is 403'
     );
 
-    const gradeRowsBefore = await gradeRowsOf(science);
+    const gradeRowsBefore = await gradeRowsOf(sixScience);
     const removedScience = await removeFromTch002(scienceRow.data?.assignment?.id);
     assert(removedScience.status === 200, 'Admin removes one of the two');
 
-    const afterOneRemoved = await readRecord(science);
+    const afterOneRemoved = await readRecord(sixScience);
     assert(
       afterOneRemoved.status === 200 && afterOneRemoved.data?.can_encode === false,
       'Still assigned in the class: the removed subject reads can_encode: false'
     );
-    const refusedDryRun = await dryRun(science);
+    const refusedDryRun = await dryRun(sixScience);
     assert(
       refusedDryRun.status === 403 && refusedDryRun.data?.message === 'You are not assigned to teach Science in Grade 6 - Malikhain.',
       'Still assigned in the class: PUT class-record is 403 naming the subject'
@@ -499,11 +499,11 @@ async function run() {
     const removedGmrc = await removeFromTch002(gmrcRow.data?.assignment?.id);
     assert(removedGmrc.status === 200, 'Admin removes the last one');
 
-    const afterAllRemoved = await readRecord(science);
+    const afterAllRemoved = await readRecord(sixScience);
     assert(afterAllRemoved.status === 404, 'Nothing left in the class: GET class-record is 404');
-    const goneDryRun = await dryRun(science);
+    const goneDryRun = await dryRun(sixScience);
     assert(goneDryRun.status === 404, 'Nothing left in the class: PUT class-record is 404');
-    assert((await gradeRowsOf(science)) === gradeRowsBefore, 'The removals changed no grade row');
+    assert((await gradeRowsOf(sixScience)) === gradeRowsBefore, 'The removals changed no grade row');
 
     // --- Pagination contract (2026-09-19, utils/pagination.js): every list
     // carries page { limit, offset, total, has_more }; limit default 50, max
