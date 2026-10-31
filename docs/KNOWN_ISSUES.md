@@ -64,6 +64,7 @@ purpose, each needing its own dispatch; all three are now closed (two on
 
 | Issue | Where | Note |
 |---|---|---|
+| **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | Once loaded, production holds 368 fictional accounts on typed passwords, sample grades and attendance, and an adviser in every section. The Seeded baseline's "3 of 23" and the "20 of 23 sections have no adviser" row stay true of `db:setup`. The undo works by three markers and restores advisers, contacts and names. Open until the undo has run. |
 | `users.email` has no UNIQUE constraint | `schema.sql` | Deliberately not added. A plain `UNIQUE` would conflict with the locked one-account-per-student design: `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose, and any real family with 2+ kids needs that same reuse. Only matters once email login is actually built — see Open Questions. |
 | **No `Download Statement` export — closed 2026-09-13 by removal.** | — | Figure 19 promised a CSV export from `contribution_records`. That table and Feature 7 were removed 2026-09-13 (SCOPE DECISION), so there is nothing to export. Chapter 5 must note that Figure 19 describes a removed feature. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |

@@ -304,6 +304,8 @@ and the phone teacher picker's empty groups.
 
 - [ ] **Replace the seed data.** `seed.sql` uses the team's own names.
       Fictional demo data, or clear the seed if real records are loaded.
+      The load, its undo and the check: `docs/DEMO_DATA.md` (Module 12).
+      The seed itself does not change; it stays what the suites assert.
 - [ ] **Change every default password**, one per role. The values are in
       `server/scripts/setup-db.js` (it hashes and inserts them; `seed.sql`
       holds only a placeholder) and are deliberately not repeated in any

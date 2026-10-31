@@ -20,6 +20,10 @@
     "db:migrate:demo-grade1": "node scripts/migrate-demo-grade1.js",
     "sms:probe": "node scripts/probe-sms-gateway.js",
     "proof:backups": "node scripts/proof-backup-loop.js",
+    "demo:load": "node scripts/demo-load.js",
+    "demo:undo": "node scripts/demo-undo.js",
+    "demo:clear-messages": "node scripts/demo-clear-messages.js",
+    "demo:logins": "node scripts/demo-logins.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:auth-middleware": "node scripts/test-auth-middleware.js",
@@ -55,6 +59,7 @@
     "test:excuse-attendance-rule": "node scripts/test-excuse-attendance-rule.js",
     "test:pg-driver": "node scripts/test-pg-driver.js",
     "test:fixture-guard": "node scripts/test-fixture-guard.js",
+    "test:demo-data": "node scripts/test-demo-data.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {

@@ -353,7 +353,7 @@ git check-ignore -v server/.env
 
 ### Seed passwords sa GitHub — OK ba?
 
-OK para sa local dev lang — ang seed passwords ay **test/demo passwords**, nasa `server/scripts/setup-db.js`. Pero nasa public repo sila, at ang login ID ng parent ay LRN ng bata. **Bago may totoong parent: palitan ang lahat** (`CLAUDE.md` → BEFORE THE PARENT DEMO).
+OK para sa local dev lang — ang seed passwords ay **test/demo passwords**, nasa `server/scripts/setup-db.js`. Pero nasa private repo sila, at ang login ID ng parent ay LRN ng bata. **Bago may totoong parent: palitan ang lahat** (`CLAUDE.md` → BEFORE THE PARENT DEMO).
 
 ---
 

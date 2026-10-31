@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-five test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, `demoData` and the four `demo-*` scripts (Module 12, `docs/DEMO_DATA.md`), the thirty-six test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1465,6 +1465,7 @@ gate in full on its `POST /api/users/parents` row.
 | **A request body over 100 KB is `500`** | `server.js` `express.json()` | The default limit. The generic error handler answers 500. Not remeasured in this docs pass |
 | **Measure the API host's clock against the database before every restore and every demo** | hosting | On 2026-10-25/26 the laptop was +2,906 ms, then synced to +1 ms. That figure is that measurement |
 | **Supabase `statement_timeout` was 2 minutes on staging** | `migration/docs/09` §6 (2026-10-25/26) | Not remeasured in this docs pass. The API does not set it |
+| **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | 368 fictional accounts, shared typed passwords. Once loaded, production has an adviser in every section; "3 of 23" and "20 of 23" stay true of `db:setup` |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1557,6 +1558,10 @@ ready — do not let that arrive without these done.
   Ashley Geguiera — see `seed.sql`). Replace with obviously-fictional
   demo data before any real parent sees the system, or clear the seed
   entirely if real student records get loaded instead.
+- **The fictional demo data is `docs/DEMO_DATA.md` (Module 12):** a load, its
+  undo by marker, the run sheet and the check. It renames the kept rows that
+  carry team names on production only; `seed.sql` and the Seeded baseline do
+  not change, and the suites never see a row it writes.
 - **Default passwords are public.** The three defaults (one per role) are
   hard-coded in `server/scripts/setup-db.js`, which is in the GitHub repo
   (`seed.sql` holds only a placeholder). A parent
@@ -1696,7 +1701,7 @@ delta list stays with the team.
 - [ ] End-to-end testing across web and mobile
 - [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary. **The
       demo API runs `npm start`, never `--watch`** (decided 2026-09-30)
-- [ ] Demo data and rehearsal
+- [ ] Demo data and rehearsal — the load: `docs/DEMO_DATA.md` (Module 12)
 - [x] **The web in a phone's Chrome** — `feat/lan-web` (2026-10-01): `npm run
       dev:lan`, `CORS_ORIGIN` as a list, a blank `VITE_API_BASE_URL`. README.
 - [ ] **A standalone APK — READY PLAN, NOT BUILT:** `docs/APK_READY_PLAN.md`
