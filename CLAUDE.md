@@ -70,7 +70,7 @@ split — if a fact seems missing here, it is in one of these.
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
 | `docs/TESTING.md` | every suite, proof and lint baseline; the one suite whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
-| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§36 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
+| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§37 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
 | `docs/MOBILE_CONVENTIONS.md` | the full text of STAGE 5 MOBILE CONVENTIONS — only where the phone DIFFERS from the web, and why; frozen per section as each Stage 5 branch lands (since 2026-09-27) | frozen rules |
@@ -109,11 +109,11 @@ behind is the rule and the pointer, nothing else.
 **Last verified:** 2026-10-28, `main` `8a90789` (this docs pass; no suite was re-run here). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` stays `draft-2`; nobody re-accepts. The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
-nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
-role since 2026-09-26** (11 / 13 / 10); **no role has a `built: false`
+nav is 12 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36; Assignments since Module 11, §37), and **About is last on every
+role since 2026-09-26** (12 / 13 / 10); **no role has a `built: false`
 item**.
-20 of 23 sections have no adviser and
-no screen can assign one — see KNOWN ISSUES.)
+After `db:setup` 20 of 23 sections have no adviser;
+Admin → Assignments sets one since Module 11, §37.)
 
 ### Seeded baseline
 
@@ -244,8 +244,8 @@ and the 2026-09-19 section-trim block.
 
 ### Mobile — every role's screens built
 
-**The Expo app has every role's screens** (Backup & Restore and the
-Activity log stay web only). Stage 5 adds no endpoint. No module is "not started".
+**The Expo app has every role's screens** (Backup & Restore, the
+Activity log and Assignments stay web only). Stage 5 adds no endpoint. No module is "not started".
 
 ### Grades — fully built (write path + viewing), Stage 3's last backend module
 
@@ -267,8 +267,8 @@ and stores `section_id` and **never inserts NULL**, and `PUT` writes it only
 when the stored FK is NULL and refuses a class change with `400`.
 `routes/content.js` is NOT a reader — it matches `sections` by
 `grade_level` + `name`. `routes/sections.js` is the management interface for
-the table itself, not part of any migration; there is no admin UI for
-`PATCH /:id/adviser` (KNOWN ISSUES).
+the table itself, not part of any migration; Admin → Assignments is the UI for
+`PATCH /:id/adviser` (§37).
 
 The full investigation moved to `docs/ARCHIVE.md` on 2026-09-19 ("Moved from
 CLAUDE.md … section trim"); the original long text is there under CURRENT
@@ -1062,6 +1062,19 @@ read writes nothing. Three handlers, admin only: `GET /api/activity-logs`,
 `/actions`, `/export`. Full text: FRONTEND §36, `docs/API_REFERENCE.md` →
 Activity log.
 
+### 37. Assignments & advisers — one form, and no grade touched
+
+**Module 11, `feat/admin-assignments`, merged 2026-11-02 — ADMIN SCOPE AUDIT →
+SCOPE DECISION 2026-10-31.** Admin → Assignments (`/admin/assignments`, the
+Manage group; web only — `WEB_ONLY` on the phone) writes `teacher_assignments`
+and `sections.adviser_id` through endpoints that already existed: no route,
+schema or migration changed. **One form adds every subject × section pair, one
+`POST` at a time:** a held pair is skipped, a `409` "already assigned" counts as
+one, any other failure is listed and the run goes on, so repeating it is safe.
+**Removing an assignment keeps every grade, and the confirmation says so; the
+adviser dialog warns about Pending letters and never blocks** (the owner's Q3).
+Attendance, excuse review and enrolment stay adviser-only. Full text: FRONTEND §37.
+
 ### Corrections — three claims retired here
 
 *"The first screen builds the shared components"* (~5h), *"backend is 100%
@@ -1171,7 +1184,9 @@ was fixed: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
 no Turborepo, no nx.
 
 **Mobile scope:** all 9 features (Feature 7 removed 2026-09-13), all 3 roles. Backup/Restore is the one
-web-only exception (and the admin's Activity log page, the owner's Q6, B2).
+web-only exception (and the admin's Activity log page, the owner's Q6, B2; and
+Admin → Assignments, the owner's Q2 of 2026-10-31: a phone screen only after the
+defense, and only if the panel asks).
 
 **Authentication — implemented and tested**
 
@@ -1443,7 +1458,6 @@ gate in full on its `POST /api/users/parents` row.
 | **A MySQL-era `.sql` backup is refused by the API (`409 MYSQL_ERA_BACKUP`)** | `routes/backups.js` | Restoring one is the by-hand procedure (`migration/docs/04` §2b). The old "restoring a backup taken before…" hazards apply only there |
 | **HAZARD — `db:setup` drops schema `portal` of the database `PG_DATABASE` names**, on a loopback host only | `scripts/setup-db.js` | It never drops another database. Do not point `PG_DATABASE` at a database whose `portal` schema matters |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
-| **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
 | **Ten `.sql` files on disk have no `backups` row** | `server/backups/` | They list as `engine: mysql` and the API cannot restore them. Do not delete them |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
@@ -1466,6 +1480,8 @@ gate in full on its `POST /api/users/parents` row.
 | **Measure the API host's clock against the database before every restore and every demo** | hosting | On 2026-10-25/26 the laptop was +2,906 ms, then synced to +1 ms. That figure is that measurement |
 | **Supabase `statement_timeout` was 2 minutes on staging** | `migration/docs/09` §6 (2026-10-25/26) | Not remeasured in this docs pass. The API does not set it |
 | **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | 368 fictional accounts, shared typed passwords. Once loaded, production has an adviser in every section; "3 of 23" and "20 of 23" stay true of `db:setup` |
+| **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
+| **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1797,6 +1813,16 @@ comes after the Fri 9 Oct 2026 check. The admin gets the unread badge, the
 toast and the tone; "Announce to a class" shows on a parent's thread only.
 Figure 5 has no admin Messages process: **this is the owner's decision, and
 Chapter 5 must say so** (manuscript delta list).
+
+**SCOPE DECISION, word for word:** "2026-10-31, Darryl Candilada: Admin →
+Assignments & advisers is built, reversing 'Admin → Sections will not be built',
+because the panel asked at the professor's check on 2026-10-30 for
+departmentalized subject teachers. Scope: teacher_assignments and
+sections.adviser_id only; attendance, excuse review and enrolment stay
+adviser-only." The 2026-09-13 and 2026-09-18 entries stay as written. An
+assignment also gives that teacher the class's existing read, learner-name edit,
+parent messaging and class announcement scope (FRONTEND §37). **Chapter 5 must
+say so** (manuscript delta list).
 
 Both decisions' full text, the nav-item table and the 2026-09-13 finding
 paragraph are verbatim in `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT (three

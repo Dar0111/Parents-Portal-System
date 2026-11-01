@@ -11,7 +11,14 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-28: `main` at the start of this docs pass is `8a90789`.**
+**Snapshot, 2026-11-02: Module 11 is merged to `main`.** Admin → Assignments &
+advisers (web only) writes `teacher_assignments` and `sections.adviser_id`
+through the existing endpoints; no route, schema or migration changed. It was
+gated on `c1ad541` and the owner's check passed all 30 rows. It is not yet on the
+VPS: the deploy steps are on its `docs/CHANGELOG.md` row. No live database was
+touched.
+
+**Previous snapshot, 2026-10-28 (history): `main` at the start of that docs pass was `8a90789`.**
 The app runs on PostgreSQL (schema `portal`, Supabase, 26 tables). MySQL
 `parents_portal` is the disconnected fallback. D-168/D-170 are done: the
 policy version is not shown; `versions.json` stays `draft-2`; nobody
@@ -114,17 +121,20 @@ and only there.
 | F3 badges — `fix/f3-badges` (B3, the owner's label): a visit clears a badge's INFORMATION rows — Announcements, Memos and Events for a teacher and a parent, a parent's Excuse Letters, the admin's Announcements (announcements + memos) — through `PATCH /api/notifications/read-all { section }` (no new handler; the server's per-role `VISIT_CLEAR` decides what a section covers), the web once per mount and the phone on every focus and pull (the seven phone list screens re-read on focus since); the calls to act — Teacher → Excuse Letters, Admin → Users — still clear only on the decision (the owner's decision of 2026-10-22; built and gated 2026-10-22 in its own worktree after backup 348; device-checked 2026-10-22/23 on the web and the Tecno — §1–§5, one finding: the Upcoming events card's name at a figure's size, fixed in `c248c51` (parent) and `ce9f111` (teacher) and re-checked — and cleaned up by id after backup 354; merged 2026-10-23, `96a1776`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
 | Excuse attendance — `feat/excuse-attendance` (B8): an excuse letter's decision SETS that day's attendance in the review's own transaction — approved: an unrecorded class day becomes Excused, Absent becomes Excused; declined: an unrecorded class day becomes Absent; a Present, Late or Excused mark stays; a day that is not a class day — a weekend, the break between terms or a day outside the school year; a class day is a weekday inside one of the three terms (the owner's answer of 2026-10-23) — gets no write; the reviewer recorded, an `excuse_attendance` activity row when the day changes, a `409` "try again" when another write wins the moment; the review says before and after exactly what happens, the parent's four places carry the owner's sentence, the phone register and the parent's Attendance re-read on focus (the owner's Q1–Q11 of 2026-10-22/23; built and gated 2026-10-23 in its own worktree after backup 355; the class-day fix gated the same day after backup 360; device-checked the same day, no findings, cleaned up by id after backup 362; merged `47be373`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
 | The Activity log — `feat/activity-log` (B2, the owner's decision D-21 of 2026-10-16): trim-11 of CLAUDE.md (`00235a0`); `create_teacher`, `update_user` and `update_user_status` write ids only (`04258c8`); Admin → Activity log — `activity_logs` newest first by Manila day, account role and action, 50 a page, a CSV of exactly that set (BOM, RFC 4180, every cell formula-guarded, at most 50,000), the description never selected, each code's label the server's; a download logs `export_activity_log`; three admin-only handlers; web only (built 2026-10-23/24 and gated 2026-10-24 in its own worktree after backup 363; device-checked 2026-10-24 on the web, §1–§5, no findings, cleaned up by id after backup 369; merged 2026-10-24, `f4cc8c4`) | ✅ merged 2026-10-24 | ✅ merged 2026-10-24 | — (web only: the mirrored nav hides it, `WEB_ONLY`) |
+| Teaching assignments and advisers — Module 11, `feat/admin-assignments` (the owner's SCOPE DECISION of 2026-10-31): Admin → Assignments & advisers adds and removes `teacher_assignments` (one form, every subject × section pair; a removal keeps every grade) and sets or clears `sections.adviser_id` (a warning about Pending letters, never a block); the Attendance sentences for a class with no adviser now point to it (gated 2026-11-01 on `c1ad541`; the owner's check 2026-11-02, all 30 rows; merged 2026-11-02) | — (no route changed) | ✅ merged 2026-11-02 | — (web only: the mirrored nav hides it, `WEB_ONLY`; two sentences changed) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
 and then removed on 2026-09-13 because the school may not collect
 contributions — CLAUDE.md → SCOPE DECISION).
 
-**Navigation today:** teacher 13 items, parent 10, admin 11 (the Activity log
-since B2, merged 2026-10-24), every one built; About is
-last on every role. Admin has no Sections, Excuse Letters,
+**Navigation today:** teacher 13 items, parent 10, admin 12 (the Activity log
+since B2, merged 2026-10-24; Assignments since Module 11, merged 2026-11-02),
+every one built; About is last on every role. Admin has no Excuse Letters,
 Memos or Events page by the Figure 5 scope decision — memos are written on
-Admin → Announcements. **Admin → Messages came back on 2026-10-05** by the
+Admin → Announcements — and Admin → Assignments & advisers replaced the Sections
+page that decision ruled out (the owner, 2026-10-31).
+**Admin → Messages came back on 2026-10-05** by the
 owner's decision (teacher ↔ admin only; merged 2026-10-06).
 
 ---
@@ -132,7 +142,8 @@ owner's decision (teacher ↔ admin only; merged 2026-10-06).
 ## Per module — what exists
 
 Handlers are `docs/API_REFERENCE.md` §8's per-module counts. **Every module
-also has its phone screens**, except Backup & Restore (web only by design).
+also has its phone screens**, except Backup & Restore, the Activity log and
+Assignments (web only by design).
 A module with tables and no handlers is not started; there are none.
 
 | Module | Tables | Handlers | Suites | Web |
@@ -141,8 +152,8 @@ A module with tables and no handlers is not started; there are none.
 | Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are the owner's draft-2 (feat/privacy-text, both `draft-2`) |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
-| Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
-| Subjects + assignments | `subjects`, `teacher_assignments` | 1 + 3 | `test:assignments` | none by decision; read by pickers |
+| Sections | `sections` | 3 | `test:sections` | Admin → Assignments & advisers sets or clears an adviser (web only, Module 11); read by pickers |
+| Subjects + assignments | `subjects`, `teacher_assignments` | 1 + 3 | `test:assignments` | Admin → Assignments & advisers adds and removes assignments (web only, Module 11); read by pickers |
 | Grades | `grades`, `grade_components`, `assessment_slots`, `grade_weight_configs`, `transmutation_table`, `grading_mode_configs`, `grade_acknowledgements` (since `feat/grade-acknowledgement`, merged 2026-10-22) | 15 + 1 (`/grading-modes`; `POST /acknowledgements` since 2026-10-22) | `test:grades`, `test:class-record`, `test:class-summary`, `test:grade-locks`, `test:grade-acknowledgements`, `test:grading-modes`, `test:grade-computation`, `verify:grading-seed` | Teacher → Grades (the class record), Teacher → Class summary + learner card (a Confirmed column); Parent → Grades (report card + term breakdown; "I have seen these grades" per locked term); Admin → Grades (lock one grade; lock or unlock a whole term — `fix/grade-locks`; the confirmed terms and what an unlock clears) |
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
@@ -269,7 +280,15 @@ records', and 339, 344, 345, 348, 353, 355, 360, 363, 370, 377 and 383
 pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
-admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged.
+admin Messages text). **Add to it, for Chapter 5 (the team applies it):** Admin →
+Assignments & advisers was built on the owner's decision of 2026-10-31, reversing
+"Admin → Sections will not be built", because the panel asked at the professor's
+check on 2026-10-30 for departmentalized subject teachers. Figure 5 has no such
+process. It covers subject assignments and section advisers only; attendance,
+excuse review and enrolment stay adviser-only. An assignment also gives the
+teacher that class's existing read, learner-name edit, parent messaging and class
+announcement scope. It is web only.
+The badged-pages pass (`fix/f3-badges`) is merged.
 The PostgreSQL cutover landed 2026-10-27. Hosting is the Friday 2026-10-30
 check.
 

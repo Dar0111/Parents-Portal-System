@@ -4601,3 +4601,115 @@ the filters, the refusals and the CSV byte by byte. **Cannot prove** a real
 load, a download saved, the CSV in Excel — the owner's device check
 (`docs/ACTIVITY_LOG_DEVICE_CHECK.md`).
 
+## 37. Assignments & advisers — one form, and no grade touched (`feat/admin-assignments`, Module 11, 2026-11-02)
+
+The owner's SCOPE DECISION of 2026-10-31 (CLAUDE.md → ADMIN SCOPE AUDIT) and
+Q1–Q8 of the PLAN APPROVED the same day. The panel asked on 2026-10-30 for
+departmentalized subject teachers, who record grades in a section they do not
+advise. The page writes `teacher_assignments` and `sections.adviser_id` and
+nothing else; attendance, excuse review and enrolment stay adviser-only. It
+uses five endpoints that already existed, so no route, schema or migration
+changed. Web only (Q2): the phone's mirrored nav carries the item and
+`navigation/routes.js` lists it in `WEB_ONLY`, so the drawer hides it. A phone
+screen comes only after the defense, and only if the panel asks.
+
+### 37a. The page
+
+- **`/admin/assignments`**, "Assignments" in the Manage group after Attendance,
+  titled "Assignments & advisers". Two parts, each with its own `FormStatus`
+  key (§7c): **Teaching assignments** (a Teacher select, Add assignment, a table
+  of Subject, Class, Also taught by and Remove) and **Section advisers** (a
+  Grade filter, a table of Class, Learners, Adviser and Change).
+- **Both tables hold the whole list** (`fetchAll`) and filter locally, so no
+  `queryKey` applies (§5). The pure half, every rule and every word, is
+  `pages/admin/assignments.js`.
+- **The Teacher select includes inactive teachers**, marked "(inactive)",
+  because their rows must stay removable. Add assignment is disabled for them,
+  and they are not offered as a new adviser. A current adviser who was
+  deactivated stays listed in the Adviser select, marked.
+- **"Also taught by" (Q4).** Two teachers on one subject and class is allowed:
+  the unique key includes `teacher_id`, and both can encode. The page shows it
+  and never blocks it.
+- **The empty state (§5f)** has three causes: "Choose a teacher"; "No
+  assignments yet", naming the teacher and the header's Add assignment; and "No
+  assignments" for an inactive account, which says nothing can be added.
+
+### 37b. Adding: one form, every pattern
+
+The Add dialog is Grade → Subjects (with "All subjects") → Sections (with "All
+sections"), and it adds every subject × section pair. One assignment, every
+subject of a class, one subject across sections and several subjects across
+sections are all this form. Subject rows are per grade, so a teacher across two
+grades runs it once per grade.
+
+- **One `POST` at a time, from the client; there is no bulk endpoint.** Each
+  stands alone: one row, one audit entry. A ref stops a double submit.
+- **A pair the teacher already holds is named and skipped before any request**
+  ("Already assigned: Science in Grade 6 - Malikhain."). When nothing is left to
+  add, the button is disabled.
+- **A `409` counts as "already assigned" only when its message says so**
+  (`isDuplicateRefusal`), because `POST` has a second `409`, `academic_year`
+  not configured, which is a real failure.
+- **Any other failure is listed in the API's own words (§2) and the run goes
+  on.** The result reads "Added 7. Already assigned: 1. Failed: 0.", then each
+  failure.
+- **A failure keeps the dialog open.** The list is re-read after every run
+  (§5b), so what was added now reads as held and pressing Add again retries only
+  what failed. A clean run closes the dialog and shows the line above the list.
+
+### 37c. Removing, and the adviser
+
+- **Remove asks first (§5e) and names the decision back:** "<teacher> will no
+  longer be able to record <subject> grades for Grade <n> - <section>. Grades
+  already recorded are kept." The API never refuses when grades exist. **Do not
+  add that guard** (CLAUDE.md → Working endpoints).
+- **The adviser saves from its dialog with no second confirm**, because a repeat
+  is absorbed. Save is disabled until the choice changes, which also avoids a
+  no-op audit row, and while the Pending letters are being read.
+- **A teacher may advise several sections.** "Also advises Grade 5 - Masigasig."
+  is a hint, never a block.
+- **The letters warning warns and never blocks (Q3).** It is counted from
+  `GET /excuse-letters?status=Pending` when the dialog opens, and it shows only
+  above 0:
+  - Clearing: "1 excuse letter from this class is waiting for review. Nobody can
+    review it until this class has an adviser." That is exact: a subject teacher
+    is refused, and the admin has no Excuse Letters page.
+  - Replacing: "1 excuse letter from this class is waiting for review. It will be
+    in <name>'s Excuse Letters list, but <name> will not be notified." (Q5,
+    KNOWN_ISSUES.)
+  - If the read fails, the dialog says "Waiting excuse letters could not be
+    checked." and Save stays available.
+
+### 37d. What a teacher sees
+
+No socket and no notification: a change shows on the teacher's next page open.
+Phone Grades reads assignments on mount only, so a teacher with the app open
+needs a restart; that stays as it is (Q6).
+
+| State | API | Web |
+|---|---|---|
+| Added | `can_encode` true; `PUT` allowed | The subject and class appear in Grades |
+| Removed, and the teacher still holds another subject there or advises it | `can_encode` false; `PUT` `403` naming the subject | The subject leaves the dropdown, so the read-only notice shows only on a stale page |
+| Removed, and nothing else connects them to the class | `GET` and `PUT` `404` | For the last assignment, "No classes assigned to you" |
+
+**Grades stay in every case.** Parents still see them, and the next assigned
+teacher can edit them, because encode scope has no owner check.
+
+**An add also opens the class's existing scope:** the teacher can read its
+learners, excuse letters and grades, edit learner names, message its parents and
+post class announcements. That is existing behaviour, and the SCOPE DECISION
+says Chapter 5 must state it.
+
+**Copy that points here (§5i):** Admin → Attendance on a class with no adviser
+("Set one under Assignments."; the phone says "on the web"), and Teacher →
+Attendance for a teacher who advises nothing, web and phone.
+
+### 37e. What proves it
+
+`scripts/ssr-assignments.jsx` (TESTING): the pure helper and the page, with
+controls. `proof:drawer` keeps the path out of every phone group, and
+`ssr-look-fixes` holds the twelve admin rows. `test:assignments` proves the encode and attendance split, and that a removal
+changes no grade; `test:sections` proves a cleared adviser's review is refused
+and the letter stays Pending. **Cannot prove** a click: the owner's check of
+2026-11-02 passed all 30 rows (TESTING).
+
