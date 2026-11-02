@@ -5,8 +5,9 @@
 //
 // EACH LABEL READS ON ITS OWN (the owner's C1): the page shows no group
 // column, so "Submitted an excuse letter", never "Submitted". A code that is
-// no longer written keeps a label ending "(removed)", because its rows stay —
-// activity_logs is never cleaned.
+// no longer written keeps a label ending "(removed)", because its rows stay.
+// The one reset of old rows (D-122, docs/ACTIVITY_RESET.md) keeps those rows
+// too, and no route cleans activity_logs.
 //
 // A CODE THAT IS NOT HERE IS NOT AN ERROR: its row shows the code itself as
 // the label, in the group Other, so a new writer that forgot this file still
@@ -155,6 +156,13 @@ const GROUPS = [
       // Written by scripts/setup-db.js and scripts/migrate-fixture-learner.js,
       // never by a route.
       ['seed', 'Database setup by a script'],
+      // Written by scripts/demo-*.js and scripts/activity-reset.js, never by a
+      // route: each is one row for a bulk write straight to the tables.
+      ['demo_data_load', 'Loaded the demo data'],
+      ['demo_data_undo', 'Removed the demo data'],
+      ['demo_messages_clear', 'Cleared the messages before the demo data'],
+      ['demo_passwords_set', 'Set the demo passwords'],
+      ['activity_log_reset', 'Reset the activity log'],
     ],
   },
   {

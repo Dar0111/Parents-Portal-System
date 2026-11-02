@@ -76,7 +76,7 @@ const policy = createPolicyFixture();
 
 const ENTRY_KEYS = ['action', 'action_group', 'action_label', 'actor_name', 'actor_role', 'created_at', 'id'];
 const RETIRED = ['create_contribution', 'update_contribution', 'delete_contribution', 'update_contribution_record', 'record_descriptive_grade'];
-const SCRIPT_ONLY = ['seed'];
+const SCRIPT_ONLY = ['seed', 'demo_data_load', 'demo_data_undo', 'demo_messages_clear', 'demo_passwords_set', 'activity_log_reset'];
 const UNKNOWN_CODE = 'zz_suite_unknown_code';
 const SENTINEL = `suite-sentinel-${crypto.randomBytes(8).toString('hex')}`;
 const CSV_HEADER = '"Entry","Date","Time (Philippine time)","Account","Role","Group","Action","Action code"';
@@ -183,7 +183,7 @@ function pureChecks() {
   assert(written.size >= 70, `the source scan finds the writers' codes (${written.size})`);
   assert(missing.length === 0, 'every code a route or util writes has its words', `missing: ${missing.join(', ')}`);
   const extra = [...known].filter((c) => !written.has(c) && !RETIRED.includes(c) && !SCRIPT_ONLY.includes(c));
-  assert(extra.length === 0, 'the map holds nothing else but the removed codes and seed', `extra: ${extra.join(', ')}`);
+  assert(extra.length === 0, 'the map holds nothing else but the removed codes and the scripts\' codes', `extra: ${extra.join(', ')}`);
   assert(written.has('excuse_attendance') && written.has('export_activity_log'), 'excuse_attendance and export_activity_log are written');
   const labels = ACTION_GROUPS.flatMap((g) => g.actions.map((a) => a.label));
   assert(new Set(labels).size === labels.length && labels.every((l) => l.trim().length > 3), 'every label is its own and not empty');
