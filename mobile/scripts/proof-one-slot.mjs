@@ -6,6 +6,7 @@
 // cannot: the server's answer — that is the phone check and test:class-record.
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-one-slot.mjs
+import fs from 'node:fs';
 import { buildClassRecordPayload, buildSlotFrame, parseCell, slotKey } from '../src/screens/teacher/classRecord/buildPayload.js';
 
 let passed = 0;
@@ -63,6 +64,15 @@ assert(build(locked, { draft: { [`${TALA}:WW-1`]: '19' } }) === null, 'a locked 
 console.log('a Summative part');
 const exam = build(empty, { examMaxDraft: { st1: '30' }, draft: { [`${TALA}:st1_score`]: '25' } });
 assert(exam.entries[0].st1_score === 25 && exam.exam_max.st1 === 30 && Object.keys(exam.exam_max).length === 1, 'the part\'s score and its class-wide maximum travel together');
+
+// F2 (D-196): the rule itself is the mirrored format/subjectOptions.js, driven
+// by the web's ssr-subject-options and held equal by lint:mirrors.
+console.log('the Subject chips');
+const screen = fs.readFileSync(new URL('../src/screens/teacher/GradesScreen.jsx', import.meta.url), 'utf8');
+assert(
+  /subjectOptions\(rows\)/.test(screen) && /options=\{subjects\.map\(\(s\) => \(\{ key: s\.id, label: s\.label \}\)\)\}/.test(screen) && !/byId/.test(screen),
+  'the chips print the helper\'s label, which carries the grade when a name repeats'
+);
 
 console.log(`\nproof-one-slot: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

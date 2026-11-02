@@ -74,6 +74,8 @@ export const PAIRS = [
   ['src/format/acknowledgement.js', 'format/acknowledgement.js'],
   // feat/excuse-attendance — an excuse decision and that day's attendance: the rule's words.
   ['src/format/excuseAttendance.js', 'format/excuseAttendance.js'],
+  // F2 (D-196) — a subject name that repeats in a teacher's list carries its grade.
+  ['src/format/subjectOptions.js', 'format/subjectOptions.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

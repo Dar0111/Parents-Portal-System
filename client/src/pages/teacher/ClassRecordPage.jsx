@@ -18,6 +18,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { currentTerm } from '../../format/schoolCalendar';
+import { subjectOptions } from '../../format/subjectOptions';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import useClassRecord, { buildSlotFrame, slotKey, parseCell } from './classRecord/useClassRecord';
@@ -111,14 +112,7 @@ function useAssignments() {
   // order. Do not re-sort: that would put this dropdown back in disagreement
   // with the report card and the adviser summary, which is exactly what
   // moving the order into the database fixed.
-  const subjects = useMemo(() => {
-    if (!rows) return [];
-    const byId = new Map();
-    for (const row of rows) {
-      if (!byId.has(row.subject_id)) byId.set(row.subject_id, { id: row.subject_id, name: row.subject_name });
-    }
-    return [...byId.values()];
-  }, [rows]);
+  const subjects = useMemo(() => (rows ? subjectOptions(rows) : []), [rows]);
 
   // The sections where this teacher teaches THAT subject — grade ascending,
   // then section A-Z.
@@ -583,7 +577,7 @@ export default function ClassRecordPage() {
           >
             {subjects.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}
+                {s.label}
               </option>
             ))}
           </FormField>

@@ -12,6 +12,7 @@ import { ClassRecordSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { todayLocalDateString } from '../../format/date';
 import { currentTerm } from '../../format/schoolCalendar';
+import { subjectOptions } from '../../format/subjectOptions';
 import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
@@ -62,12 +63,7 @@ function useAssignments() {
       cancelled = true;
     };
   }, []);
-  const subjects = useMemo(() => {
-    if (!rows) return [];
-    const byId = new Map();
-    for (const row of rows) if (!byId.has(row.subject_id)) byId.set(row.subject_id, { id: row.subject_id, name: row.subject_name });
-    return [...byId.values()];
-  }, [rows]);
+  const subjects = useMemo(() => (rows ? subjectOptions(rows) : []), [rows]);
   const classesFor = useCallback(
     (subjectId) =>
       !rows || subjectId == null
@@ -301,7 +297,7 @@ export default function GradesScreen({ navigation }) {
                     setSubjectId(id);
                     setAssignmentId(null);
                   }}
-                  options={subjects.map((s) => ({ key: s.id, label: s.name }))}
+                  options={subjects.map((s) => ({ key: s.id, label: s.label }))}
                 />
               </View>
               {classes.length > 1 ? (
