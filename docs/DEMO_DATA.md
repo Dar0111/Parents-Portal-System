@@ -255,6 +255,8 @@ Backup A is the second way back, but a restore loses everything written since.
 | 33 | Set a password | Dashboard | |
 | 34 | Phone: repeat with a second such parent | The same three screens, the same words | 📸 |
 
+**User id 3, the reserved first-sign-in account, has a seed address on file:** `Confirm your contact` shows it read-only, so press `Change` first, type your own Gmail, then `Send code`. `Send code` without `Change` sends the code to the seed address.
+
 ## The gate
 
 On the loopback cluster alone, in its own database `parents_portal_demo`:

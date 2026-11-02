@@ -11,7 +11,15 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-02: Module 11 is merged to `main`.** Admin → Assignments &
+**Snapshot, 2026-11-03: `main` and the VPS are at `92970c4`.** The running API is
+Module 10's code and the client build is Module 11's; only scripts and docs came
+after. `https://chfes-main-parents-portal.online` serves beside
+`https://srv2110222.hstgr.cloud`, and the phone stays on the second until after
+Nov 4. Module 13's two tools are on `ops/m13-rotation`, gated on loopback and not
+merged. No credential has been rotated yet, and `CORS_ORIGIN` does not list the
+domain yet: both are the owner's sitting.
+
+**Previous snapshot, 2026-11-02: Module 11 is merged to `main`.** Admin → Assignments &
 advisers (web only) writes `teacher_assignments` and `sections.adviser_id`
 through the existing endpoints; no route, schema or migration changed. It was
 gated on `c1ad541` and the owner's check passed all 30 rows. It is not yet on the
