@@ -24,6 +24,7 @@
     "demo:undo": "node scripts/demo-undo.js",
     "demo:clear-messages": "node scripts/demo-clear-messages.js",
     "demo:logins": "node scripts/demo-logins.js",
+    "demo:passwords": "node scripts/demo-passwords.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:auth-middleware": "node scripts/test-auth-middleware.js",

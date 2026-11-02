@@ -56,7 +56,10 @@ function render(rows) {
   const line = (values) => values.map((value, column) => value.padEnd(widths[column])).join('  ').trimEnd();
   return [
     "Parent's Portal: demo login ids. Open in Notepad only. Never paste or screenshot.",
-    'The Password column names the value typed for the load, never the value.',
+    `The Password column names a value, never the value: ${demo.LOGIN_VALUES.teacher} on every teacher row, ${demo.LOGIN_VALUES.parent} on every parent row.`,
+    'The two values are saved nowhere else: not in a file, a database or a log. Only Darryl\'s own note holds them.',
+    'If the note is lost, npm run demo:passwords sets them again (docs/DEMO_DATA.md).',
+    'A row whose holder changed the password keeps the holder\'s password, whatever this column says.',
     'ADMIN001, TCH-001, TCH-002, TCH-003 and the seeded parents keep their own passwords.',
     '',
     line(header),

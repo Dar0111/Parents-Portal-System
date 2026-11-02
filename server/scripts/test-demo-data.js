@@ -7,7 +7,8 @@
 //   npm run test:demo-data -- --gate       part 1, then part 2 on the loopback
 //                                          cluster, in parents_portal_demo:
 //                                          load, the server agrees, rollback,
-//                                          undo, determinism, the message clear.
+//                                          undo, determinism, demo:passwords,
+//                                          the message clear.
 //
 // PART 2 NEVER TOUCHES THE SUITES' DATABASE. It refuses every target but its
 // own, starts its own API on 5010 (migration/scripts/serve-pg.js) and signs a
@@ -383,9 +384,144 @@ function partOneGuards() {
     assert(secrets.status === 2, 'a path inside the migration data is refused');
     const fewer = child('scripts/demo-logins.js', [`--out=${file}`, '--kept=1:Mabait=2,5:Masigasig=1,6:Malikhain=2'], base);
     assert(fewer.status === 0 && (fs.readFileSync(file, 'utf8').match(/^(yes|no) /gm) || []).length === 367, '--kept drops a seat from the list');
+
+    console.log('\nThe list since demo:passwords');
+    const listed = fs.readFileSync(file, 'utf8');
+    const rows = listed.split('\r\n').filter((line) => /^(yes|no) /.test(line));
+    const onValue = (line, role, value) => line.split(/\s{2,}|\s/).includes(role) && line.endsWith(value);
+    assert(rows.every((line) => onValue(line, 'teacher', demo.LOGIN_VALUES.teacher) || onValue(line, 'parent', demo.LOGIN_VALUES.parent)), 'every row names its role\'s value');
+    assert(rows.filter((line) => line.endsWith(demo.LOGIN_VALUES.teacher)).length === 22, 'TEACHER VALUE on all 22 teachers, pre-confirmed included');
+    assert(rows.filter((line) => line.endsWith(demo.LOGIN_VALUES.parent)).length === 345, 'PARENT VALUE on all 345 parents, pre-confirmed included');
+    assert(!Object.values(demo.SECRET_KEYS).some((key) => listed.includes(key)), 'no variable from the load in the list');
+    assert(listed.includes('saved nowhere else') && listed.includes(demo.LOGIN_VALUES.teacher), 'the header says which value is which and where the values are not');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+// ---------------------------------------------------------------------------
+// PART 1 — planPasswords and the guards of demo-passwords.js
+// ---------------------------------------------------------------------------
+const PRODUCTION_KEPT = Object.freeze({
+  [demo.sectionKey(6, 'Malikhain')]: 2,
+  [demo.sectionKey(5, 'Masigasig')]: 1,
+  [demo.sectionKey(1, 'Mabait')]: 2,
+});
+const seatOne = (grade) => demo.lrnFor(demo.SECTIONS.find((section) => section.grade === grade && section.demo), 1);
+const seatIn = (name, seat) => demo.lrnFor(demo.SECTIONS.find((section) => section.name === name), seat);
+
+// The rows as the load left them.
+function passwordAccounts(keptBySection) {
+  const confirmed = new Set(demo.confirmedNewLogins());
+  const logins = [
+    ...demo.TEACHERS.map((teacher) => ({ login_id: teacher.login_id, role: 'teacher' })),
+    ...demo.newLearners(keptBySection).map((learner) => ({ login_id: learner.lrn, role: 'parent' })),
+  ];
+  return logins.map((row, index) => {
+    const pre = confirmed.has(row.login_id);
+    return {
+      ...row,
+      id: 1000 + index,
+      password: pre ? 'stored-confirmed' : `stored-${row.role}`,
+      email: pre ? 'load@example.test' : null,
+      email_verified_at: pre ? '2026-11-01' : null,
+      contact_verified_at: null,
+      password_changed_at: null,
+      token_version: 0,
+      must_change_password: pre ? 0 : 1,
+    };
+  });
+}
+
+function partOnePasswords() {
+  console.log('\nplanPasswords');
+  const sender = 'sender@example.test';
+  const facts = (accounts, extra = {}) => ({
+    accounts,
+    keptAccounts: [{ id: 1, email: 'load@example.test' }, { id: 2, email: sender }, { id: 3, email: 'own@example.test' }],
+    manifest: { contacts: [{ id: 1, email_set: 'load@example.test' }, { id: 2, email_set: 'load@example.test' }] },
+    markedStudents: accounts.filter((row) => row.role === 'parent').length,
+    sender,
+    ...extra,
+  });
+  const edit = (accounts, login, change) => accounts.map((row) => (row.login_id === login ? { ...row, ...change } : row));
+
+  const logins = demo.confirmedNewLogins();
+  assert(new Set(logins).size === 11, '11 new pre-confirmed logins');
+  assert(logins.filter((login) => login.startsWith(demo.TEACHER_PREFIX)).length === 5, 'five of them teachers');
+  assert(logins.filter((login) => login.startsWith(demo.LRN_PREFIX)).length === 6, 'six of them parents');
+  assert(!logins.some((login) => [demo.ADMIN_LOGIN, ...demo.SEEDED_TEACHERS].includes(login)), 'no kept account among them');
+
+  const fresh = passwordAccounts(PRODUCTION_KEPT);
+  assert(fresh.length === 367, 'the production shape: 367 accounts', String(fresh.length));
+  const clean = demo.planPasswords(facts(fresh));
+  assert(clean.refusals.length === 0, 'nothing refused', clean.refusals.join(' '));
+  assert(clean.write.teacher.length === 22 && clean.write.parent.length === 345 && clean.skipped.length === 0, 'an untouched load: all 22 and all 345');
+  assert(clean.contactFix.length === 11, 'the contact fix reaches all 11');
+
+  let changed = edit(fresh, demo.CONFIRMED_NEW_TEACHERS[4], { password_changed_at: '2026-11-02', token_version: 1 });
+  changed = edit(changed, seatOne(6), { password_changed_at: '2026-11-02', token_version: 1 });
+  for (const login of [seatIn('Mabait', 2), seatIn('Masikap', 2)]) {
+    changed = edit(changed, login, { password_changed_at: '2026-11-02', token_version: 2, email: 'own@example.test', email_verified_at: '2026-11-02', must_change_password: 0 });
+  }
+  const production = demo.planPasswords(facts(changed));
+  assert(production.refusals.length === 0, 'the four changed accounts refuse nothing', production.refusals.join(' '));
+  assert(production.write.teacher.length === 21 && production.write.parent.length === 342, 'the expected production run: 21 teachers, 342 parents');
+  assert(production.skipped.length === 4 && production.skippedPassword === 4, 'skipped 4, password changed 4');
+  assert(production.contactFix.length === 11, 'DEMO-TCH-024 and the Grade 6 parent still get the contact fix');
+  const skippedIds = new Set(production.skipped.map((row) => row.id));
+  assert(![...production.write.teacher, ...production.write.parent].some((id) => skippedIds.has(id)), 'no skipped account is written');
+
+  const onlyContact = demo.planPasswords(facts(edit(fresh, seatIn('Mabait', 3), { email: 'own@example.test', email_verified_at: '2026-11-02' })));
+  assert(onlyContact.skippedContact === 1 && onlyContact.write.parent.length === 344, 'a contact confirmed with no password change is skipped');
+  const ownContact = demo.planPasswords(facts(edit(fresh, seatOne(3), { contact_verified_at: '2026-11-02' })));
+  assert(ownContact.contactKept === 1 && ownContact.contactFix.length === 10, 'a holder\'s own confirmed number keeps the contact out of the fix');
+  const unverified = demo.planPasswords(facts(edit(fresh, seatOne(3), { email_verified_at: null })));
+  assert(unverified.contactKept === 1 && unverified.skippedContact === 1, 'a pre-confirmed email no longer confirmed is the holder\'s, and is left');
+  const correct = demo.planPasswords(facts(edit(fresh, seatOne(3), { email: sender })));
+  assert(correct.contactCorrect === 1 && correct.contactFix.length === 10, 'an email already on the sender is not rewritten');
+
+  assert(clean.keptOnLoadAddress === 1 && clean.keptTotal === 3, 'kept accounts: only a manifest row still on its address counts');
+  const noneLeft = demo.planPasswords(facts(fresh, { manifest: { contacts: [] } }));
+  assert(noneLeft.keptOnLoadAddress === 0 && noneLeft.keptTotal === 3, 'no manifest contact: 0 of 3');
+
+  const refusedBy = (input) => demo.planPasswords(input).refusals.length > 0;
+  assert(refusedBy(facts(fresh.slice(1))), 'a missing teacher is refused');
+  assert(refusedBy(facts(fresh, { markedStudents: 344 })), 'parents and marked learners that differ are refused');
+  assert(refusedBy(facts(fresh.filter((row) => row.login_id !== seatOne(4)), { markedStudents: 344 })), 'a missing pre-confirmed account is refused');
+  assert(refusedBy(facts(edit(fresh, seatIn('Mabait', 3), { must_change_password: 0 }))), 'a forced-change flag the load did not set is refused');
+  assert(refusedBy(facts(edit(fresh, seatOne(3), { must_change_password: 1 }))), 'a pre-confirmed account in forced change is refused');
+  assert(refusedBy(facts([...fresh, { ...fresh[0], id: 1, login_id: demo.ADMIN_LOGIN, role: 'admin' }])), 'a kept account in the marked rows is refused');
+
+  console.log('\ndemo-passwords.js refuses before any connection');
+  const base = { ...process.env, PG_SSL: 'require', PG_MIGRATE_PASSWORD: crypto.randomBytes(8).toString('hex') };
+  for (const key of Object.values(demo.SECRET_KEYS)) delete base[key];
+  delete base[demo.HOSTED_FLAG];
+  const loopback = { ...base, PG_HOST: '127.0.0.1', PG_SSL: 'disable' };
+  const teacherValue = `${crypto.randomBytes(6).toString('hex')}7`;
+  const parentValue = `${crypto.randomBytes(6).toString('hex')}8`;
+  const both = { DEMO_TEACHER_PASSWORD: teacherValue, DEMO_PARENT_PASSWORD: parentValue, SMTP_USER: sender };
+  const run = (env, args = []) => child('scripts/demo-passwords.js', args, env);
+  const secrets = [teacherValue, parentValue];
+
+  const hosted = run({ ...base, PG_HOST: 'db.example.test', ...both }, ['--apply']);
+  assert(hosted.status === 2 && hosted.out.includes(demo.HOSTED_FLAG), 'hosted --apply without the flag is refused', String(hosted.status));
+  assertClean('hosted refusal', hosted.out, secrets);
+  const wrongFlag = run({ ...base, PG_HOST: 'db.example.test', ...both, [demo.HOSTED_FLAG]: 'yes' }, ['--apply']);
+  assert(wrongFlag.status === 2 && wrongFlag.out.includes(demo.HOSTED_FLAG), 'hosted --apply with a wrong flag value is refused');
+  const none = run({ ...loopback, DEMO_TEACHER_PASSWORD: '', DEMO_PARENT_PASSWORD: '', SMTP_USER: '' });
+  assert(none.status === 2 && ['DEMO_TEACHER_PASSWORD', 'DEMO_PARENT_PASSWORD', 'SMTP_USER'].every((key) => none.out.includes(key)), 'no value set: all three named');
+  const oneOnly = run({ ...loopback, ...both, DEMO_PARENT_PASSWORD: '' });
+  assert(oneOnly.status === 2 && oneOnly.out.includes('DEMO_PARENT_PASSWORD is not set') && !oneOnly.out.includes('DEMO_TEACHER_PASSWORD is'), 'one value alone is refused, naming the other');
+  const shortValue = 'short1';
+  const weak = run({ ...loopback, ...both, DEMO_TEACHER_PASSWORD: shortValue });
+  assert(weak.status === 2 && weak.out.includes('DEMO_TEACHER_PASSWORD does not meet the password rule') && !weak.out.includes(shortValue), 'a weak value is refused, the value not printed');
+  const same = run({ ...loopback, ...both, DEMO_PARENT_PASSWORD: teacherValue });
+  assert(same.status === 2 && same.out.includes('must differ') && !same.out.includes(teacherValue), 'two equal values are refused');
+  const displayName = run({ ...loopback, ...both, SMTP_USER: `Portal <${sender}>` });
+  assert(displayName.status === 2 && displayName.out.includes('SMTP_USER is not a bare email address') && !displayName.out.includes(sender), 'a sender with a display name is refused, the value not printed');
+  const notAddress = run({ ...loopback, ...both, SMTP_USER: 'not-an-address' });
+  assert(notAddress.status === 2 && notAddress.out.includes('SMTP_USER is not a bare email address') && !notAddress.out.includes('not-an-address'), 'a sender that is no address is refused');
 }
 
 // ---------------------------------------------------------------------------
@@ -547,6 +683,283 @@ async function serverAgrees(client, token) {
     }
   }
   return { classTerms: classTerms.length, compared, disagreed };
+}
+
+// ---------------------------------------------------------------------------
+// PART 2 — demo:passwords, on a real load
+// ---------------------------------------------------------------------------
+async function userSnapshot(client) {
+  const { rows } = await client.query('SELECT id, to_jsonb(u) AS row FROM users u');
+  return new Map(rows.map((row) => [row.id, row.row]));
+}
+
+// The ids whose row differs anywhere the script may not write. `allowed` names
+// per id what it may: the password, the email, and updated_at with either, by
+// the trigger. Every other row is compared on every column, updated_at included.
+function outsideWrite(before, after, allowed = { password: new Set(), email: new Set() }) {
+  const wrong = [];
+  if (before.size !== after.size) wrong.push('row count');
+  for (const [id, row] of before) {
+    const now = after.get(id) || {};
+    const may = new Set();
+    if (allowed.password.has(id)) may.add('password');
+    if (allowed.email.has(id)) may.add('email');
+    if (may.size) may.add('updated_at');
+    if (Object.keys(row).some((key) => !may.has(key) && row[key] !== now[key])) wrong.push(id);
+  }
+  return wrong.length;
+}
+
+async function everyTableCount(client) {
+  const { rows } = await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'portal' AND table_type = 'BASE TABLE' ORDER BY table_name`);
+  const counts = {};
+  for (const { table_name: table } of rows) counts[table] = await tableCount(client, table);
+  return counts;
+}
+
+// Compiled in memory, as migration/scripts/serve-pg.js does its mutants: nothing
+// on disk changes. The plan is told nothing was changed, so every account is
+// offered for writing; `removeSql` also takes the clause off both statements.
+function mutant(removeSql) {
+  return `
+    const fs = require('fs');
+    const path = require('path');
+    const Module = require('module');
+    const demo = require('./scripts/demoData');
+    const real = demo.planPasswords;
+    const pre = new Set(demo.confirmedNewLogins());
+    demo.planPasswords = (facts) => real({
+      ...facts,
+      accounts: facts.accounts.map((row) => ({
+        ...row,
+        password_changed_at: null,
+        token_version: 0,
+        contact_verified_at: null,
+        email_verified_at: pre.has(row.login_id) ? 'x' : null,
+        must_change_password: pre.has(row.login_id) ? 0 : 1,
+      })),
+    });
+    const file = path.resolve('scripts/demo-passwords.js');
+    let source = fs.readFileSync(file, 'utf8');
+    ${
+      removeSql
+        ? `source = source.replace(' AND password_changed_at IS NULL AND token_version = 0', '');
+           source = source.replace(' AND contact_verified_at IS NULL AND email_verified_at IS NOT NULL', '');`
+        : ''
+    }
+    process.argv.push('--apply');
+    const copy = new Module(file);
+    copy.filename = file;
+    copy.paths = Module._nodeModulePaths(path.dirname(file));
+    copy._compile(source, file);
+    copy.exports.run();
+  `;
+}
+
+async function passwordsGate({ client, env, script, secrets, secretValues, keptPasswords, passwordsBefore }) {
+  const { signToken } = require('../utils/jwt');
+  const { comparePassword } = require('../utils/password');
+  const SCRIPT = 'scripts/demo-passwords.js';
+  const sender = 'demo.sender@example.test';
+  const fresh = (tail) => `${crypto.randomBytes(10).toString('hex')}${tail}`;
+  const values = { DEMO_TEACHER_PASSWORD: fresh('4'), DEMO_PARENT_PASSWORD: fresh('5'), SMTP_USER: sender };
+  const secondValues = { DEMO_TEACHER_PASSWORD: fresh('6'), DEMO_PARENT_PASSWORD: fresh('7'), SMTP_USER: sender };
+  secrets.push(values.DEMO_TEACHER_PASSWORD, values.DEMO_PARENT_PASSWORD, secondValues.DEMO_TEACHER_PASSWORD, secondValues.DEMO_PARENT_PASSWORD);
+  const ownParentPassword = fresh('8');
+  secrets.push(ownParentPassword);
+  const withValues = { ...env, ...values };
+
+  const account = async (login) => (await client.query('SELECT id, role::text AS role, token_version, student_id FROM users WHERE login_id = $1', [login])).rows[0];
+  const adminRow = await account(demo.ADMIN_LOGIN);
+  const tokenFor = (row) => signToken({ id: row.id, role: row.role, v: Number(row.token_version) });
+  const versions = JSON.parse(fs.readFileSync(path.join(SERVER, 'policy', 'versions.json'), 'utf8'));
+  const accept = (row) =>
+    client.query(`INSERT INTO policy_acceptances (user_id, document, version, student_id) VALUES ($1, 'privacy_notice', $2, $4), ($1, 'terms_of_use', $3, $4)`, [
+      row.id,
+      versions.privacy_notice.version,
+      versions.terms_of_use.version,
+      row.student_id,
+    ]);
+  const signIn = async (login, password) => {
+    const result = await api('POST', '/api/auth/login', '', { login_id: login, password });
+    return { status: result.status, user: result.json && result.json.user };
+  };
+
+  const preTeacher = demo.CONFIRMED_NEW_TEACHERS[4];
+  const preParent = seatOne(6);
+  const writtenPreTeacher = demo.CONFIRMED_NEW_TEACHERS[0];
+  const writtenPreParent = seatOne(2);
+  const otherTeacher = demo.TEACHERS.map((teacher) => teacher.login_id).find((login) => !demo.CONFIRMED_NEW_TEACHERS.includes(login));
+  const otherParent = seatIn('Mabait', 4);
+  const tempParent = seatIn('Mabait', 2);
+  const contactParent = seatIn('Masikap', 2);
+
+  // A token signed here must verify there, and sign-in needs a JWT_SECRET
+  // (utils/loginThrottle.js) that a worktree's missing .env does not give it.
+  const serverEnv = { ...env, JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-me' };
+  const server = spawn(process.execPath, [path.join(ROOT, 'migration', 'scripts', 'serve-pg.js')], { cwd: SERVER, env: serverEnv, stdio: 'ignore' });
+  try {
+    console.log('\ndemo:passwords — four accounts changed the way production\'s were');
+    assert(await waitForHealth(), 'the API is up for the fixtures');
+    const adminToken = tokenFor(adminRow);
+    await accept(adminRow);
+
+    const teacherRow = await account(preTeacher);
+    await accept(teacherRow);
+    const byTeacher = await api('PUT', '/api/auth/change-password', tokenFor(teacherRow), {
+      current_password: secretValues.DEMO_CONFIRMED_PASSWORD,
+      new_password: values.DEMO_TEACHER_PASSWORD,
+    });
+    assert(byTeacher.status === 200, 'a pre-confirmed teacher changes the password through the real route', String(byTeacher.status));
+
+    const parentRow = await account(preParent);
+    await accept(parentRow);
+    const byParent = await api('PUT', '/api/auth/change-password', tokenFor(parentRow), {
+      current_password: secretValues.DEMO_CONFIRMED_PASSWORD,
+      new_password: ownParentPassword,
+    });
+    assert(byParent.status === 200, 'a pre-confirmed parent changes the password through the real route', String(byParent.status));
+
+    const tempRow = await account(tempParent);
+    const temporary = await api('POST', `/api/users/${tempRow.id}/temp-password`, adminToken);
+    assert(temporary.status === 200, 'an admin gives another parent a temporary password', String(temporary.status));
+    await client.query(`UPDATE users SET email = 'own.one@example.test', email_verified_at = portal.now_s(), must_change_password = 0 WHERE id = $1`, [tempRow.id]);
+    const contactRow = await account(contactParent);
+    await client.query(`UPDATE users SET email = 'own.two@example.test', email_verified_at = portal.now_s() WHERE id = $1`, [contactRow.id]);
+
+    const { rows: marked } = await client.query(
+      `SELECT id, login_id, role::text AS role FROM users
+        WHERE (role = 'teacher' AND login_id COLLATE "und-x-icu" LIKE $1) OR (role = 'parent' AND login_id COLLATE "und-x-icu" LIKE $2)`,
+      [`${demo.TEACHER_PREFIX}%`, `${demo.LRN_PREFIX}%`]
+    );
+    const skipped = new Set([teacherRow.id, parentRow.id, tempRow.id, contactRow.id]);
+    const preIds = marked.filter((row) => demo.confirmedNewLogins().includes(row.login_id)).map((row) => row.id);
+    const writtenIds = marked.filter((row) => !skipped.has(row.id)).map((row) => row.id);
+    const allowed = { password: new Set(writtenIds), email: new Set(preIds) };
+    assert(preIds.length === 11 && writtenIds.length === marked.length - 4, '11 pre-confirmed, four skipped');
+
+    console.log('\ndemo:passwords — the dry run');
+    const quiet = await userSnapshot(client);
+    const dry = script(SCRIPT, [], withValues);
+    assert(dry.status === 0, 'the dry run exits 0', `exit ${dry.status}`);
+    for (const line of [
+      'Target: loopback.',
+      'BEGIN READ ONLY: a dry run, nothing can be written.',
+      'Marked: 22 teachers, 346 parents. Manifest present.',
+      'Will set: 21 teachers, 343 parents.',
+      'Skipped: 4 (password changed 3, contact confirmed 1).',
+      "Skipped accounts already on their role's typed value: 1 of 4 (information only).",
+      'Stored hashes to replace: 2 teachers, 2 parents.',
+      'Contact fix: 11 of 11 (own contact kept 0, already correct 0).',
+      "Kept accounts still on the load's address: 3 of 3.",
+      'Dry run complete. Nothing was written.',
+    ]) {
+      assert(dry.out.includes(line), `dry run prints: ${line}`);
+    }
+    assert(outsideWrite(quiet, await userSnapshot(client)) === 0, 'the dry run changed no row');
+    console.log(dry.out.trim().split(/\r?\n/).map((line) => `    | ${line}`).join('\n'));
+
+    console.log('\ndemo:passwords — refusals on the database');
+    await client.query(`UPDATE system_settings SET setting_key = 'demo_load_hidden' WHERE setting_key = $1`, [demo.MANIFEST_KEY]);
+    const noManifest = script(SCRIPT, ['--apply'], withValues);
+    await client.query(`UPDATE system_settings SET setting_key = $1 WHERE setting_key = 'demo_load_hidden'`, [demo.MANIFEST_KEY]);
+    assert(noManifest.status === 2 && noManifest.out.includes('manifest is missing'), 'no manifest, no run', `exit ${noManifest.status}`);
+    assert(outsideWrite(quiet, await userSnapshot(client)) === 0, 'and nothing written');
+
+    await client.query(`CREATE FUNCTION portal.demo_gate_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'gate failure'; END $$`);
+    await client.query('CREATE TRIGGER demo_gate_fail BEFORE INSERT ON portal.activity_logs FOR EACH ROW EXECUTE FUNCTION portal.demo_gate_fail()');
+    const broken = script(SCRIPT, ['--apply'], withValues);
+    await client.query('DROP TRIGGER demo_gate_fail ON portal.activity_logs');
+    await client.query('DROP FUNCTION portal.demo_gate_fail()');
+    assert(broken.status === 1 && broken.out.includes('FAILED at activity'), 'a failure on the last write stops it', `exit ${broken.status}`);
+    assert(outsideWrite(quiet, await userSnapshot(client)) === 0, 'and the whole transaction rolled back');
+
+    console.log('\ndemo:passwords — the apply');
+    const countsBefore = await everyTableCount(client);
+    const othersBefore = await digestOf(client);
+    const before = await userSnapshot(client);
+    const applied = script(SCRIPT, ['--apply'], withValues);
+    assert(applied.status === 0 && applied.out.includes('Passwords committed.'), 'the apply commits', `exit ${applied.status}`);
+    assert(applied.out.includes('Set: 21 teachers, 343 parents. Contact fix: 11.'), 'and prints what it set');
+    const after = await userSnapshot(client);
+
+    const outside = outsideWrite(before, after, allowed);
+    assert(outside === 0, `every users row and column byte-equal outside the password of ${writtenIds.length} rows and the email of ${preIds.length}`, `${outside} rows differ`);
+    const tampered = new Map(after);
+    tampered.set(teacherRow.id, { ...after.get(teacherRow.id), password: 'x' });
+    assert(outsideWrite(before, tampered, allowed) === 1, 'negative control: that comparison sees one skipped account overwritten');
+
+    assert(writtenIds.every((id) => before.get(id).password !== after.get(id).password), 'every written account has a new stored hash');
+    assert([...skipped].every((id) => before.get(id).password === after.get(id).password), 'every skipped account keeps its stored hash');
+    assert([...skipped].every((id) => before.get(id).email === after.get(id).email || preIds.includes(id)), 'the two skipped other parents keep their own email');
+    assert(writtenIds.every((id) => after.get(id).password_changed_at === null && after.get(id).token_version === 0), 'password_changed_at and token_version stay as the load left them');
+    assert((await keptPasswords()) === passwordsBefore, 'the eight kept accounts keep password and forced-change flag');
+
+    const written = (role) => writtenIds.filter((id) => after.get(id).role === role);
+    const hashesOf = (ids) => [...new Set(ids.map((id) => after.get(id).password))];
+    const [teacherHash, ...moreTeacher] = hashesOf(written('teacher'));
+    const [parentHash, ...moreParent] = hashesOf(written('parent'));
+    assert(moreTeacher.length === 0 && moreParent.length === 0, 'one stored hash per value');
+    assert(await comparePassword(values.DEMO_TEACHER_PASSWORD, teacherHash), 'the teachers\' hash is the teacher value');
+    assert(await comparePassword(values.DEMO_PARENT_PASSWORD, parentHash), 'the parents\' hash is the parent value');
+    assert(!(await comparePassword(values.DEMO_PARENT_PASSWORD, teacherHash)), 'and not the parent value');
+    assert(preIds.every((id) => skipped.has(id) || after.get(id).must_change_password === 0), 'pre-confirmed state kept: no forced change');
+
+    assert(preIds.every((id) => after.get(id).email === sender), 'F3: all 11 emails equal the configured sender, the two skipped ones included');
+    assert(preIds.every((id) => before.get(id).email_verified_at === after.get(id).email_verified_at), 'F3: email_verified_at unchanged');
+    assert([...after.keys()].filter((id) => after.get(id).email === sender).length === 11, 'F3: nobody else holds the sender');
+    assert((await countOf(client, 'SELECT COUNT(*) AS n FROM users WHERE login_id = ANY($1::text[]) AND email = $2', [demo.CONFIRMED_EXISTING, secretValues.DEMO_CONTACT_EMAIL])) === 3, 'F3: the kept accounts stay on what they held');
+
+    const countsAfter = await everyTableCount(client);
+    const movedTables = Object.keys(countsBefore).filter((table) => countsBefore[table] !== countsAfter[table]);
+    assert(movedTables.length === 1 && movedTables[0] === 'activity_logs' && countsAfter.activity_logs === countsBefore.activity_logs + 1, `one activity row, and no other of ${Object.keys(countsBefore).length} tables changed count`, movedTables.join(', '));
+    assert((await countOf(client, `SELECT COUNT(*) AS n FROM activity_logs WHERE action = 'demo_passwords_set'`)) === 1, 'one demo_passwords_set row');
+    const othersAfter = await digestOf(client);
+    delete othersBefore.users;
+    delete othersAfter.users;
+    assert(sameDigest(othersAfter, othersBefore), 'learners, grades, attendance, slots and settings byte-equal', differingKeys(othersBefore, othersAfter));
+
+    console.log('\ndemo:passwords — real sign-ins');
+    const preT = await signIn(writtenPreTeacher, values.DEMO_TEACHER_PASSWORD);
+    assert(preT.status === 200 && preT.user.policy_pending && !preT.user.contact_pending && !preT.user.must_change_password, 'pre-confirmed teacher: consent next, no contact step, no password step', String(preT.status));
+    const preP = await signIn(writtenPreParent, values.DEMO_PARENT_PASSWORD);
+    assert(preP.status === 200 && preP.user.policy_pending && !preP.user.contact_pending && !preP.user.must_change_password, 'pre-confirmed parent: the same', String(preP.status));
+    const otherT = await signIn(otherTeacher, values.DEMO_TEACHER_PASSWORD);
+    assert(otherT.status === 200 && otherT.user.policy_pending && otherT.user.contact_pending && otherT.user.must_change_password === 1, 'other teacher: consent, contact and password all still ahead', String(otherT.status));
+    const otherP = await signIn(otherParent, values.DEMO_PARENT_PASSWORD);
+    assert(otherP.status === 200 && otherP.user.policy_pending && otherP.user.contact_pending && otherP.user.must_change_password === 1, 'other parent: the same', String(otherP.status));
+    assert((await signIn(writtenPreTeacher, secretValues.DEMO_CONFIRMED_PASSWORD)).status === 401, 'the load\'s pre-confirmed value is dead');
+    assert((await signIn(otherTeacher, secretValues.DEMO_TEACHER_PASSWORD)).status === 401, 'the load\'s teacher value is dead');
+    assert((await signIn(otherParent, values.DEMO_TEACHER_PASSWORD)).status === 401, 'a parent cannot use the teacher value');
+    assert((await signIn(preParent, ownParentPassword)).status === 200, 'a skipped account still signs in with its own');
+
+    console.log('\ndemo:passwords — the re-run repairs a mistyped value');
+    const holder = await account(seatOne(3));
+    await client.query(`UPDATE users SET email = 'own.three@example.test', contact_number = '09170000000', contact_verified_at = portal.now_s() WHERE id = $1`, [holder.id]);
+    const beforeSecond = await userSnapshot(client);
+    const second = script(SCRIPT, ['--apply'], { ...env, ...secondValues });
+    assert(second.status === 0 && second.out.includes('Set: 21 teachers, 342 parents. Contact fix: 0.'), 'the same accounts are written again, less the one that confirmed a number', `exit ${second.status}`);
+    const afterSecond = await userSnapshot(client);
+    assert(afterSecond.get(holder.id).email === 'own.three@example.test' && afterSecond.get(holder.id).password === beforeSecond.get(holder.id).password, 'a holder\'s own confirmed contact is left, email and password');
+    assert((await signIn(writtenPreTeacher, secondValues.DEMO_TEACHER_PASSWORD)).status === 200, 'the second value signs in');
+
+    console.log('\ndemo:passwords — negative controls, compiled in memory');
+    const raceBefore = await userSnapshot(client);
+    const race = child('-e', [mutant(false)], { ...env, ...secondValues });
+    assertClean('the plan told nothing changed', race.out, secrets);
+    assert(race.status === 2 && race.out.includes('An account changed during the run'), 'a plan that offers a changed account is refused by the statement: the same as a holder changing it mid-run', `exit ${race.status}`);
+    assert(outsideWrite(raceBefore, await userSnapshot(client)) === 0, 'and nothing was written');
+    const blind = child('-e', [mutant(true)], { ...env, ...secondValues });
+    assertClean('the skip removed', blind.out, secrets);
+    const overwritten = outsideWrite(raceBefore, await userSnapshot(client), { password: new Set(writtenIds.filter((id) => id !== holder.id)), email: new Set() });
+    assert(blind.status === 0 && overwritten > 0, `with the skip removed the gate sees ${overwritten} accounts overwritten`, `exit ${blind.status}`);
+    assert((await keptPasswords()) === passwordsBefore, 'even then the markers keep every kept account out');
+
+    await client.query('DELETE FROM policy_acceptances WHERE user_id = $1', [adminRow.id]);
+  } finally {
+    server.kill();
+    await waitFor(500);
+  }
 }
 
 async function gate() {
@@ -732,6 +1145,7 @@ async function gate() {
     assert(reload.status === 0, 'the load commits again', `exit ${reload.status}`);
     const secondLoad = await digestOf(client);
     assert(sameDigest(secondLoad, firstLoad), 'the second load is identical to the first', differingKeys(secondLoad, firstLoad));
+    await passwordsGate({ client, env, script, secrets, secretValues, keptPasswords, passwordsBefore });
     assert(script('scripts/demo-undo.js', ['--apply']).status === 0, 'and comes out the same way');
     assert(sameDigest(await digestOf(client), baseline), 'back to the fresh db:setup again');
 
@@ -760,6 +1174,7 @@ async function main() {
   partOneScores();
   partOnePlan();
   partOneGuards();
+  partOnePasswords();
   if (process.argv.includes('--gate')) await gate();
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed > 0 ? 1 : 0;

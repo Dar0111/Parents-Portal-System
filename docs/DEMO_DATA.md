@@ -69,6 +69,8 @@ The admin; advisers TCH-003 (G1), 008 (G2), 010 (G3), 017 (G4), 019 (G5), TCH-00
 
 New accounts among them have no forced password change. All 14 use the one address typed for the load, because `users.email` has no UNIQUE and no write compares two emails. An existing account already confirmed is left alone, and no existing password or forced-change flag is ever written.
 
+**`DEMO_CONTACT_EMAIL` must be the server's sending mailbox, `SMTP_USER`, character for character.** The load stores the value as confirmed and nothing checks that it exists: the value typed on 2026-11-01 was mistyped, and every reset code bounced (F3, `docs/KNOWN_ISSUES.md`).
+
 Everyone else goes through the normal first sign-in. No `policy_acceptances` row is written for anybody (the owner's Q6), so a pre-confirmed account still sees the consent step.
 
 ## The production run sheet
@@ -87,7 +89,7 @@ Everyone else goes through the normal first sign-in. No `policy_acceptances` row
 | 4 | VPS | `read -rs DEMO_TEACHER_PASSWORD && export DEMO_TEACHER_PASSWORD` | Waits with nothing on screen. Type the value, press Enter |
 | 5 | VPS | `read -rs DEMO_PARENT_PASSWORD && export DEMO_PARENT_PASSWORD` | The same |
 | 6 | VPS | `read -rs DEMO_CONFIRMED_PASSWORD && export DEMO_CONFIRMED_PASSWORD` | The same |
-| 7 | VPS | `read -rs DEMO_CONTACT_EMAIL && export DEMO_CONTACT_EMAIL` | The same: the project Gmail |
+| 7 | VPS | `read -rs DEMO_CONTACT_EMAIL && export DEMO_CONTACT_EMAIL` | The same: the sending mailbox, exactly as in `SMTP_USER` |
 | 8 | VPS | `npm run demo:load` | `BEGIN READ ONLY: a dry run, nothing can be written.`, `Preconditions: all passed.`, the counts, `Dry run complete. Nothing was written.` |
 | 9 | VPS | `npm run demo:clear-messages` | `messages: 9`, `notifications: 0`, `Dry run complete. Nothing was written.` |
 | 10 | **Darryl** | Read rows 8 and 9, give the go | |
@@ -101,9 +103,60 @@ Everyone else goes through the normal first sign-in. No `policy_acceptances` row
 | 18 | Laptop | `npm run demo:logins` | `Wrote 368 rows to C:\Users\Win10 User\Parents_Portal-demo-logins\demo-logins.txt`. If row 12 printed a `--kept` value, run the line it printed instead |
 | 19 | Laptop | `notepad "C:\Users\Win10 User\Parents_Portal-demo-logins\demo-logins.txt"` | The list, pre-confirmed first. Never paste it, never screenshot it |
 
+**Rows 4–6 take three values, and the list names two.** Since `demo:passwords` the list says `TEACHER VALUE` or `PARENT VALUE`, so a load from these rows is followed by the section below.
+
 **Size and speed.** About 31,300 rows. Measured on the loopback cluster at the gate: the load took 1.5–2.0 seconds and the archive after it was 247 KB, on a fresh seed with almost no `activity_logs`. Production is unmeasured: the database is across a network, so expect 20–60 seconds on row 12. Its archive already carries the old activity rows (285 KB on 2026-10-27, the last local one), so expect about 0.5 MB.
 
 **Memos and school-wide announcements** now write a notification for about 375 accounts each.
+
+## Setting the passwords again
+
+`fix/demo-passwords`, 2026-11-02. The values typed for the load were saved nowhere, so nobody could sign in to the demo accounts. `npm run demo:passwords` sets two values, **by role**: `DEMO_TEACHER_PASSWORD` for all 22 new teachers and `DEMO_PARENT_PASSWORD` for all the new parents, pre-confirmed or not. Pre-confirmed is a state of the account, and that state stays.
+
+**It writes `users.password` only**, one hash per value, on marked accounts whose holder has changed nothing, plus one `demo_passwords_set` row, counts only. `updated_at` moves by trigger. It never writes `password_changed_at`, `token_version` or `must_change_password`: the first two are how a changed account is recognised, so writing them would make a re-run skip everyone. **A mistyped value is repaired by running it again**, with no restore.
+
+**Skipped:** an account with `password_changed_at` set or `token_version` above 0, or a contact the holder confirmed: `contact_verified_at`, or on a new account that was not pre-confirmed `email_verified_at`, or on a pre-confirmed one `email_verified_at` gone. **Never reached:** ADMIN001, TCH-001, TCH-002, TCH-003 and the seeded parents carry no marker.
+
+**The contact fix (F3), in the same transaction.** On the 11 new pre-confirmed accounts only, `users.email` becomes the server's `SMTP_USER` where it differs, including an account whose password was skipped. Skipped: a holder's own confirmed contact. `email_verified_at` stays. `SMTP_FROM` is not used, because it carries a display name. The script refuses a sender that is unset or not a bare address, and prints no address. A kept account still on the load's address is counted and left for Module 13.
+
+**The two values live in Darryl's own note and nowhere else:** not in a file in the repo, not in the secrets folder. Write the note before typing anything.
+
+**Before row 1:** the VPS is on the merged `main` commit, by `deploy/README.md` §11 steps 1–7. No runtime file changed, so steps 8–11 are skipped. **STOP on any line that starts `REFUSED:` or `FAILED at`.**
+
+| # | Where | Action | Expected |
+|---|---|---|---|
+| 1 | Darryl's note | Write both values: 8+ characters with a digit, and different from each other | The note exists |
+| 2 | Hosted app | Admin → Backup & Restore → create a backup | A new row in the list |
+| 3 | VPS | `ls -l /home/portal/Parents_Portal/server/backups \| tail -n 3` | The new `.zip`: backup C |
+| 4 | VPS | `cd /home/portal/Parents_Portal/server` | |
+| 5 | VPS | `read -rs DEMO_TEACHER_PASSWORD && export DEMO_TEACHER_PASSWORD` | Waits with nothing on screen. Paste from the note, press Enter |
+| 6 | VPS | `read -rs DEMO_PARENT_PASSWORD && export DEMO_PARENT_PASSWORD` | The same |
+| 7 | VPS | `npm run demo:passwords` | The dry run below |
+| 8 | **Darryl** | Read row 7, give the go | |
+| 9 | VPS | `PORTAL_DEMO_HOSTED=production-demo-load npm run demo:passwords -- --apply` | Counts per table, `Row counts equal, activity_logs aside.`, `Set: 21 teachers, 342 parents. Contact fix: 11.`, `Passwords committed.` |
+| 10 | VPS | `unset DEMO_TEACHER_PASSWORD DEMO_PARENT_PASSWORD` | |
+| 11 | VPS | `exit` | The terminal closes |
+| 12 | Hosted app | Sign in as a pre-confirmed teacher and a pre-confirmed parent the run wrote | Both reach `Before you continue` |
+| 13 | Hosted app, VPS in a new terminal | A backup, then the `ls` of row 3 | Backup D, unless Module 13 follows in the same sitting |
+| 14 | Laptop | `cd "C:\Users\Win10 User\Parents_Portal\server"`, on the merged `main` | |
+| 15 | Laptop | `npm run demo:logins -- "--kept=6:Malikhain=2,5:Masigasig=1,1:Mabait=2"` | `Wrote 367 rows to …demo-logins.txt` |
+
+**The dry run on production, 2026-11-02's expected figures:**
+
+```
+Target: hosted.
+BEGIN READ ONLY: a dry run, nothing can be written.
+Marked: 22 teachers, 345 parents. Manifest present.
+Will set: 21 teachers, 342 parents.
+Skipped: 4 (password changed 4, contact confirmed 0).
+Skipped accounts already on their role's typed value: N of 4 (information only).
+Stored hashes to replace: 2 teachers, 2 parents.
+Contact fix: 11 of 11 (own contact kept 0, already correct 0).
+Kept accounts still on the load's address: 0 of 3.
+Dry run complete. Nothing was written.
+```
+
+A larger Skipped means another holder changed something first; the script is right and the figures move with it. Anything above 0 on the last line touches nothing: Module 13 fixes those accounts.
 
 ## Taking it back out
 
@@ -208,4 +261,4 @@ On the loopback cluster alone, in its own database `parents_portal_demo`:
 
 `npm run test:demo-data -- --gate`
 
-It runs a fresh `db:setup` there, loads, proves the server computes exactly what was stored with a real dry run of the class record, proves a failure part way through leaves nothing, undoes back to the fresh setup, loads again and gets the same data, and clears fixture messages. `docs/TESTING.md` has the figure.
+It runs a fresh `db:setup` there, loads, proves the server computes exactly what was stored with a real dry run of the class record, proves a failure part way through leaves nothing, undoes back to the fresh setup, loads again and gets the same data, runs `demo:passwords` on that load, and clears fixture messages. `docs/TESTING.md` has the figure.

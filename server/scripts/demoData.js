@@ -754,8 +754,107 @@ function planLoad(facts) {
 }
 
 // ---------------------------------------------------------------------------
+// planPasswords — demo-passwords.js's one decision (fix/demo-passwords)
+// ---------------------------------------------------------------------------
+// The 11 NEW pre-confirmed logins: five teachers and seat 1 of each demo
+// section. Seat 1 always exists: a section is 30, and a kept learner takes a
+// seat from the end (newLearners). The other three of the 14 are kept accounts,
+// and this plan never holds one.
+function confirmedNewLogins() {
+  return [...CONFIRMED_NEW_TEACHERS, ...SECTIONS.filter((section) => section.demo).map((section) => lrnFor(section, 1))];
+}
+
+// All four writes that set a password stamp both of these (routes/auth.js
+// change-password, first-password and reset; routes/users.js temp-password).
+// The load set neither, and demo-passwords.js sets neither, so a re-run can
+// repair a mistyped value.
+const passwordChanged = (row) => Boolean(row.password_changed_at) || Number(row.token_version) !== 0;
+
+// A pre-confirmed account starts with a confirmed email, every other with none.
+const contactChanged = (row, confirmed) =>
+  Boolean(row.contact_verified_at) || (confirmed ? !row.email_verified_at : Boolean(row.email_verified_at));
+
+// `accounts` are the marked rows, `keptAccounts` the CONFIRMED_EXISTING rows and
+// `sender` the bare sending mailbox. Rows in, ids and counts out; nothing here
+// prints a row.
+function planPasswords({ accounts, keptAccounts, manifest, markedStudents, sender }) {
+  const refusals = [];
+  const confirmedLogins = new Set(confirmedNewLogins());
+  const keptLogins = new Set([ADMIN_LOGIN, ...SEEDED_TEACHERS]);
+  const teachers = accounts.filter((row) => row.role === 'teacher');
+  const parents = accounts.filter((row) => row.role === 'parent');
+  const confirmedRows = accounts.filter((row) => confirmedLogins.has(row.login_id));
+
+  if (teachers.length !== TEACHERS.length) {
+    refusals.push(`${teachers.length} marked teachers, expected ${TEACHERS.length}.`);
+  }
+  if (parents.length === 0 || parents.length !== markedStudents) {
+    refusals.push(`${parents.length} marked parents for ${markedStudents} marked learners.`);
+  }
+  if (teachers.length + parents.length !== accounts.length) refusals.push('A marked account is neither a teacher nor a parent.');
+  if (confirmedRows.length !== confirmedLogins.size) {
+    refusals.push(`${confirmedRows.length} of the ${confirmedLogins.size} pre-confirmed accounts found.`);
+  }
+  if (accounts.some((row) => keptLogins.has(row.login_id))) refusals.push('A kept account carries a demo marker.');
+
+  const write = { teacher: [], parent: [] };
+  const skipped = [];
+  let skippedPassword = 0;
+  let skippedContact = 0;
+  let flagMismatches = 0;
+  for (const row of accounts) {
+    const confirmed = confirmedLogins.has(row.login_id);
+    if (passwordChanged(row)) {
+      skippedPassword += 1;
+      skipped.push(row);
+    } else if (contactChanged(row, confirmed)) {
+      skippedContact += 1;
+      skipped.push(row);
+    } else {
+      if (Number(row.must_change_password) !== (confirmed ? 0 : 1)) flagMismatches += 1;
+      if (write[row.role]) write[row.role].push(row.id);
+    }
+  }
+  if (flagMismatches > 0) refusals.push(`${flagMismatches} accounts have a forced-change flag the load did not set.`);
+
+  // Independent of the password skip: DEMO-TCH-024 keeps the password its holder
+  // set and still needs the right mailbox.
+  const contactFix = [];
+  let contactKept = 0;
+  let contactCorrect = 0;
+  for (const row of confirmedRows) {
+    if (contactChanged(row, true)) contactKept += 1;
+    else if (row.email === sender) contactCorrect += 1;
+    else contactFix.push(row.id);
+  }
+
+  // Only a manifest row was ever written by the load, so an account that is not
+  // in it never held the load's address. Counted here; Module 13 fixes them.
+  const addressByKeptId = new Map(manifest.contacts.map((row) => [row.id, row.email_set]));
+  const keptOnLoadAddress = keptAccounts.filter((row) => addressByKeptId.get(row.id) === row.email).length;
+
+  return {
+    refusals,
+    marked: { teachers: teachers.length, parents: parents.length },
+    write,
+    skipped,
+    skippedPassword,
+    skippedContact,
+    contactFix,
+    contactKept,
+    contactCorrect,
+    confirmedTotal: confirmedLogins.size,
+    keptOnLoadAddress,
+    keptTotal: CONFIRMED_EXISTING.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // THE LOGIN LIST — no database, no password value
 // ---------------------------------------------------------------------------
+// What the Password column says since demo-passwords.js: one value per role.
+const LOGIN_VALUES = Object.freeze({ teacher: 'TEACHER VALUE', parent: 'PARENT VALUE' });
+
 function loginRows(keptBySection = SEEDED_KEPT) {
   const adviserOf = new Map(SECTIONS.map((section) => [section.adviser, section]));
   const teachers = TEACHERS.map((teacher) => {
@@ -768,7 +867,7 @@ function loginRows(keptBySection = SEEDED_KEPT) {
       section: section ? section.name : 'subject only',
       name: teacher.name,
       login_id: teacher.login_id,
-      password: confirmed ? SECRET_KEYS.confirmed : SECRET_KEYS.teacher,
+      password: LOGIN_VALUES.teacher,
     };
   });
   const parents = newLearners(keptBySection).map((learner) => ({
@@ -778,7 +877,7 @@ function loginRows(keptBySection = SEEDED_KEPT) {
     section: learner.section,
     name: `${learner.guardian} (for ${learner.first_name} ${learner.last_name})`,
     login_id: learner.lrn,
-    password: learner.confirmed ? SECRET_KEYS.confirmed : SECRET_KEYS.parent,
+    password: LOGIN_VALUES.parent,
   }));
   return [...teachers, ...parents].sort((a, b) => Number(b.confirmed) - Number(a.confirmed));
 }
@@ -825,5 +924,8 @@ module.exports = {
   attendanceStatus,
   assertTarget,
   planLoad,
+  confirmedNewLogins,
+  planPasswords,
+  LOGIN_VALUES,
   loginRows,
 };
