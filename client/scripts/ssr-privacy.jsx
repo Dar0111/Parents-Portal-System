@@ -124,6 +124,19 @@ console.log('\nThe consent screen (rendered)');
     !/Draft — awaiting the school/.test(fresh) && DOCUMENTS.every((d) => d.text.split(/\n\s*\n/).every((p) => fresh.includes(p.replace(/\s*\n\s*/g, ' ').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;')))),
     'neither document is the placeholder any more, and every paragraph of both files is on the consent screen, one blank-line paragraph each'
   );
+  // DO 72, WORD FOR WORD (D-151, D-179). The checks above compare the screen
+  // with the file, so a typo in the file passes them; only this one reads the
+  // school's sentence itself.
+  const DO72 =
+    "Requests for information held by the school are handled under the DepEd People's Freedom of Information Manual (DepEd Order No. 72, s. 2016), and are granted unless an exception applies, such as the protection of personal information under the Data Privacy Act of 2012 (RA 10173).";
+  const notice = DOCUMENTS[0].text.split(/\n\s*\n/);
+  const do72At = notice.indexOf(DO72);
+  assert(
+    notice.filter((p) => p === DO72).length === 1 &&
+      notice[do72At - 1].startsWith('For questions or requests about your information') &&
+      notice[do72At + 1] === 'Changes to this notice',
+    'the DO 72 sentence is in the notice word for word, once, after the Contact line and before "Changes to this notice"'
+  );
   assert(
     (fresh.match(/role="region" aria-label="[^"]+ text" tabindex="0"/g) || []).length === 2,
     'each text sits in a focusable, labelled scroll region (a keyboard can scroll it)'

@@ -90,6 +90,8 @@ Contact
 
 For questions or requests about your information, contact the school office at (02) 8350-6114.
 
+Requests for information held by the school are handled under the DepEd People's Freedom of Information Manual (DepEd Order No. 72, s. 2016), and are granted unless an exception applies, such as the protection of personal information under the Data Privacy Act of 2012 (RA 10173).
+
 Changes to this notice
 
 When this notice changes, the portal shows the new version and asks you to accept it before you continue.

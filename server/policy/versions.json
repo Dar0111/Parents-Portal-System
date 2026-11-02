@@ -1,12 +1,12 @@
 {
   "privacy_notice": {
     "title": "Data Privacy Notice",
-    "version": "draft-2",
+    "version": "1.0",
     "file": "privacy-notice.md"
   },
   "terms_of_use": {
     "title": "Terms of Use",
-    "version": "draft-2",
+    "version": "1.0",
     "file": "terms-of-use.md"
   }
 }
