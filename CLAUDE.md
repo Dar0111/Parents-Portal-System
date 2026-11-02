@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `account-state` (masked), `proof-backup-loop`, `demoData` and the five `demo-*` scripts (Module 12, `docs/DEMO_DATA.md`), the thirty-six test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `account-state` (masked), `proof-backup-loop`, `demoData` and the five `demo-*` scripts (Module 12, `docs/DEMO_DATA.md`), `activity-reset` (`docs/ACTIVITY_RESET.md`), the thirty-seven test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1485,6 +1485,7 @@ gate in full on its `POST /api/users/parents` row.
 | **`test:class-record` prints fixture LRN-shaped values in an assertion label** — added 2026-11-03 (Module 14) | `scripts/test-class-record-flows.js:231` | Run-made and fictional. Read its totals, never its preview |
 | **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
 | **A backup older than F (`parents_portal_2026-11-03_044104.zip`) restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate pair and `JWT_SECRET`, not rotated until after Nov 4: `docs/KNOWN_ISSUES.md` |
+| **After the activity reset, a backup older than H brings the old rows back** — added 2026-11-03 (Module 15) | `docs/ACTIVITY_RESET.md` | F, G and older are rollback points only |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
@@ -1710,7 +1711,8 @@ moved 2026-10-28". The cutover record is `migration/docs/09` §8.
 
 **Remaining:** hosting on Friday 2026-10-30 (the Hostinger VPS, the
 domain, HTTPS; `deploy/` is on this tree). After those checks and a
-backup through the app, the D-122 activity-log reset, then a new
+backup through the app, the D-122 activity-log reset by `npm run
+activity:reset` (D-175: the last write before Nov 4), then a new
 restore-point backup (`docs/ACTIVITY_RESET.md`). Learner transfer stays on
 hold until the professor asks (D-160). The manuscript delta list stays with
 the team.

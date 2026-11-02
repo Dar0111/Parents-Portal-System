@@ -23,6 +23,12 @@ older backup may be restored. Both the Data Privacy Notice and the Terms of Use 
 version 1.0, on no screen, so every account accepts once at its next sign-in. The
 phone stays on `https://srv2110222.hstgr.cloud` until after Nov 4.
 
+**Module 15 is merged to `main` and not yet deployed; the VPS stays on `68b5ce9`
+until the owner updates it.** `npm run activity:reset` is the D-122 reset by the
+procedure D-175 asks for, gated on loopback. The reset has not run. It is the last
+job after the Tuesday evening dry run, then backup H, the Nov 4 restore point
+(`docs/ACTIVITY_RESET.md`).
+
 **Previous snapshot, 2026-11-03: `main` was at `4463a52`, with Module 13's two tools
 merged.** Module 14 (the DO 72 sentence and F2) is on `feat/m14-do72-f2`, gated on
 loopback, not merged and not deployed. Both the Data Privacy Notice and the Terms

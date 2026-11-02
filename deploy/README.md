@@ -597,11 +597,11 @@ the acceptance sequence. Every failed expected result means STOP.
 | 17 | Laptop: keep Expo Metro running | Metro remains available; laptop API and web development server are not serving the hosted check. |
 | 18 | Hosted browser and Expo Go: conduct professor's system check | Hosted web/API use the VPS and phone reaches hosted HTTPS; deployment success alone is not readiness. |
 
-**D-122 is NOT authorized for execution now.**
-[`docs/ACTIVITY_RESET.md`](../docs/ACTIVITY_RESET.md) is historical context,
-including old protected-row rules, not an approved executable procedure.
-Its historical counts are not current deletion criteria. Darryl decides the
-exact scope and procedure on Friday. No reset SQL or command is supplied here.
+**D-122 moved out of this sequence (D-175, the owner's decision of 2026-10-30).**
+Rows 9–15 are replaced by the approved production procedure, the run sheet in
+[`docs/ACTIVITY_RESET.md`](../docs/ACTIVITY_RESET.md) (Module 15). Run only that
+sheet: a dry run first, and `--apply` only on Darryl's go for that run. The survey
+at the end of that file is history, not current deletion criteria.
 
 ### Browser and phone checks within that same write budget
 
