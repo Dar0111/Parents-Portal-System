@@ -106,7 +106,7 @@ behind is the rule and the pointer, nothing else.
 
 **PostgreSQL since the cutover of 2026-10-27 (D-157).** Where a sentence below still names MySQL, it is history. The cutover record is `migration/docs/09` §8. A golden master compares the ported API with the MySQL tree at the sync boundary, `main` `64200f7`, not an older base (`migration/docs/05_VALIDATION_MATRIX.md` §0g).
 
-**Last verified:** 2026-10-28, `main` `8a90789` (this docs pass; no suite was re-run here). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` stays `draft-2`; nobody re-accepts. The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-11-03, Module 14 on `main` `4463a52` (its gate: `docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 12 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36; Assignments since Module 11, §37), and **About is last on every
@@ -997,8 +997,8 @@ confirms one again in that session); then your own password
 Three ticks in the principal's draft words
 (§29a), the child by first name, never the LRN; a stale version is 409. **The
 socket refuses the same gates, and a restore re-runs the privacy step
-itself** (fix round). **The text (`server/policy/`) is the
-owner's draft-2 of both documents (feat/privacy-text, plain paragraphs); staff
+itself** (fix round). **The text (`server/policy/`) is version 1.0 of both
+documents (the owner's draft-2 plus the DO 72 sentence, plain paragraphs); staff
 tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Every password change is announced to its
 holder on every confirmed channel — the password alert (feat/password-alert,
@@ -1342,8 +1342,10 @@ never refused or clamped (the school awards bonus points, confirmed
 2026-09-23); both class-record routes are registered BEFORE `GET /:id` — do
 not reorder `routes/grades.js`; `slot_id` is REQUIRED on `POST`/`PUT
 /:id/components`, and only the class-record `PUT` may create a column and
-its scores in one save. Full contract: `docs/API_REFERENCE.md` → The class
-record; the policy: `docs/GRADING_SPEC.md` **§6e**; the page: FRONTEND **§13**.
+its scores in one save. **A subject name that repeats in a teacher's list
+carries its grade (`format/subjectOptions.js`, mirrored; F2).** Full contract:
+`docs/API_REFERENCE.md` → The class record; the policy:
+`docs/GRADING_SPEC.md` **§6e**; the page: FRONTEND **§13**.
 
 **Grade 1's letter is COMPUTED and BUILT (2026-09-22), and the rule is
 `docs/GRADING_SPEC.md` §6a** — WW 30 / PT 50 / Summative 20, banded on the raw
@@ -1480,6 +1482,7 @@ gate in full on its `POST /api/users/parents` row.
 | **Measure the API host's clock against the database before every restore and every demo** | hosting | On 2026-10-25/26 the laptop was +2,906 ms, then synced to +1 ms. That figure is that measurement |
 | **Supabase `statement_timeout` was 2 minutes on staging** | `migration/docs/09` §6 (2026-10-25/26) | Not remeasured in this docs pass. The API does not set it |
 | **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | 367 fictional accounts on production, two passwords by role (`demo:passwords`, which F3 joins; `DEMO_CONTACT_EMAIL` must be `SMTP_USER`). Once loaded, production has an adviser in every section; "3 of 23" and "20 of 23" stay true of `db:setup` |
+| **`test:class-record` prints fixture LRN-shaped values in an assertion label** — added 2026-11-03 (Module 14) | `scripts/test-class-record-flows.js:231` | Run-made and fictional. Read its totals, never its preview |
 | **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
 | **After Module 13's sitting, a backup older than F restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate accepted risk: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
@@ -1708,10 +1711,9 @@ moved 2026-10-28". The cutover record is `migration/docs/09` §8.
 **Remaining:** hosting on Friday 2026-10-30 (the Hostinger VPS, the
 domain, HTTPS; `deploy/` is on this tree). After those checks and a
 backup through the app, the D-122 activity-log reset, then a new
-restore-point backup (`docs/ACTIVITY_RESET.md`). D-169 (the DO 72 sentence
-in the Privacy Notice) is after Friday and before 2026-11-04. Learner
-transfer stays on hold until the professor asks (D-160). The manuscript
-delta list stays with the team.
+restore-point backup (`docs/ACTIVITY_RESET.md`). Learner transfer stays on
+hold until the professor asks (D-160). The manuscript delta list stays with
+the team.
 
 ### Stage 6 — Integration
 

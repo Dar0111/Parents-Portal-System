@@ -216,9 +216,9 @@ Backup A is the second way back, but a restore loses everything written since.
 | # | Action | Expected | 📸 |
 |---|---|---|---|
 | 16 | Sign in | `Before you continue` (two ticks), `I agree and continue`, then Dashboard, with no contact or password step | 📸 |
-| 17 | Open Grades, the Subject list | **MAPEH only** | 📸 |
-| 18 | Open the Class list | Four Grade 5 and four Grade 6 sections | |
-| 19 | Open Malikhain, Term 1 | Cells editable: this teacher records MAPEH in a class they do not advise. No Save | 📸 |
+| 17 | Open Grades, the Subject list | `MAPEH · Grade 5` and `MAPEH · Grade 6`, nothing else | 📸 |
+| 18 | Pick each entry and open the Class list | Four Grade 5 sections under the first, four Grade 6 sections under the second | |
+| 19 | Pick `MAPEH · Grade 6`, then Malikhain, Term 1 | Cells editable: this teacher records MAPEH in a class they do not advise. No Save | 📸 |
 | 20 | Open Attendance | `You are not the adviser of any section` | 📸 |
 | 21 | Open Class summary | `Class summary is for class advisers` | 📸 |
 
@@ -226,7 +226,7 @@ Backup A is the second way back, but a restore loses everything written since.
 
 | # | Action | Expected | 📸 |
 |---|---|---|---|
-| 22 | Open Grades | MAPEH only | 📸 |
+| 22 | Open Grades | Subject chips `MAPEH · Grade 5` and `MAPEH · Grade 6`, nothing else | 📸 |
 | 23 | Open Attendance | `You are not the adviser of any section` | 📸 |
 
 **Pre-confirmed parent — web (the Grade 6 one)**

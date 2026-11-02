@@ -1814,6 +1814,14 @@ Grades 4-6 are **departmentalized** (the school, 2026-09-22): a teacher owns
 one subject across several sections, so Class is the second axis, not the
 first.
 
+**A subject name that repeats carries its grade (F2, D-196, Module 14).** Each
+grade's MAPEH is its own `subjects` row, so a teacher holding it in two grades
+saw two identical options. Only a name that repeats in THIS teacher's list
+changes, to `MAPEH · Grade 5`; every other name stays bare, because the Class
+choice already says the grade. The rule is `format/subjectOptions.js`, mirrored
+on the phone's chips, and the order stays the rows' own: it never re-sorts. No
+server change: `GET /assignments` already carries `grade_level`.
+
 ### 13b. The client never computes a grade — live values come from `dry_run`
 
 The oldest rule in the Grades module, now under the most pressure: a grid
@@ -3824,16 +3832,21 @@ on a 403 (§2).
   new password, or home. A new version of either document sets it true again
   for every account — accepting is per version.
 
-### 29b. The text ships with the app — the owner's draft-2 since feat/privacy-text
+### 29b. The text ships with the app — version 1.0 since Module 14
 
 `server/policy/privacy-notice.md`, `terms-of-use.md` and `versions.json`
 (the owner's answer 2): git keeps every version's exact wording, a new
 version is a deliberate release (edit, bump, restart the API), and nothing can
-change quietly without a bump. **Both documents are the owner's draft-2**
-(`feat/privacy-text`, 2026-10-25, both at `draft-2`; D-124 changed by the
-owner — in before the principal's approval, and a change he asks for is a
-later update under a new version). Until then both said "Draft — awaiting the
-school's approval" and held no legal text. **The files are plain paragraphs
+change quietly without a bump. **Both documents are version 1.0** (Module 14,
+2026-11-03; D-154): the owner's draft-2 of `feat/privacy-text`, which the
+principal approved with no change on 2026-10-26 (D-136 replaced D-124), plus
+the DO 72 sentence the school asked for (D-151, D-179), in the notice after the
+Contact line. The version is on no screen (D-168, D-170). **A bump reaches an
+open session only at its next `/auth/me`:** until a reload on the web or a cold
+boot on the phone, that session gets the gate's 403 on every request and a
+refused socket, and the phone's Refresh reconnects without re-reading. Until
+`feat/privacy-text` both documents said "Draft — awaiting the school's
+approval" and held no legal text. **The files are plain paragraphs
 separated by one blank line** — a heading is its own paragraph, a list item
 is its own paragraph opening with "• ", no title line (the screen shows the
 title from `versions.json`), no Markdown: the client shows `#`, `**` and

@@ -11,7 +11,16 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-03: `main` and the VPS are at `92970c4`.** The running API is
+**Snapshot, 2026-11-03: `main` is at `4463a52`, with Module 13's two tools
+merged.** Module 14 (the DO 72 sentence and F2) is on `feat/m14-do72-f2`, gated on
+loopback, not merged and not deployed. Both the Data Privacy Notice and the Terms
+of Use are version 1.0 there, on no screen, so every account accepts once at its
+next sign-in after that deploy. A subject name that repeats in a teacher's Grades
+list carries its grade, web and phone. The deploy order is Module 13's sitting,
+then Module 14, then the owner's check. The phone stays on
+`https://srv2110222.hstgr.cloud` until after Nov 4.
+
+**Previous snapshot, 2026-11-03: `main` and the VPS were at `92970c4`.** The running API was
 Module 10's code and the client build is Module 11's; only scripts and docs came
 after. `https://chfes-main-parents-portal.online` serves beside
 `https://srv2110222.hstgr.cloud`, and the phone stays on the second until after
@@ -157,7 +166,7 @@ A module with tables and no handlers is not started; there are none.
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
 | Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 14 (`PUT /email` and `PUT /first-password` since `feat/first-signin`, merged 2026-10-21) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
-| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are the owner's draft-2 (feat/privacy-text, both `draft-2`) |
+| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are version 1.0: the owner's draft-2 plus the DO 72 sentence (Module 14) |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | Admin → Assignments & advisers sets or clears an adviser (web only, Module 11); read by pickers |
@@ -342,10 +351,10 @@ and the phone teacher picker's empty groups.
 - [ ] **RA 10173 (Data Privacy Act).** Ask the school whether loading real
       names and LRNs needs a consent process, and whether a form exists.
       **The in-app consent step exists since the privacy build
-      (2026-10-10)**, and since feat/privacy-text the Data Privacy Notice and
-      Terms of Use it shows are the owner's draft-2, sent to the principal —
-      **a change he asks for is a later update** (`server/policy/`, a version
-      bump that asks every account again).
+      (2026-10-10)**. The Data Privacy Notice and Terms of Use it shows are
+      version 1.0: the owner's draft-2, which the principal approved with no
+      change on 2026-10-26, plus the DO 72 sentence. **A later change is a new
+      version** (`server/policy/`, a bump that asks every account again).
 - [ ] **Confirm ADMIN001's email or mobile number** — a confirmed one is the
       only in-app way back in if the one admin loses its password (CLAUDE.md
       KNOWN ISSUES hazard).

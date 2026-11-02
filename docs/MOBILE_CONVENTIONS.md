@@ -623,7 +623,9 @@ on screen at once: Teacher → Grades is Subject → Class → Term and then the
 fixed frame (WW1–5, PT1–3, ST1 / ST2 / TE) as a LIST, each row naming its
 highest possible score ("Set HPS" when it has none) and "N of M scored". A
 row opens the **slot screen**, the only place anything is typed or saved; the
-list re-reads on focus so a save shows on return.
+list re-reads on focus so a save shows on return. **A subject name that repeats
+in the teacher's list carries its grade on the chip, `MAPEH · Grade 5`** (F2,
+D-196): the mirrored `format/subjectOptions.js`, FRONTEND §13a.
 
 - **The request is the web's, by construction.** `classRecord/buildPayload.js`
   is a verbatim copy; the slot screen only ever writes drafts for its own
