@@ -12,7 +12,8 @@
 Technological College, IICT · Final defense expected around November 2026.
 
 **Snapshot, 2026-11-03: the VPS runs `main` `68b5ce9`; Module 13's sitting is done
-and Module 14 is deployed.** `portal_app`, `portal_migrate`, `SMTP_PASS` and the SMS
+and Module 14 is deployed, its check on production passed.** `portal_app`,
+`portal_migrate`, `SMTP_PASS` and the SMS
 passphrase are rotated, and `CORS_ORIGIN` lists `srv2110222` and the domain.
 `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` and `JWT_SECRET` stay as they are until after
 Nov 4 (`docs/KNOWN_ISSUES.md`). Users 2, 3, 4, 5, 6, 7 and 647 hold temporary
