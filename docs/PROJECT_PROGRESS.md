@@ -11,7 +11,18 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-03: `main` is at `4463a52`, with Module 13's two tools
+**Snapshot, 2026-11-03: the VPS runs `main` `68b5ce9`; Module 13's sitting is done
+and Module 14 is deployed.** `portal_app`, `portal_migrate`, `SMTP_PASS` and the SMS
+passphrase are rotated, and `CORS_ORIGIN` lists `srv2110222` and the domain.
+`SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` and `JWT_SECRET` stay as they are until after
+Nov 4 (`docs/KNOWN_ISSUES.md`). Users 2, 3, 4, 5, 6, 7 and 647 hold temporary
+passwords, and user 3 is kept for the Nov 4 first sign-in. Backup F,
+`parents_portal_2026-11-03_044104.zip`, is the restore point until Module 15; no
+older backup may be restored. Both the Data Privacy Notice and the Terms of Use are
+version 1.0, on no screen, so every account accepts once at its next sign-in. The
+phone stays on `https://srv2110222.hstgr.cloud` until after Nov 4.
+
+**Previous snapshot, 2026-11-03: `main` was at `4463a52`, with Module 13's two tools
 merged.** Module 14 (the DO 72 sentence and F2) is on `feat/m14-do72-f2`, gated on
 loopback, not merged and not deployed. Both the Data Privacy Notice and the Terms
 of Use are version 1.0 there, on no screen, so every account accepts once at its

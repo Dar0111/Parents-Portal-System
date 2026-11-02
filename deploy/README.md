@@ -769,9 +769,19 @@ holds dead passwords. Delete the backup once the checks pass, with `shred -u`.
 |---|---|---|---|
 | `portal_app`, `portal_migrate` | `PG_PASSWORD`, `PG_MIGRATE_PASSWORD` | `PORTAL_APP_PASSWORD` and `PORTAL_MIGRATE_PASSWORD` in `supabase.env`, then `npm run roles:passwords -- --target staging` in `migration/`. The API fails from the role change until the reload | `/api/health` with `"db":"ok"`; `npm run demo:clear-messages`, without `--apply`, for `portal_migrate`, which is what a restore needs |
 | Gmail | `SMTP_PASS` | A new app password. The old one works until it is revoked, so revoke it after the proof | One real email code |
-| SMSGate | `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` | The Cloud Server settings in the app | One real text. `npm run sms:probe` does not prove these: `/health` may not need them |
+| SMSGate | `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` | None yet: the app has no Cloud Server password control (found 2026-11-03), so the pair stays until after Nov 4 (`docs/KNOWN_ISSUES.md`) | One real text. `npm run sms:probe` does not prove these: `/health` may not need them |
 | Passphrase | `SMS_ENCRYPTION_PASSPHRASE` | Settings → Encryption → Passphrase in the app | One real text. With a mismatch the server logs success and the app marks the message Failed |
 | Browser origin | `CORS_ORIGIN` | Nothing | `curl -sI -H "Origin: https://__DOMAIN__" https://__DOMAIN__/api/health` shows `access-control-allow-origin`. A same-origin sign-in proves nothing: `cors` leaves the header out and does not refuse the request |
+
+**The `roles:passwords` verify can fail right after `ALTER ROLE`.** On 2026-11-03
+its check through the pooler failed twice with `password authentication failed`
+although both passwords were set. Prove the change with the table's own checks:
+`/api/health` for `portal_app`, and the `demo:clear-messages` dry run for
+`portal_migrate`.
+
+**Type the SMS passphrase on the phone carefully.** `BAD_DECRYPT` on a Failed
+message means the phone's passphrase differs from the server's. Retype it, then
+send one more real text.
 
 **If the laptop cannot reach Supabase,** run `roles:passwords` on the VPS. In
 `migration/`, export `MIGRATION_DATA_DIR=/home/portal` and
