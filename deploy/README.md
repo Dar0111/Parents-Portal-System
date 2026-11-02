@@ -5,8 +5,9 @@ and production actions below are Friday OWNER steps, not commands to run
 during the deployment-file review. Run one command at a time in the named
 folder. A failed gate means STOP; do not continue or silently retry writes.
 Nothing here holds a secret: `__DOMAIN__` is a placeholder for the apex
-domain, and every credential travels by `scp` from the laptop and is edited on
-the VPS with `nano` — never typed into a command, never pasted into a chat.
+domain. The first copy of the credentials travels by `scp` from the laptop
+(section 6); after that a credential changes in place with `deploy/env-set.sh`
+(section 13) — never typed into a command, never pasted into a chat.
 
 Two files live beside this one and are installed by the steps below:
 
@@ -327,6 +328,10 @@ On the VPS, as `portal`.
 Two files move from the laptop. **Neither is printed or pasted into chat.**
 Only the owner privately edits the required runtime values below; the agent
 must not inspect environment-file or secrets-folder contents.
+
+**Step 1 runs once, on a new VPS. After that, never copy the laptop's `.env`
+over the VPS file:** the VPS file holds its own `PG_CA_FILE`, `CORS_ORIGIN`,
+`NODE_ENV` and `PORT`. Section 13 changes a key in place.
 
 1. On the **laptop**, in PowerShell, copy the environment file.
 
@@ -726,3 +731,54 @@ switch traffic. If it is approved later, arrange one serving API and verify
 the target privately. Normal Friday readiness still requires the VPS-hosted
 web/API, phone on hosted HTTPS, and laptop running Expo Metro only. A fallback
 that changes those requirements needs Darryl's separate decision.
+
+---
+
+## 13. Rotating a credential
+
+On the VPS, as `portal`. `deploy/env-set.sh` sets one key: it asks for the value
+twice, hidden, so the value is in no command line and no shell history, and it
+prints no value. `--diff` prints key names only.
+
+```
+bash /home/portal/Parents_Portal/deploy/env-set.sh FILE KEY
+```
+
+```
+bash /home/portal/Parents_Portal/deploy/env-set.sh --diff OLD NEW
+```
+
+It refuses a space, `#`, a quote, a backtick or a backslash, because dotenv would
+misread them, so use letters and digits. On the laptop, run it in Git Bash.
+
+The running API reads `server/.env` only when it starts, so the order is:
+
+1. Copy `server/.env` to a dated backup in `/home/portal/secrets/`, mode 600.
+2. Copy it again to a scratch file in that folder, mode 600, and set every key
+   there. Nothing live changes yet.
+3. Run `--diff` on `server/.env` and the scratch file. The names must be exactly
+   the keys you meant to change. `JWT_SECRET` must never appear.
+4. Change the other side of each credential, from the table below.
+5. `mv` the scratch file over `server/.env`, then one
+   `pm2 reload parents-portal-api`, then `sleep 2`, then the health check.
+
+**Never restore an older `.env` backup after a role password has changed:** it
+holds dead passwords. Delete the backup once the checks pass, with `shred -u`.
+
+| Credential | Keys | The other side | What proves it |
+|---|---|---|---|
+| `portal_app`, `portal_migrate` | `PG_PASSWORD`, `PG_MIGRATE_PASSWORD` | `PORTAL_APP_PASSWORD` and `PORTAL_MIGRATE_PASSWORD` in `supabase.env`, then `npm run roles:passwords -- --target staging` in `migration/`. The API fails from the role change until the reload | `/api/health` with `"db":"ok"`; `npm run demo:clear-messages`, without `--apply`, for `portal_migrate`, which is what a restore needs |
+| Gmail | `SMTP_PASS` | A new app password. The old one works until it is revoked, so revoke it after the proof | One real email code |
+| SMSGate | `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` | The Cloud Server settings in the app | One real text. `npm run sms:probe` does not prove these: `/health` may not need them |
+| Passphrase | `SMS_ENCRYPTION_PASSPHRASE` | Settings → Encryption → Passphrase in the app | One real text. With a mismatch the server logs success and the app marks the message Failed |
+| Browser origin | `CORS_ORIGIN` | Nothing | `curl -sI -H "Origin: https://__DOMAIN__" https://__DOMAIN__/api/health` shows `access-control-allow-origin`. A same-origin sign-in proves nothing: `cors` leaves the header out and does not refuse the request |
+
+**If the laptop cannot reach Supabase,** run `roles:passwords` on the VPS. In
+`migration/`, export `MIGRATION_DATA_DIR=/home/portal` and
+`MIGRATION_TOOLING_DIR=/home/portal/Parents_Portal/server`, put the three keys in
+`/home/portal/secrets/supabase.env` with `env-set.sh`, mode 600, and run
+`--dry-run` first. Shred that file straight after: it holds the owner's URL.
+
+`node scripts/account-state.js`, in `server/`, prints each account outside the demo
+load as ids and yes or no: what is on file, what is confirmed, the current policy,
+a pending temporary password. It prints no login id, name, email or number.
