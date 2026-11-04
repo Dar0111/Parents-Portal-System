@@ -318,3 +318,10 @@ list of the plan), the Part C docs pass except its items 1–2 (done in
 vulnerabilities above. **Rollback from here is forward-fix on PostgreSQL**;
 `mysql-fallback-64200f7`, `server/.env.mysql.local` and backup 390 remain
 the documented way back (`07`).
+
+**Status, 2026-11-04 (M16):** step 13's reset ran on production on 2026-11-03,
+and backup H is the restore point (`docs/ACTIVITY_RESET.md` → The run). The
+`SMS_GATEWAY_*` duplicate cleanup is `a4a04a8` (2026-10-28), and the server's
+npm audit is 0 since Module 3 (2026-10-30, `docs/CHANGELOG.md`). The Part C
+docs pass, the idle measurement and the plan's cleanup list are not re-checked
+here.

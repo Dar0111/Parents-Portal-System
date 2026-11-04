@@ -4,8 +4,9 @@ The owner run sheet for Friday, October 30, 2026. Provisioning, deployment
 and production actions below are Friday OWNER steps, not commands to run
 during the deployment-file review. Run one command at a time in the named
 folder. A failed gate means STOP; do not continue or silently retry writes.
-Nothing here holds a secret: `__DOMAIN__` is a placeholder for the apex
-domain. The first copy of the credentials travels by `scp` from the laptop
+Nothing here holds a secret: `__DOMAIN__` is a placeholder. In sections 1–11
+`__DOMAIN__` is `srv2110222.hstgr.cloud`, which `parents-portal.conf` serves;
+the domain is the second site, section 14. The first copy of the credentials travels by `scp` from the laptop
 (section 6); after that a credential changes in place with `deploy/env-set.sh`
 (section 13) — never typed into a command, never pasted into a chat.
 
@@ -36,6 +37,8 @@ review. This run sheet does not authorize a merge.
 2. Buy the domain and point its apex DNS **A record** at the VPS address.
    Publish an apex `AAAA` record only if IPv6 is configured and reachable.
    Use the apex only: no www DNS prerequisite or www certificate name.
+   (The first site, `srv2110222.hstgr.cloud`. The domain's site, section 14,
+   has `www` too and redirects it to the apex.)
 3. Wait for DNS to resolve before step 8 — Let's Encrypt cannot issue a
    certificate until it does. On the laptop:
 
@@ -282,10 +285,10 @@ On the VPS, as `portal`.
    npm ci --omit=dev
    ```
 
-2. **D-163 is a separate implementation task and build prerequisite.**
-   This deployment-file change does not create, edit or stage
-   `client/.env.production`. Recommend a separately approved committed file
-   with this domain-independent, non-secret setting:
+2. **D-163 is done** (`5956436`, 2026-10-29, "set production API base to
+   /api"): the tracked `client/.env.production` makes a build use same-origin
+   `/api` behind Nginx (`docs/TESTING.md` → `ssr-avatar`). The setting, as
+   this section proposed it before D-163, domain-independent and non-secret:
 
    ```
    VITE_API_BASE_URL=/api
@@ -298,9 +301,8 @@ On the VPS, as `portal`.
    `client/src/format/photoUrl.js` lines 20–21 derive `/uploads/avatars/...`.
    Thus `/api` supports same-origin operation behind Nginx; blank is unsuitable.
    Vite embeds the value at build time; inherited environment values can
-   override the file. STOP before building if D-163 is unresolved. After the
-   separate task, verify REST, Socket.io, profile photos and same-origin HTTPS
-   in the built browser app. Do not claim readiness from source inspection alone.
+   override the file, so build with no `VITE_API_BASE_URL` in the shell.
+   Module 13's sitting checked the built app on both names (`docs/TESTING.md`).
 
 3. In `/home/portal/Parents_Portal/client`, install client dependencies
    (the build needs the dev ones).
@@ -370,7 +372,7 @@ over the VPS file:** the VPS file holds its own `PG_CA_FILE`, `CORS_ORIGIN`,
    | Key | Value on the VPS |
    |---|---|
    | `PG_CA_FILE` | `/home/portal/secrets/prod-ca-2021.crt` |
-   | `CORS_ORIGIN` | `https://__DOMAIN__` — a bare origin, no path, no trailing slash, never a `*` |
+   | `CORS_ORIGIN` | `https://__DOMAIN__` — a bare origin, no path, no trailing slash, never a `*`. Since Module 13 it lists both names, comma-separated, never `www` (section 14) |
    | `NODE_ENV` | `production` |
    | `PORT` | `5000` |
 
@@ -470,6 +472,10 @@ On the VPS, as root, **after DNS resolves**.
 > `/etc/nginx/sites-available/parents-portal.conf`, adding a 443 server block
 > and the redirect. The copy in the repo stays the pre-TLS source on purpose.
 > If you ever re-copy it (step 7.2), run step 8.2 again afterwards.
+
+> **The domain has its own lineage (2026-11-03).** `zz-domain.conf` and its
+> certificate for the apex and `www` are section 14; this section's certificate
+> is unchanged.
 
 ---
 
@@ -612,7 +618,7 @@ at the end of that file is history, not current deletion criteria.
 | Demo profile: perform the single authorized upload/deletion | Photo saves, displays and is deleted; existing 8 MB Nginx request limit accommodates the application's 5 MB photo cap. |
 | Recovery: perform the one email and one SMS delivery check listed above | Real delivery, not merely an identical accepted HTTP response; no password reset. |
 | Approved demo accounts: perform the single Socket.io message check | Recipient sees the message live; no second API splits live connections. |
-| Laptop `mobile/`: owner configures `EXPO_PUBLIC_API_URL=https://__DOMAIN__/api` privately, then runs `npx expo start --clear` and cold-starts Expo Go | Phone sign-in/acceptance for the three roles against hosted HTTPS, using the same authorized write budget across browser and phone. |
+| Laptop `mobile/`: owner configures `EXPO_PUBLIC_API_URL=https://__DOMAIN__/api` privately, then runs `npx expo start --clear` and cold-starts Expo Go | Phone sign-in/acceptance for the three roles against hosted HTTPS, using the same authorized write budget across browser and phone. The phone stays on `https://srv2110222.hstgr.cloud/api` until its own module moves it to the domain (D-201). |
 
 Backups are per-host files with shared database rows. Friday's two backups
 must be created by the VPS app and verified on the VPS. During the professor's
@@ -626,9 +632,8 @@ process. Do not serve clients through both laptop and VPS APIs.
 On the VPS, as `portal`.
 
 Only update to an exact main revision independently approved by Darryl.
-Fetch and verify before moving the local checkout. The separate D-163
-task must define production-file tracking and precedence; do not assume a
-VPS-local untracked file is sufficient. Re-run the TLS/query, health and
+Fetch and verify before moving the local checkout. D-163 is done (section 5,
+item 2); do not assume a VPS-local untracked file is sufficient. Re-run the TLS/query, health and
 authorized acceptance gates after an approved update; no extra writes are
 automatically authorized.
 
@@ -686,6 +691,10 @@ by Darryl, not a value automatically copied from the fetched branch.
    Require the same independently approved full hash; otherwise STOP.
 7. Check the resulting working tree with `git status --short` as a separate
    command. STOP on any unexpected change, conflict or failed check.
+
+   Step 8 only when `server/package-lock.json` changed; steps 9–10 only when a
+   file under `client/` changed; step 11 whenever a file the API reads changed
+   (the policy files are read once at start).
 8. In `/home/portal/Parents_Portal/server`:
 
    ```
@@ -709,6 +718,14 @@ by Darryl, not a value automatically copied from the fetched branch.
     ```
     pm2 reload parents-portal-api
     ```
+
+12. Check it: `pm2 status`, then `sleep 2`, then:
+
+    ```
+    curl -fsS https://__DOMAIN__/api/health
+    ```
+
+    Require `"db":"ok"`. Then one admin sign-in in the browser.
 
 ---
 
@@ -765,6 +782,9 @@ The running API reads `server/.env` only when it starts, so the order is:
 **Never restore an older `.env` backup after a role password has changed:** it
 holds dead passwords. Delete the backup once the checks pass, with `shred -u`.
 
+**Then set the same new values in the laptop's `server\.env`** with `env-set.sh`
+in Git Bash, one key at a time (on 2026-11-03 it took four keys).
+
 | Credential | Keys | The other side | What proves it |
 |---|---|---|---|
 | `portal_app`, `portal_migrate` | `PG_PASSWORD`, `PG_MIGRATE_PASSWORD` | `PORTAL_APP_PASSWORD` and `PORTAL_MIGRATE_PASSWORD` in `supabase.env`, then `npm run roles:passwords -- --target staging` in `migration/`. The API fails from the role change until the reload | `/api/health` with `"db":"ok"`; `npm run demo:clear-messages`, without `--apply`, for `portal_migrate`, which is what a restore needs |
@@ -792,3 +812,22 @@ send one more real text.
 `node scripts/account-state.js`, in `server/`, prints each account outside the demo
 load as ids and yes or no: what is on file, what is confirmed, the current policy,
 a pending temporary password. It prints no login id, name, email or number.
+
+---
+
+## 14. The domain, beside the first name (2026-11-03)
+
+Since 2026-11-03 01:42 the VPS serves two names: `https://srv2110222.hstgr.cloud`,
+unchanged, and `https://chfes-main-parents-portal.online`.
+
+| Piece | On the VPS |
+|---|---|
+| Nginx | A second site, `/etc/nginx/sites-available/zz-domain.conf`, enabled beside `parents-portal.conf`, which serves `srv2110222.hstgr.cloud` (sections 7–8). `zz-domain.conf` stays on the VPS only, by the owner's decision of 2026-11-04: no copy in `deploy/nginx/` |
+| HTTPS | Its own Let's Encrypt lineage, for the apex and `www`. `certbot certificates`, as root, lists both lineages |
+| Redirects | `http` → `https`, and `www` → the apex |
+| `CORS_ORIGIN` | Both names, comma-separated, since Module 13 (section 13). `www` is never an origin: it only redirects |
+| The phone | Stays on `https://srv2110222.hstgr.cloud/api` until its own module moves it (D-201) |
+
+Module 13's sitting proved the domain: `access-control-allow-origin` for it, then
+admin sign-in, the Activity log, Messages and socket.io on it, and a sign-in on
+`srv2110222` (`docs/TESTING.md`).

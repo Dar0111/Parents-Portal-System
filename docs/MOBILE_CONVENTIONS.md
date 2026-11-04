@@ -602,7 +602,8 @@ by `item_type` + `item_id`, then a count that must be zero** (correction b).
 | `PUT /auth/change-password` | none; `token_version` | restore the seed password through the same screen; a web session for the account 401s once, expected |
 | a teacher's or admin's web action (memo, announcement, event, review) | its row + one notification per recipient | the API delete, then the notifications by `item_type` + `item_id`, assert zero |
 
-`activity_logs` rows are audit history and are never cleaned. Tala Halimbawa
+`activity_logs` rows are audit history: a check's cleanup never deletes one. The
+one deletion was the D-122 reset of 2026-11-03 (`docs/ACTIVITY_RESET.md`). Tala Halimbawa
 is the fixture learner and Ligaya her parent; every suite stays on Marwin;
 never during a server suite.
 
@@ -759,7 +760,7 @@ everything under them by key, guarded by the ids a read-only survey found.
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
 
-## M16. The admin shell: eight items (nine since Messages, 2026-10-05 — M9), one web-only item hidden, one Settings
+## M16. The admin shell: eight items (nine since Messages, 2026-10-05 — M9), the web-only items hidden, one Settings
 
 **Branch 4, 2026-09-29. Darryl's fixed decision: Backup & Restore is web
 only — no screen, no nav item.**
@@ -777,6 +778,11 @@ only — no screen, no nav item.**
   drawer hides it the same way; the admin's System group stays empty on the
   phone and is dropped (M20). The admin still sees nine items (Messages
   included, M9).
+- **A third web-only item since Module 11 (2026-11-02): Assignments & advisers**
+  (the owner's Q2 of 2026-10-31: a phone screen only after the defense, and only if
+  the panel asks). `WEB_ONLY` lists `/admin/assignments` beside the other two
+  (`routes.js:27`). It sits in the Manage group, which keeps its other items, and
+  `proof:drawer` checks it is in no phone group. The admin still sees nine items.
 - **One Settings, and the web's words.** The drawer item is Settings for
   every role; the verbatim `tabs.js` gives the admin a first row, **School
   settings** — the school's details, with the school year locked and the term
@@ -912,8 +918,9 @@ because M19 was already the size scale.
   `groupNav()` the sidebar does. Dashboard on top; parent My child / School,
   teacher My class / Communicate, admin Manage / Communicate; Settings and
   About as a separate bottom group under a divider. **Admin's System group
-  does not exist on the phone** — its one item, Backup & Restore, is web only
-  (`routes.js` `WEB_ONLY`), AppShell drops it before the drawer sees the list,
+  does not exist on the phone** — its two items, Backup & Restore and, since
+  B2, the Activity log, are web only (`routes.js` `WEB_ONLY`), AppShell drops
+  them before the drawer sees the list,
   and `groupNav()` already drops an empty group. No AppShell change was
   needed.
 - **The same active style and badges** as before and as the web:

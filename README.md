@@ -45,7 +45,7 @@ detail is in other files:
 | Seed data | ✅ Done |
 | **Backend API** | ✅ Every module, Socket.io included. Endpoint counts: the front matter of `CLAUDE.md` |
 | Web — all three roles (Teacher, Parent, Admin) | ✅ Stage 4 closed 2026-09-14; the additions after it are in `CLAUDE.md`'s BUILD ORDER |
-| Mobile (Expo) | ✅ Every screen of all three roles in `mobile/` (Backup & Restore is web only). What comes next — the phone test, the smoke gate — is in `CLAUDE.md`'s BUILD ORDER |
+| Mobile (Expo) | ✅ Every screen of all three roles in `mobile/`, except three admin pages that are web only: Backup & Restore, the Activity log, and Assignments & advisers. What comes next is in `CLAUDE.md`'s BUILD ORDER |
 
 Nine features ship. Feature 7 (Contributions/Fees) was built and
 **removed on 2026-09-13** — the school may not collect contributions
@@ -77,11 +77,14 @@ cd "C:\Users\Win10 User\Parents_Portal\server"
 copy .env.example .env
 ```
 
-Open `server\.env` and fill it in. **Every key is in
-`server/.env.example`** — copy that, not this README. The ones that must be
-right straight away: `DB_PASSWORD` (blank if none), `JWT_SECRET` (a long
-random string), and `CORS_ORIGIN=http://localhost:3000` — it must match the
-client's port, and the Socket.io CORS is based on it too. `SMTP_*` is for the
+Open `server\.env` and fill it in from **`server/.env.example`, which lists
+every key the server reads** (copy that, not this README); the ones that must
+be set are `PG_PASSWORD` and `PG_MIGRATE_PASSWORD` (`server/config/db.js`, no
+default), `JWT_SECRET` (a long random string; `server/utils/jwt.js` stops a
+production API on a blank or default one), `PG_CA_FILE` for any `PG_HOST` that
+is not loopback, and `CORS_ORIGIN`, which must match the client's origin
+(default `http://localhost:3000`) because the Socket.io CORS is based on it
+too. `SMTP_*` is for the
 forgot-password email, and `SMS_*` for the reset code by text (see **SMS**
 below); `MAIL_TRANSPORT=file` and `SMS_TRANSPORT=file` are only for
 `test:recovery` (see Tests).

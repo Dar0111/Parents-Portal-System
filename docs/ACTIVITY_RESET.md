@@ -1,6 +1,6 @@
 # ACTIVITY RESET — D-122: the decision, the procedure and the old survey
 
-**Approved, and not run yet** (the owner's PLAN APPROVED of 2026-11-03, Module 15).
+**Run on production on 2026-11-03 at 22:20** (the owner's PLAN APPROVED of 2026-11-03, Module 15; the results: The run, below).
 `npm run activity:reset` is new with `ops/m15-activity-reset`. The rows below are
 the production procedure; the dated survey at the end of this file is history, not
 deletion criteria.
@@ -75,8 +75,31 @@ with nobody signing in. Every failed expected result means STOP.
 | 15 | Laptop | `Get-FileHash "$HOME\Downloads\<H>" -Algorithm SHA256` | The same hash, case aside | It differs: download again |
 | 16 | Google Drive | Upload backup H only, to Darryl's own Drive folder for the earlier backups | Same size, owner-only, no share link | Any sharing |
 
-The 5, 40 and 3 come from the MySQL survey of 2026-10-24; production's counts are
-unknown until row 6.
+The 5, 40 and 3 come from the MySQL survey of 2026-10-24; production's run: The
+run, below.
+
+## The run, 2026-11-03
+
+The owner's run on production. Module 15 was merged at 13:46 (`31333c3`) and
+deployed at 13:51, with the one `pm2 reload`. Only the rows with a result to keep
+are listed.
+
+| Row | Result |
+|---|---|
+| 4 | Backup G, `parents_portal_2026-11-03_221709.zip`, before the reset |
+| 6–7 | T `2026-11-03T03:35:00+08:00`, confirmed from the dry run |
+| 8 | 22:20: 31,986 rows deleted; `activity_logs` 32,117 → 132; every other table equal |
+| 9 | Delete 0. Kept: 57 older than the cutoff and 75 since it, the `activity_log_reset` row among them |
+| 10 | B1 PASS ("Reset the activity log" at the top, 10:20 PM). B2–B3 skipped (optional). B4–B5 PASS (the script's equal counts: `users` 376, `students` 350). B6 PASS: the diff printed nothing |
+| 11 | Backup H, `parents_portal_2026-11-03_222242.zip`, after the reset: **the Nov 4 restore point. Restore only H**; G, F and older bring the old rows back |
+| B7 | PASS: G and H both have Download |
+| 13–15 | 2026-11-04, 11:33–11:40: H's SHA-256 on the VPS and on the laptop match |
+| 16 | H is on the owner's Google Drive, owner-only |
+| B8 | PASS, 2026-11-04 11:33: `/api/health` on the domain, `"db":"ok"` |
+
+**Backup I**, `parents_portal_2026-11-04_113604.zip` (11:36), was made by mistake
+while downloading H. It is after the reset, so it is harmless; H stays the restore
+point.
 
 ## The check
 
@@ -120,7 +143,7 @@ rows stay deleted; only G, F or older bring them back.
 
 ## After the run
 
-The docs still describe the table before the reset. In one docs commit after row 16:
+Done in M16's docs commit (2026-11-04):
 
 - `docs/CHANGELOG.md`: T, N, the kept counts, and the names of G and H.
 - `docs/MOBILE_CONVENTIONS.md`: "`activity_logs` rows are audit history and are never

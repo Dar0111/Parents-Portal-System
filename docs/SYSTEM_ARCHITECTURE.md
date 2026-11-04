@@ -47,7 +47,7 @@ Web + mobile (React Native Expo) portal for parents, teachers, and the school pr
 | Login, Change Password | All |
 | Student Grades, Attendance, Announcements, Messages, Memos, Events, Excuse Letter | Parent (+ teacher/admin as applicable) |
 | Enrolled Student List, Create Account | Teacher |
-| Manage User, System Setting, Backup & Restore | Admin (Backup/Restore web only) |
+| Manage User, System Setting, Backup & Restore | Admin (Backup & Restore web only; the Activity log and Assignments & advisers, outside Figure 5, are web only too) |
 
 **Excluded:** QR attendance, online payment, enrollment/transcript, schedule grid, college grading.
 

@@ -106,7 +106,7 @@ behind is the rule and the pointer, nothing else.
 
 **PostgreSQL since the cutover of 2026-10-27 (D-157).** Where a sentence below still names MySQL, it is history. The cutover record is `migration/docs/09` §8. A golden master compares the ported API with the MySQL tree at the sync boundary, `main` `64200f7`, not an older base (`migration/docs/05_VALIDATION_MATRIX.md` §0g).
 
-**Last verified:** 2026-11-03, `main` and the VPS at `68b5ce9`, after Module 13's sitting and Module 14's deploy and check (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-11-03, the VPS at `main` `31333c3` since 13:51 (Module 15, one `pm2 reload`; `main` adds docs only after it), and the D-122 reset run on production at 22:20, backup H the restore point (`docs/ACTIVITY_RESET.md` → The run); Module 13's sitting and Module 14's check before it (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 12 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36; Assignments since Module 11, §37), and **About is last on every
@@ -1461,10 +1461,10 @@ gate in full on its `POST /api/users/parents` row.
 | **HAZARD — `db:setup` drops schema `portal` of the database `PG_DATABASE` names**, on a loopback host only | `scripts/setup-db.js` | It never drops another database. Do not point `PG_DATABASE` at a database whose `portal` schema matters |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
-| **Ten `.sql` files on disk have no `backups` row** | `server/backups/` | They list as `engine: mysql` and the API cannot restore them. Do not delete them |
+| **Ten `.sql` files on the laptop have no `backups` row** | the laptop's `server/backups/` | They list there as `engine: mysql`, and the API cannot restore them. The VPS never held them. Do not delete them |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
-| **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
+| **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; rows from before the D-122 cutoff (2026-11-03 03:35) are gone from production; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Node 24.14.1 on Windows: `fetch` then `process.exit()` can abort at exit with the libuv `UV_HANDLE_CLOSING` assertion** (nodejs/node#56645) — added 2026-10-25 | every HTTP suite + `proof-backup-loop.js`; the SMS probe has two guards | Results print first, so no figure changes, but the exit code becomes 0xC0000409. Fixed in Node 24.20.0: upgrade this machine and the host (the owner's decision; then re-measure every baseline) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
 | **Profile photos' JPEG files are not members of a backup zip** | `server/uploads/avatars/` + `server/utils/backupArchive.js` | The zip is one CSV per table. A restore can point `users.profile_pic` at a file that is not on disk. Never auto-delete an orphan photo |
@@ -1474,18 +1474,19 @@ gate in full on its `POST /api/users/parents` row.
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
 | **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
 | **An attendance register open elsewhere can write a day's old mark back over an excuse decision** — added 2026-10-23 (`feat/excuse-attendance`; accepted, the owner's Q7) | both registers' Save (`entries`, every mark on screen) + `POST /attendance/bulk` | A second tab, another device, or a phone register holding unsaved marks (its focus re-read skips it). The day is then the adviser's mark, correctable; the letter stands. Fix: Save only the changed marks, its own dispatch |
-| **DO NOT select `activity_logs.description` into any response, page or export** — added 2026-10-23 (`feat/activity-log`, the owner's Q1) | `routes/activityLogs.js` + every `logActivity` template | Old rows keep old wording: an LRN in six templates until 2026-09-18 (291 rows), a login id in three until 2026-10-23; typed titles, names and setting values still. The Activity log shows the server's label (§36) |
+| **DO NOT select `activity_logs.description` into any response, page or export** — added 2026-10-23 (`feat/activity-log`, the owner's Q1) | `routes/activityLogs.js` + every `logActivity` template | Old rows keep old wording: an LRN in six templates until 2026-09-18 (291 rows, gone from production since the D-122 reset; F, G and older hold them), a login id in three until 2026-10-23; typed titles, names and setting values still. The Activity log shows the server's label (§36) |
 | **`activity_logs` has no index on `created_at`** — added 2026-10-23 (B2's survey) | `schema.sql` + `routes/activityLogs.js` | A page cost about 0.2 s at 29,000 rows; past about 0.5 s, `(created_at, id)` by its own migration |
 | **Admin → Backup & Restore shows times in the device's zone; the Activity log in Philippine time** — added 2026-10-23 (the owner's Q9.7) | `admin/BackupsPage.jsx` `formatWhen` | The same on the school's Philippine-time devices. No code change |
 | **Outside the excuse review, the archive, and the restore, a row-lock wait has no limit** | transactions other than `excuseAttendance.js` (50s), the archive (60s) and the restore (15s) | PostgreSQL waits. Reached only behind a stuck transaction |
 | **A request body over 100 KB is `500`** | `server.js` `express.json()` | The default limit. The generic error handler answers 500. Not remeasured in this docs pass |
-| **Measure the API host's clock against the database before every restore and every demo** | hosting | On 2026-10-25/26 the laptop was +2,906 ms, then synced to +1 ms. That figure is that measurement |
+| **Measure the API host's clock against the database before every restore and every demo** | the VPS (`deploy/README.md` section 2) | The +2,906 ms of 2026-10-25/26, then +1 ms, was the laptop's; no VPS figure is recorded |
 | **Supabase `statement_timeout` was 2 minutes on staging** | `migration/docs/09` §6 (2026-10-25/26) | Not remeasured in this docs pass. The API does not set it |
 | **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | 367 fictional accounts on production, two passwords by role (`demo:passwords`, which F3 joins; `DEMO_CONTACT_EMAIL` must be `SMTP_USER`). Once loaded, production has an adviser in every section; "3 of 23" and "20 of 23" stay true of `db:setup` |
 | **`test:class-record` prints fixture LRN-shaped values in an assertion label** — added 2026-11-03 (Module 14) | `scripts/test-class-record-flows.js:231` | Run-made and fictional. Read its totals, never its preview |
 | **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
 | **A backup older than F (`parents_portal_2026-11-03_044104.zip`) restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate pair and `JWT_SECRET`, not rotated until after Nov 4: `docs/KNOWN_ISSUES.md` |
-| **After the activity reset, a backup older than H brings the old rows back** — added 2026-11-03 (Module 15) | `docs/ACTIVITY_RESET.md` | F, G and older are rollback points only |
+| **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only H** — added 2026-11-03 (Module 15; in force since the reset, 22:20) | `docs/ACTIVITY_RESET.md` → The run | F, G and older are rollback points only |
+| **On the VPS, laptop-era backups list as "Missing from disk"; never copy one onto the VPS** — added 2026-11-04 (M16) | `routes/backups.js:183` | Every one is older than H. Full row: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
@@ -1692,37 +1693,27 @@ CLAUDE.md on 2026-10-10".
 Merged after the close, each device-checked, with their item pointers:
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
 
-**NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin`, `feat/account-create`
-with `feat/password-alert`, B1, B3, B8, B2, B7, `feat/sms-e2e-code-purge`
-and `feat/privacy-text` are MERGED, the last `3d1521b` (2026-10-25 — by the
-ref move from `6beae15`: the owner's draft-2 Data Privacy Notice and Terms of
-Use, both `draft-2`, every account accepting them once; gated after backup
-383, device-checked on the web, cleaned up by id after backup 389; the phone
-joins the D-67 phone pass); each one's check, cleanup and backup: its
-CHANGELOG row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
-2026-10-23". **Never read live contact or acceptance state while a suite or
-the smoke runs** — their helpers stamp, then put back (a finding withdrawn
-2026-10-25, KNOWN_ISSUES). **#3 (Marwin's parent) stays as the demo's
-first-sign-in account** — no confirmed contact, no acceptance. **Done since that order (2026-10-27):** the independent verification,
-Session A, Session B and Phase 3, the fix round, Phase L, and the
-PostgreSQL cutover. The porting list that stood here is verbatim in
-`docs/ARCHIVE.md` → "BUILD ORDER → NEXT, the PostgreSQL porting essay,
-moved 2026-10-28". The cutover record is `migration/docs/09` §8.
+**NEXT is done** — `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
+2026-11-04 (M16)". **Never read live contact or acceptance state while a
+suite or the smoke runs** (KNOWN_ISSUES). **#3 (Marwin's parent) stays as
+the demo's first-sign-in account** — no confirmed contact, no acceptance.
 
-**Remaining:** hosting on Friday 2026-10-30 (the Hostinger VPS, the
-domain, HTTPS; `deploy/` is on this tree). After those checks and a
-backup through the app, the D-122 activity-log reset by `npm run
-activity:reset` (D-175: the last write before Nov 4), then a new
-restore-point backup (`docs/ACTIVITY_RESET.md`). Learner transfer stays on
-hold until the professor asks (D-160). The manuscript delta list stays with
-the team.
+**Remaining, each its own module:** the phone moves to the domain (D-201);
+the UI changes; the SMSGate pair and `JWT_SECRET`, not rotated until after
+Nov 4 (KNOWN ISSUES). The learner transfer is off the list (D-230,
+2026-11-04). The manuscript delta list stays with the team. Done: hosting
+(`deploy/README.md` section 14) and the D-122 reset
+(`docs/ACTIVITY_RESET.md` → The run).
 
 ### Stage 6 — Integration
 
 - [ ] End-to-end testing across web and mobile
-- [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary. **The
-      demo API runs `npm start`, never `--watch`** (decided 2026-09-30)
-- [ ] Demo data and rehearsal — the load: `docs/DEMO_DATA.md` (Module 12)
+- [x] **Deployment: the Hostinger VPS** since 2026-10-30, the domain beside it
+      since 2026-11-03 (`deploy/README.md`). **The API never runs `--watch`**
+      (decided 2026-09-30; pm2 starts `server.js`, `deploy/pm2/`)
+- [x] Demo data and rehearsal — loaded on production: `docs/DEMO_DATA.md`
+      (Module 12); the rehearsal was the dry run of 2026-11-03. The Nov 4
+      school demo is done (2026-11-04)
 - [x] **The web in a phone's Chrome** — `feat/lan-web` (2026-10-01): `npm run
       dev:lan`, `CORS_ORIGIN` as a list, a blank `VITE_API_BASE_URL`. README.
 - [ ] **A standalone APK — READY PLAN, NOT BUILT:** `docs/APK_READY_PLAN.md`
@@ -1909,8 +1900,6 @@ questions.
   sticky cell needs its own background repainted on hover and on the
   emphasised row, or scrolled content shows through.
 - Adviser response to the 5 revision requests.
-- Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
-  Undecided; blocks the Figure 1 hardware requirements in the manuscript.
 - `users.email` UNIQUE — not added, deliberately (sibling parent accounts
   share one guardian email; one account per student is locked). If email
   login is ever built, scope uniqueness to `role IN ('teacher', 'admin')` —
@@ -1928,6 +1917,10 @@ questions.
 **Closed — one line each, full text in the same ARCHIVE block as the answered
 school questions:**
 
+- **2026-10-30** — the demo runs on the Hostinger VPS (`deploy/README.md`),
+  not localhost or Railway + Vercel + Cloudinary; Figure 1's hardware
+  requirements are the team's to write. The bullet as it stood: `docs/ARCHIVE.md`
+  → "Blocks moved from CLAUDE.md on 2026-11-04 (M16)". Do not re-ask.
 - **2026-10-03** — the report card's header, info row and legend moved to container units with feat/ui-refresh (`ReportCard.jsx:712–718`); nothing in it reads the viewport. Full text: `docs/ARCHIVE.md` → "Closed engineering bullet moved from CLAUDE.md on 2026-10-04". Do not re-ask.
 - **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
 - **2026-09-26** — `Manage Templates` (Figure 23, undefined in the manuscript; likely the grade weight display): not built, and the manuscript drops it. This line is its full text. Do not re-ask.

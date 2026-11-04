@@ -8250,3 +8250,50 @@ B8's, B2's, B7's and the privacy text's pre-check dumps,
 345, 348, 353, 355, 360, 363, 370, 377 and 383 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
+
+## Blocks moved from CLAUDE.md on 2026-11-04 (M16)
+
+Moved verbatim from `CLAUDE.md` under the REFILL RULE, after Module 15's run
+on production (`docs/ACTIVITY_RESET.md` → The run) and the Nov 4 school demo.
+`CLAUDE.md` keeps a pointer to this block in each place.
+
+BUILD ORDER → NEXT, finished, as it stood:
+
+> **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin`, `feat/account-create`
+> with `feat/password-alert`, B1, B3, B8, B2, B7, `feat/sms-e2e-code-purge`
+> and `feat/privacy-text` are MERGED, the last `3d1521b` (2026-10-25 — by the
+> ref move from `6beae15`: the owner's draft-2 Data Privacy Notice and Terms of
+> Use, both `draft-2`, every account accepting them once; gated after backup
+> 383, device-checked on the web, cleaned up by id after backup 389; the phone
+> joins the D-67 phone pass); each one's check, cleanup and backup: its
+> CHANGELOG row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
+> 2026-10-23". **Never read live contact or acceptance state while a suite or
+> the smoke runs** — their helpers stamp, then put back (a finding withdrawn
+> 2026-10-25, KNOWN_ISSUES). **#3 (Marwin's parent) stays as the demo's
+> first-sign-in account** — no confirmed contact, no acceptance. **Done since that order (2026-10-27):** the independent verification,
+> Session A, Session B and Phase 3, the fix round, Phase L, and the
+> PostgreSQL cutover. The porting list that stood here is verbatim in
+> `docs/ARCHIVE.md` → "BUILD ORDER → NEXT, the PostgreSQL porting essay,
+> moved 2026-10-28". The cutover record is `migration/docs/09` §8.
+
+BUILD ORDER → Remaining, as it stood:
+
+> **Remaining:** hosting on Friday 2026-10-30 (the Hostinger VPS, the
+> domain, HTTPS; `deploy/` is on this tree). After those checks and a
+> backup through the app, the D-122 activity-log reset by `npm run
+> activity:reset` (D-175: the last write before Nov 4), then a new
+> restore-point backup (`docs/ACTIVITY_RESET.md`). Learner transfer stays on
+> hold until the professor asks (D-160). The manuscript delta list stays with
+> the team.
+
+BUILD ORDER → Stage 6, the two items as they stood before they were ticked:
+
+> - [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary. **The
+>       demo API runs `npm start`, never `--watch`** (decided 2026-09-30)
+> - [ ] Demo data and rehearsal — the load: `docs/DEMO_DATA.md` (Module 12)
+
+OPEN QUESTIONS → Engineering, manuscript, and logistics, the bullet as it
+stood until it closed (the demo runs on the Hostinger VPS since 2026-10-30):
+
+> - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
+>   Undecided; blocks the Figure 1 hardware requirements in the manuscript.

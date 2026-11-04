@@ -42,7 +42,8 @@ suites were not run: the labels reach them through nothing, because only
 so no lint baseline or proof moved. **Not proved here:** the gate connects as the
 cluster's own superuser, as `test:demo-data --gate` does, so `portal_migrate`'s run is
 proved by `demo:clear-messages` on production, not by this gate; production's row
-counts and timing are unknown until row 6 of `docs/ACTIVITY_RESET.md`. Plain
+counts and timing are unknown until row 6 of `docs/ACTIVITY_RESET.md`.
+Production's run, 2026-11-03 22:20: `docs/ACTIVITY_RESET.md` → The run. Plain
 `test:demo-data` sets `PORTAL_DEMO_HOSTED` to a wrong value in one child, against a
 fictional host, and is refused before any connection; `test:activity-reset` sets
 neither flag and takes both out of every child. **For the next gate in a worktree:**

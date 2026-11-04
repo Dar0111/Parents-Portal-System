@@ -67,3 +67,12 @@ client/e2e/.env.e2e
 # 144 screenshots per run (36 URLs x 2 widths x 2 themes). Some show real
 # seeded names and the backup filenames on Admin -> Backup & Restore.
 client/e2e-out/
+
+# --- Local agent tool settings and handoff notes (never committed) ---
+# Untracked in the main checkout on 2026-11-03. Root only, exact names, so no
+# real doc is caught by a wildcard.
+/.agents/
+/.codex/
+/HANDOFF-CODEX.md
+/REFERENCE-DOCS-PASS-AND-P4.md
+/WORKLOG-SINCE-CLAUDE.md

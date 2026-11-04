@@ -11,23 +11,26 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-03: the VPS runs `main` `68b5ce9`; Module 13's sitting is done
-and Module 14 is deployed, its check on production passed.** `portal_app`,
+**Snapshot, 2026-11-04: the VPS runs `main` `31333c3` (Module 15, deployed 2026-11-03
+13:51), and the D-122 reset ran on production on 2026-11-03 at 22:20**
+(`docs/ACTIVITY_RESET.md` → The run). Backup H, `parents_portal_2026-11-03_222242.zip`,
+is the restore point: restore only H. Its hash is checked and its Drive copy made.
+`https://chfes-main-parents-portal.online` serves beside
+`https://srv2110222.hstgr.cloud`, and the phone stays on the second until its own
+module (D-201). The Nov 4 school demo is done (2026-11-04). `main` adds docs only
+after `31333c3`.
+
+**Previous snapshot, 2026-11-03: the VPS ran `main` `68b5ce9`; Module 13's sitting
+was done and Module 14 deployed, its check on production passed.** `portal_app`,
 `portal_migrate`, `SMTP_PASS` and the SMS
 passphrase are rotated, and `CORS_ORIGIN` lists `srv2110222` and the domain.
 `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` and `JWT_SECRET` stay as they are until after
 Nov 4 (`docs/KNOWN_ISSUES.md`). Users 2, 3, 4, 5, 6, 7 and 647 hold temporary
 passwords, and user 3 is kept for the Nov 4 first sign-in. Backup F,
-`parents_portal_2026-11-03_044104.zip`, is the restore point until Module 15; no
+`parents_portal_2026-11-03_044104.zip`, was the restore point until the reset; no
 older backup may be restored. Both the Data Privacy Notice and the Terms of Use are
 version 1.0, on no screen, so every account accepts once at its next sign-in. The
 phone stays on `https://srv2110222.hstgr.cloud` until after Nov 4.
-
-**Module 15 is merged to `main` and not yet deployed; the VPS stays on `68b5ce9`
-until the owner updates it.** `npm run activity:reset` is the D-122 reset by the
-procedure D-175 asks for, gated on loopback. The reset has not run. It is the last
-job after the Tuesday evening dry run, then backup H, the Nov 4 restore point
-(`docs/ACTIVITY_RESET.md`).
 
 **Previous snapshot, 2026-11-03: `main` was at `4463a52`, with Module 13's two tools
 merged.** Module 14 (the DO 72 sentence and F2) is on `feat/m14-do72-f2`, gated on
@@ -130,7 +133,7 @@ and only there.
 | 3 — Backend modules, all ten (Contributions removed 2026-09-13) | ✅ | — | — |
 | 4 — Web pages, all three roles | — | ✅ closed 2026-09-14 | — |
 | After Stage 4 — hardening, notifications, recovery, dashboards, data views, grades track, pre-Stage-5, polish, smoke gate | ✅ | ✅ closed 2026-09-26 | — |
-| 5 — Mobile (Expo) | — | — | ✅ every role's screens (Backup & Restore web only by design) |
+| 5 — Mobile (Expo) | — | — | ✅ every role's screens (three admin pages web only by design: Backup & Restore, the Activity log, Assignments & advisers) |
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
@@ -288,7 +291,7 @@ KNOWN_ISSUES, CLOSED; `main` fast-forwarded from `6beae15` by the ref move;
 the worktree `Parents_Portal-privacy-text` left detached at `a613e1a`). #3
 (Marwin's parent) stays as the demo's first-sign-in account — no confirmed
 contact, no acceptance.
-**Next, as of 2026-10-25 (history; done except the D-122 reset and hosting):**
+**Next, as of 2026-10-25 (history; all done):**
 (1) the independent verification; (2) then Session A's half of
 the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
 sync with `main` (its next sync carries the two `server/policy/` texts and
@@ -324,11 +327,12 @@ excuse review and enrolment stay adviser-only. An assignment also gives the
 teacher that class's existing read, learner-name edit, parent messaging and class
 announcement scope. It is web only.
 The badged-pages pass (`fix/f3-badges`) is merged.
-The PostgreSQL cutover landed 2026-10-27. Hosting is the Friday 2026-10-30
-check.
+The PostgreSQL cutover landed 2026-10-27. Hosting is live on the Hostinger VPS,
+with the domain beside it since 2026-11-03 (`deploy/README.md` section 14).
 
-Then Stage 6 (integration, the deployment decision, demo data and
-rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications
+Then Stage 6: end-to-end testing and the standalone APK
+(`docs/APK_READY_PLAN.md`); the deployment, the demo data and the rehearsal are
+done. Notifications
 on the phone are in-app over Socket.io only — there is no push (CLAUDE.md →
 BUILD ORDER → Stage 5).
 

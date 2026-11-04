@@ -1808,7 +1808,9 @@ Teacher → Grades used to default to whatever subject sorted first and load
 with a red *"Araling Panlipunan (not yours)"* error on a perfectly normal page
 visit. **A page must not open on an error.** An option the caller cannot
 encode is not disabled or annotated — **it is not in the list**, because a
-disabled option still asks the user to work out why. Subjects sort A–Z.
+disabled option still asks the user to work out why. Subjects come in the
+school's printed order, `GET /assignments`' own (`subjects.display_order`, CR3a,
+2026-09-22); the A–Z sort is gone and nothing re-sorts them.
 
 Grades 4-6 are **departmentalized** (the school, 2026-09-22): a teacher owns
 one subject across several sections, so Class is the second axis, not the
@@ -4537,7 +4539,9 @@ drawer hides it as it hides Backup & Restore. The endpoints:
   removal, an assignment), a setting's value (the school's email or phone), a
   login id (`create_teacher`, `update_user`, `update_user_status` until
   2026-10-23, when B2's commit 2 made them ids only) and an LRN (six writers
-  until 2026-09-18 — 291 rows can still hold one). Old rows keep old wording,
+  until 2026-09-18 — 291 rows could hold one until the D-122 reset of
+  2026-11-03 deleted them from production; F, G and older backups still hold
+  them). Old rows keep old wording,
   so no allowlist or mask could be trusted; the API names no description in
   any statement and an entry is exactly seven fields: `id`, `created_at`,
   `action`, `action_label`, `action_group`, `actor_name`, `actor_role`.
