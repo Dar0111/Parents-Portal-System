@@ -82,8 +82,9 @@ app.use(
 //
 // The 200 body KEEPS `success: true` and the same message: sixteen HTTP
 // suites preflight on `data.success`, and the smoke's `waitFor` polls this
-// URL for `res.ok`. The 503 path cannot be exercised by a suite without
-// stopping MySQL, and is stated as untested rather than faked.
+// URL for `res.ok`. The 503 path is tested: `test:pg-driver` §6
+// (scripts/test-pg-driver.js:263-287) starts this API with its database
+// unreachable and expects 503 "Database unreachable." here and on /auth/me.
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
