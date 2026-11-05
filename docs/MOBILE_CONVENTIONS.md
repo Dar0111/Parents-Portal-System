@@ -200,7 +200,9 @@ only; never the token, never a login id.
 
 `EXPO_PUBLIC_API_URL` in `mobile/.env` (gitignored by the root `.env` rule,
 proved with `git check-ignore` before the file existed) is the laptop's IPv4
-on the phone's hotspot plus `:5000/api`. Expo inlines it at bundle time —
+on the phone's hotspot plus `:5000/api` for a laptop API, and since
+2026-11-05 15:37 (D-246) the hosted `https://chfes-main-parents-portal.online/api`,
+which the phone uses now, with Metro still on the laptop. Expo inlines it at bundle time —
 **changing it means restarting `npx expo start`**. The socket origin is
 derived by stripping `/api`, never set separately.
 

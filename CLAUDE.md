@@ -106,7 +106,7 @@ behind is the rule and the pointer, nothing else.
 
 **PostgreSQL since the cutover of 2026-10-27 (D-157).** Where a sentence below still names MySQL, it is history. The cutover record is `migration/docs/09` §8. A golden master compares the ported API with the MySQL tree at the sync boundary, `main` `64200f7`, not an older base (`migration/docs/05_VALIDATION_MATRIX.md` §0g).
 
-**Last verified:** 2026-11-03, the VPS at `main` `31333c3` since 13:51 (Module 15, one `pm2 reload`; `main` adds after it only files the VPS neither runs nor serves: docs, `.gitignore`, `server/.env.example` and two test files), and the D-122 reset run on production at 22:20, backup H the restore point (`docs/ACTIVITY_RESET.md` → The run); Module 13's sitting and Module 14's check before it (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot and the merge before it: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-11-05 (M17)"; earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-11-03, the VPS at `main` `31333c3` since 13:51 (Module 15, one `pm2 reload`; `main` adds after it docs, `.gitignore`, `server/.env.example`, test files and M18's `utils/jwt.js` and `routes/students.js`, which the VPS runs from M18's run sheet, `deploy/README.md` section 13), the phone on the domain since 2026-11-05 15:37 (D-246), and the D-122 reset run on production at 22:20, backup H the restore point (`docs/ACTIVITY_RESET.md` → The run); Module 13's sitting and Module 14's check before it (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot and the merge before it: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-11-05 (M17)"; earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 12 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36; Assignments since Module 11, §37), and **About is last on every
@@ -203,7 +203,9 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 - **`routes/gradingModes.js` — the `grading_mode` wrapper is an OBJECT here
   and a STRING on the report card. Do not flatten either to match.**
 - **`utils/jwt.js` — with `NODE_ENV` production (trimmed, any case) a
-  missing, blank or default `JWT_SECRET` stops the API at load** (Module 10).
+  missing, blank or default `JWT_SECRET`, one starting with the old template's
+  `change-this-` prefix, or one under 32 characters stops the API at load**
+  (Module 10; M18).
   Outside production the fallback is unchanged; the unit suites need it.
 - **`routes/auth.js` — `fetchUserByLoginId` does not SELECT `s.lrn`.**
   `login_id` is the one LRN copy on the session (§5c).
@@ -1484,10 +1486,9 @@ gate in full on its `POST /api/users/parents` row.
 | **Demo data must be undone before a pilot with real records** — added 2026-10-31 (Module 12) | `docs/DEMO_DATA.md` + `npm run demo:undo` | 367 fictional accounts on production, two passwords by role (`demo:passwords`, which F3 joins; `DEMO_CONTACT_EMAIL` must be `SMTP_USER`). Once loaded, production has an adviser in every section; "3 of 23" and "20 of 23" stay true of `db:setup` |
 | **`test:class-record` prints fixture LRN-shaped values in an assertion label** — added 2026-11-03 (Module 14) | `scripts/test-class-record-flows.js:231` | Run-made and fictional. Read its totals, never its preview |
 | **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
-| **A backup older than F (`parents_portal_2026-11-03_044104.zip`) restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate pair and `JWT_SECRET`, not rotated until after Nov 4: `docs/KNOWN_ISSUES.md` |
+| **A backup older than F (`parents_portal_2026-11-03_044104.zip`) restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate pair, still not rotated: `docs/KNOWN_ISSUES.md` |
 | **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only H** — added 2026-11-03 (Module 15; in force since the reset, 22:20) | `docs/ACTIVITY_RESET.md` → The run | F, G and older are rollback points only |
 | **On the VPS, laptop-era backups list as "Missing from disk"; never copy one onto the VPS** — added 2026-11-04 (M16) | `routes/backups.js:183` | Every one is older than H. Full row: `docs/KNOWN_ISSUES.md` |
-| **`server/.env.example`'s old `change-this-…` `JWT_SECRET` placeholder passes the production check** — added 2026-11-05 (M16 fix round; open until the secrets module, D-137) | `server/utils/jwt.js:21` + `:24` | Production refuses a missing or blank secret and the development default, nothing else. The new template leaves it blank; the VPS `.env` is not the placeholder (the owner, 2026-11-05, key names only). Full row: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
@@ -1683,12 +1684,12 @@ Merged after the close, each device-checked, with their item pointers:
 suite or the smoke runs** (KNOWN_ISSUES). **#3 (Marwin's parent) stays as
 the demo's first-sign-in account** — no confirmed contact, no acceptance.
 
-**Remaining, each its own module:** the phone moves to the domain (D-201);
-the UI changes; the SMSGate pair and `JWT_SECRET`, not rotated until after
-Nov 4 (KNOWN ISSUES). The learner transfer is off the list (D-230,
-2026-11-04). The manuscript delta list stays with the team. Done: hosting
-(`deploy/README.md` section 14) and the D-122 reset
-(`docs/ACTIVITY_RESET.md` → The run).
+**Remaining, each its own module:** the UI changes; the SMSGate pair, not
+rotated (KNOWN ISSUES); `JWT_SECRET` is M18's run sheet (`deploy/README.md`
+section 13). The learner transfer is off the list (D-230, 2026-11-04). The
+manuscript delta list stays with the team. Done: hosting (`deploy/README.md`
+section 14), the D-122 reset (`docs/ACTIVITY_RESET.md` → The run) and the
+phone on the domain (D-246, 2026-11-05).
 
 ### Stage 6 — Integration
 

@@ -16,8 +16,8 @@ Technological College, IICT · Final defense expected around November 2026.
 (`docs/ACTIVITY_RESET.md` → The run). Backup H, `parents_portal_2026-11-03_222242.zip`,
 is the restore point: restore only H. Its hash is checked and its Drive copy made.
 `https://chfes-main-parents-portal.online` serves beside
-`https://srv2110222.hstgr.cloud`, and the phone stays on the second until its own
-module (D-201). The Nov 4 school demo is done (2026-11-04). `main` adds after
+`https://srv2110222.hstgr.cloud`, and the phone uses the domain since 2026-11-05
+15:37 (D-246). The Nov 4 school demo is done (2026-11-04). `main` adds after
 `31333c3` only files the VPS neither runs nor serves: docs, `.gitignore`,
 `server/.env.example` and two test files (M17).
 
@@ -25,7 +25,7 @@ module (D-201). The Nov 4 school demo is done (2026-11-04). `main` adds after
 was done and Module 14 deployed, its check on production passed.** `portal_app`,
 `portal_migrate`, `SMTP_PASS` and the SMS
 passphrase are rotated, and `CORS_ORIGIN` lists `srv2110222` and the domain.
-`SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` and `JWT_SECRET` stay as they are until after
+`SMS_GATEWAY_USER` and `SMS_GATEWAY_PASS` stay as they are; `JWT_SECRET` is rotated by M18, after
 Nov 4 (`docs/KNOWN_ISSUES.md`). Users 2, 3, 4, 5, 6, 7 and 647 hold temporary
 passwords, and user 3 is kept for the Nov 4 first sign-in. Backup F,
 `parents_portal_2026-11-03_044104.zip`, was the restore point until the reset; no

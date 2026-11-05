@@ -81,7 +81,8 @@ Open `server\.env` and fill it in from **`server/.env.example`, which lists
 every key the server reads** (copy that, not this README); the ones that must
 be set are `PG_PASSWORD` and `PG_MIGRATE_PASSWORD` (`server/config/db.js`, no
 default), `JWT_SECRET` (a long random string; `server/utils/jwt.js` stops a
-production API on a blank or default one), `PG_CA_FILE` for any `PG_HOST` that
+production API on a blank or default one, the old template's placeholder, or one
+under 32 characters), `PG_CA_FILE` for any `PG_HOST` that
 is not loopback, and `CORS_ORIGIN`, which must match the client's origin
 (default `http://localhost:3000`) because the Socket.io CORS is based on it
 too. `SMTP_*` is for the

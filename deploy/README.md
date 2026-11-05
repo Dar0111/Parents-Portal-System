@@ -366,8 +366,10 @@ over the VPS file:** the VPS file holds its own `PG_CA_FILE`, `CORS_ORIGIN`,
    ```
 
    Change these **four keys only**, leaving every other line exactly as it
-   arrived — in particular `JWT_SECRET`, which must stay byte-identical or
-   every existing session and every `login_attempts` key is orphaned at once:
+   arrived — in particular `JWT_SECRET`, which on hosting day had to stay
+   byte-identical or every existing session and every `login_attempts` key
+   would be orphaned at once. Since M18 the VPS has its own `JWT_SECRET` and the
+   laptop's differs, so never copy either file over the other:
 
    | Key | Value on the VPS |
    |---|---|
@@ -618,7 +620,7 @@ at the end of that file is history, not current deletion criteria.
 | Demo profile: perform the single authorized upload/deletion | Photo saves, displays and is deleted; existing 8 MB Nginx request limit accommodates the application's 5 MB photo cap. |
 | Recovery: perform the one email and one SMS delivery check listed above | Real delivery, not merely an identical accepted HTTP response; no password reset. |
 | Approved demo accounts: perform the single Socket.io message check | Recipient sees the message live; no second API splits live connections. |
-| Laptop `mobile/`: owner configures `EXPO_PUBLIC_API_URL=https://__DOMAIN__/api` privately, then runs `npx expo start --clear` and cold-starts Expo Go | Phone sign-in/acceptance for the three roles against hosted HTTPS, using the same authorized write budget across browser and phone. The phone stays on `https://srv2110222.hstgr.cloud/api` until its own module moves it to the domain (D-201). |
+| Laptop `mobile/`: owner configures `EXPO_PUBLIC_API_URL=https://__DOMAIN__/api` privately, then runs `npx expo start --clear` and cold-starts Expo Go | Phone sign-in/acceptance for the three roles against hosted HTTPS, using the same authorized write budget across browser and phone. Since 2026-11-05 15:37 the phone uses the domain (D-246). |
 
 Backups are per-host files with shared database rows. Friday's two backups
 must be created by the VPS app and verified on the VPS. During the professor's
@@ -774,7 +776,8 @@ The running API reads `server/.env` only when it starts, so the order is:
 2. Copy it again to a scratch file in that folder, mode 600, and set every key
    there. Nothing live changes yet.
 3. Run `--diff` on `server/.env` and the scratch file. The names must be exactly
-   the keys you meant to change. `JWT_SECRET` must never appear.
+   the keys you meant to change. `JWT_SECRET` appears only when you are
+   rotating it (its row below, M18).
 4. Change the other side of each credential, from the table below.
 5. `mv` the scratch file over `server/.env`, then one
    `pm2 reload parents-portal-api`, then `sleep 2`, then the health check.
@@ -789,9 +792,35 @@ in Git Bash, one key at a time (on 2026-11-03 it took four keys).
 |---|---|---|---|
 | `portal_app`, `portal_migrate` | `PG_PASSWORD`, `PG_MIGRATE_PASSWORD` | `PORTAL_APP_PASSWORD` and `PORTAL_MIGRATE_PASSWORD` in `supabase.env`, then `npm run roles:passwords -- --target staging` in `migration/`. The API fails from the role change until the reload | `/api/health` with `"db":"ok"`; `npm run demo:clear-messages`, without `--apply`, for `portal_migrate`, which is what a restore needs |
 | Gmail | `SMTP_PASS` | A new app password. The old one works until it is revoked, so revoke it after the proof | One real email code |
-| SMSGate | `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` | None yet: the app has no Cloud Server password control (found 2026-11-03), so the pair stays until after Nov 4 (`docs/KNOWN_ISSUES.md`) | One real text. `npm run sms:probe` does not prove these: `/health` may not need them |
+| SMSGate | `SMS_GATEWAY_USER`, `SMS_GATEWAY_PASS` | None: the app has no Cloud Server password control (found 2026-11-03), and M18 found no safe way in the repo either, so the pair stays (`docs/KNOWN_ISSUES.md`) | One real text. `npm run sms:probe` does not prove these: `/health` may not need them |
 | Passphrase | `SMS_ENCRYPTION_PASSPHRASE` | Settings → Encryption → Passphrase in the app | One real text. With a mismatch the server logs success and the app marks the message Failed |
 | Browser origin | `CORS_ORIGIN` | Nothing | `curl -sI -H "Origin: https://__DOMAIN__" https://__DOMAIN__/api/health` shows `access-control-allow-origin`. A same-origin sign-in proves nothing: `cors` leaves the header out and does not refuse the request |
+| Token signing (M18) | `JWT_SECRET` | Nothing: the API is the only side. Every web and phone session ends at the reload, and the sign-in limit's per-account counts start afresh. Generated on the VPS (below), never typed. The laptop gets its own fresh value, never this one: the one exception to "the same new values" above | A browser tab signed in before the reload lands on Login with "Your session has ended"; a fresh sign-in works |
+
+**`JWT_SECRET` is generated in place, never typed (M18).** With the scratch file
+`S` from step 2, in `/home/portal/Parents_Portal`:
+
+```
+node -e "const v=require('crypto').randomBytes(32).toString('hex');process.stdout.write(v+'\n'+v+'\n')" | bash deploy/env-set.sh S JWT_SECRET
+```
+
+The value goes from `node` through the pipe to `env-set.sh`'s two hidden reads: it
+is on no command line, in no shell history and never printed; the script prints
+two blank lines and `JWT_SECRET: set`. Since M18 a production API refuses a value
+under 32 characters, so check the line before the `mv` (it prints only counts and
+yes/no):
+
+```
+awk -F= '/^JWT_SECRET=/{n++; v=substr($0,index($0,"=")+1); sub(/\r$/,"",v)} END{print "lines " n ", length " length(v) ", hex " ((v ~ /^[0-9a-f]+$/)?"yes":"no")}' S
+```
+
+It must print `lines 1, length 64, hex yes`. The order is steps 1–5 above. Before
+the `mv`, also check, in `server/`, that the `utils/jwt.js` the reload will load
+accepts the scratch file; it prints `accepted` or `refused` and nothing else:
+
+```
+node -e "require('dotenv').config({path:process.argv[1],quiet:true}); try { require('./utils/jwt'); console.log('accepted') } catch { console.log('refused') }" S
+```
 
 **The `roles:passwords` verify can fail right after `ALTER ROLE`.** On 2026-11-03
 its check through the pooler failed twice with `password authentication failed`
@@ -826,7 +855,7 @@ unchanged, and `https://chfes-main-parents-portal.online`.
 | HTTPS | Its own Let's Encrypt lineage, for the apex and `www`. `certbot certificates`, as root, lists both lineages |
 | Redirects | `http` → `https`, and `www` → the apex |
 | `CORS_ORIGIN` | Both names, comma-separated, since Module 13 (section 13). `www` is never an origin: it only redirects |
-| The phone | Stays on `https://srv2110222.hstgr.cloud/api` until its own module moves it (D-201) |
+| The phone | On the domain since 2026-11-05 15:37 (D-246): `EXPO_PUBLIC_API_URL` in the laptop's `mobile/.env`, Metro from the laptop's checkout. `srv2110222` still serves the same API |
 
 Module 13's sitting proved the domain: `access-control-allow-origin` for it, then
 admin sign-in, the Activity log, Messages and socket.io on it, and a sign-in on
