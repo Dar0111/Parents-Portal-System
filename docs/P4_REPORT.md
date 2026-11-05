@@ -26,7 +26,8 @@ tested, how, and what was found; §10 and §12 record what remains.
 - **Part A** was carried out on 2026-10-30 by the owner and recorded by the planning chat, not
   in the repository (§2a). Two items Josh asked for are not recorded for that day: the private
   database-identity check and a `403` denial. Later owner operations add production evidence
-  (§2c).
+  (§2c), among them the first restore on production (backup H, 2026-11-05 23:34, D-259) — the
+  owner's operation, not a P4 test.
 - **Part B is complete.** Every area Josh named was tested on the disposable database, every
   result was read on a separate database connection, and the isolation was proved before any
   test ran (16 negative controls). **0 integrity failures.** The full regression (38 runs,
@@ -115,14 +116,45 @@ fingerprint is the one Part B's database has (§1), so Part B tested the product
 
 | When | What | Recorded in |
 |---|---|---|
-| 2026-11-03 03:35–04:41 | Module 13's sitting: credentials rotated in place, one `pm2 reload`; `/api/health` `db` ok from about 04:02; `CORS_ORIGIN` for the domain; admin sign-in, Activity log, Messages and socket.io 101 on the domain; a real Forgot-password email code at 04:11 | `docs/TESTING.md:155–172` |
-| 2026-11-03 05:12–05:22 | Module 14's check: consent, the DO 72 sentence, Grades labels, web and phone | `docs/TESTING.md:174–181` |
+| 2026-11-03 03:35–04:41 | Module 13's sitting: credentials rotated in place, one `pm2 reload`; `/api/health` `db` ok from about 04:02; `CORS_ORIGIN` for the domain; admin sign-in, Activity log, Messages and socket.io 101 on the domain; a real Forgot-password email code at 04:11 | `docs/TESTING.md:183–200` |
+| 2026-11-03 05:12–05:22 | Module 14's check: consent, the DO 72 sentence, Grades labels, web and phone | `docs/TESTING.md:202–209` |
 | 2026-11-03 22:20 | The D-122 activity reset: backup G before, H after; every other table's count equal | `docs/ACTIVITY_RESET.md:81–101` |
 | 2026-11-04 11:33–11:40 | Backup H's SHA-256 equal on the VPS and the laptop; `/api/health` on the domain `db` ok | `docs/ACTIVITY_RESET.md:96–98` |
-| 2026-11-05 15:37–15:43 | The phone on the domain (D-246): health 200, a parent's sign-in, Messages, Grades | `docs/TESTING.md:101–106` |
-| 2026-11-05 20:10–20:36 | M18: the VPS from `31333c3` to `3d2e7bb` (full hash confirmed), `JWT_SECRET` rotated, one reload; a session from before the reload sent to Login — a production `401` path; fresh sign-ins on both names and the phone; secrets mode 600 | `docs/TESTING.md:32–63` |
+| 2026-11-05 15:37–15:43 | The phone on the domain (D-246): health 200, a parent's sign-in, Messages, Grades | `docs/TESTING.md:129–134` |
+| 2026-11-05 20:10–20:36 | M18: the VPS from `31333c3` to `3d2e7bb` (full hash confirmed), `JWT_SECRET` rotated, one reload; a session from before the reload sent to Login — a production `401` path; fresh sign-ins on both names and the phone; secrets mode 600 | `docs/TESTING.md:60–91` |
 | 2026-11-05 22:47–22:49 | Four Ubuntu security updates as root (`apt`, `apt-utils`, `apt-transport-https`, `libapt-pkg6.0t64`: 2.8.3 → 2.8.4ubuntu0.1; `libsqlite3-0` deferred by phasing); no reboot required; health `"db":"ok"` on both names afterwards | the owner's record (answer 1 of D-261) |
-| 2026-11-06 (tonight) | The demo-writes cleanup, a restore of backup H through the app (D-259) — an owner operation, **not a P4 test** | **results not yet passed to this report; to be added before it goes to Josh** |
+| 2026-11-05 23:28 → 2026-11-06 00:00 | D-259: the Nov 4–5 demo's writes undone by **the first restore on production**, backup H through the app; restore point K made — **an owner operation on production, not a P4 test** (below) | the owner's record; `docs/CHANGELOG.md` and `docs/KNOWN_ISSUES.md`, 2026-11-06 (`main` `a04ba62`); `docs/ACTIVITY_RESET.md:104` |
+
+**D-259, step by step — an owner operation on production, not a P4 test** (Asia/Manila; the
+owner's record, passed to this report by the planning chat; recorded in `main` `a04ba62`):
+
+- **2026-11-05 23:28 — production read through the read-only Supabase connector (D-70):**
+  `transaction_read_only` on, `current_user` `supabase_read_only_user`; `users` 376 (H's
+  count); the counts of everything written since H.
+- **23:31 — the VPS pre-check:** health `"db":"ok"`; the zone Asia/Manila; the clock
+  synchronized, NTP active.
+- **23:34 — the restore:** backup H (`parents_portal_2026-11-03_222242.zip`, taken 2026-11-03
+  22:22:42) through Admin → Backup & Restore. The archive and schema checks passed; the safety
+  copy was made first (`pre_restore_2026-11-05_233431.zip`); one transaction; every session
+  ended — the tab went straight to Login: "Session invalidated by a database restore. Please
+  log in again."; the 122 activity-log rows recorded after H were rewound (the
+  `restore_backup` row's id 32262 − 32140).
+- **23:36 — an independent read-only re-check:** every counted table equal to H (`users` 376,
+  `students` 350, slots 1,390, scores 20,938, `grades` 4,701, `attendance` 3,500,
+  `notifications` 4, acceptances 50); nothing changed in place since H; no locked grade,
+  acknowledgement, message, auth code or inactive account; the protected fixture (student 1037,
+  parent 647) unchanged.
+- **23:37 — the account-state diff** showed only the two accounts expected (ids 2 and 6).
+- **23:41 — the new restore point K**, `parents_portal_2026-11-05_234112.zip` (id 405, 257,841
+  bytes); its SHA-256 equal on the VPS and on the laptop; kept privately on Drive. **Restore
+  only K** from now on (`docs/ACTIVITY_RESET.md:104`).
+- **Deleted:** J (403) and I (402) through the page at 23:45; the safety copy (404) on
+  2026-11-06 at 00:00 through `DELETE /api/backups/404` from the admin's session (`200`).
+
+What this shows, as production evidence beside Part B: the restore path behaved on the hosted
+system as Part B's B1 and `restore-e2e.js` predict — the checks first, the safety copy before
+any write, one transaction, the session cutoff, the activity rewind counted — and a read-only
+check on a separate connection found the data equal to the archive.
 
 ## 3. Part B — the isolation, proved first
 
@@ -281,10 +313,14 @@ Thresholds (the owner's answer 9): a result fails only past the configured timeo
   loaded an archive into a second disposable database; every table's content hash equal to the
   source's, the new cutoff row aside.
 
-**Production:** backups through the app on Oct 30 (§2a) and G and H around the D-122 reset; H's
-hash equal on the VPS and the laptop (§2c). No production restore was a P4 test (Part A forbids
-restore rehearsals). Tonight's restore of H (D-259) is an owner operation; its results are to be
-added to §2c.
+**Production (owner operations, not P4 tests; §2c):** backups through the app on Oct 30 (§2a),
+G and H around the D-122 reset, and K after D-259; H's and K's SHA-256 equal on the VPS and on
+the laptop. No production restore was a P4 test (Part A forbids restore rehearsals). **The first
+restore on production was the owner's, on 2026-11-05 at 23:34 (D-259):** backup H through
+Admin → Backup & Restore — the archive and schema checks passed, the safety copy was made first,
+one transaction, every session ended, the 122 activity rows after H rewound; an independent
+read-only re-check at 23:36 found every counted table equal to H and nothing changed in place.
+The restore point since is K (id 405).
 
 ## 10. Findings
 
@@ -407,22 +443,23 @@ unchanged.
   limit outside the excuse review, the archive and the restore (P1 measured its effect: health
   `503` after 10 s, full recovery on release); a request body over 100 KB answers `500`; a
   broken mailer or SMS gateway is invisible behind the uniform `202`; the API host's clock is
-  to be measured against the database before every restore and demo; the demo data, and the
-  Nov 4–5 demo's writes to real people's contacts and passwords, must be undone before a pilot;
-  the SMSGate pair is not rotated; only backup H may be restored (older ones bring back old
-  activity rows and old hashes); the single-admin recovery hazard; Node 24.14.1's
+  to be measured against the database before every restore and demo; the demo data must be
+  undone before a pilot (the Nov 4–5 demo's own writes were undone by D-259); the SMSGate pair
+  is not rotated; **restore only backup K (id 405)**, never an older archive
+  (`docs/ACTIVITY_RESET.md:104`); the restore result panel can be skipped by the tab going
+  straight to Login (a LOW row of 2026-11-06, seen in D-259); the single-admin recovery hazard;
+  Node 24.14.1's
   `UV_HANDLE_CLOSING` abort at exit on this laptop (not seen in any run of this report).
 
 ## 13. Recommended next actions
 
-1. Add tonight's D-259 results to §2c before this report goes to Josh.
-2. After the defense, a module for F-1 (the check under `FOR SHARE`), with C3 as its test, and
+1. After the defense, a module for F-1 (the check under `FOR SHARE`), with C3 as its test, and
    one for F-2 (`23505` as the repeat), with C1.
-3. Before a pilot: the demo undo and the hand check of the two kept accounts; the SMSGate pair;
-   confirm the admin's email (the single-admin hazard).
-4. Re-run `p4b-reconnect.js` against a staging project through the pooler, if a hosted test
+2. Before a pilot: the demo undo (`docs/DEMO_DATA.md`); the SMSGate pair; confirm the admin's
+   email (the single-admin hazard).
+3. Re-run `p4b-reconnect.js` against a staging project through the pooler, if a hosted test
    window is ever approved — it is the one connection path Part B could not reach.
-5. Record a production database-identity check and a `403` denial at the next owner check, so
+4. Record a production database-identity check and a `403` denial at the next owner check, so
    Part A's two unrecorded items are closed.
 
 ## 14. Acceptance (Josh's criteria)
@@ -435,7 +472,7 @@ unchanged.
 | Core workflows work | **met** | the regression and the sweep (§11); §2a and §2c on production |
 | Connection recovery behaves correctly | **met** | §8, the relay and a real cluster restart |
 | Important transactions stay consistent | **met, with F-1 and F-3 as limitations** | §6, §7, §10 |
-| Backup recoverability established | **met isolated; on production backups made and hashed, no P4 restore** | §9; D-259 pending |
+| Backup recoverability established | **met** — isolated by Part B; on production by the owner's restore of H on 2026-11-05 (D-259, an owner operation, not a P4 test): the checks passed, one transaction, the sessions ended, every counted table equal to H on an independent read-only re-check; the new restore point K made and hashed | §9, §2c |
 | No significant regression hidden by passing tests | **met** | §11, the controls and mutants |
 | Every remaining limitation documented | **met** | §10, §12, `docs/KNOWN_ISSUES.md` |
 
