@@ -29,6 +29,31 @@ child process only (`migration/scripts/staging-api.js` `--smoke` and
 Figures in the bullets below that name 2026-10-26 or `migration/docs/09` §5
 were measured then. This docs pass did not re-run them.
 
+**P4's findings fixed, 2026-11-06 02:33 → 02:51 (Asia/Manila), `feature/p4-findings` in the
+worktree `Parents_Portal-p4b` (from `main` `7b8bc0d`; the owner's PLAN APPROVED D-267), on the
+disposable `parents_portal_p4b`, under the same isolation as the paragraph below** — the
+launcher rebuilt outside the repository from `docs/P4_REPORT.md:178–181`, never committed;
+**`p4b-preflight.js` PREFLIGHT OK, `--controls` 16/16** before any suite. **Tests first:** on
+`6f1c8e5` (tests only, the code `3d2e7bb`'s) **`p4b-concurrency.js` 44/61** — C1 `201` + `500`,
+burst 1 × `201`, 8 × `200`, 1 × `500`; C3r and C3s `200` with locked values changed, C3m the
+same through the Summative maxima (F-1 reclassified HIGH); the save-first cases and C3d with
+the order unproved (the lock did not wait); C3x rounds 1 and 6 a locked value moved after the
+lock replied. **After `366e692` (F-1) and `c7c04c0` (F-2): `p4b-concurrency.js` 61/61, 0
+findings** — C2, C1 (staged and burst), C3, C3sf, C3mf, C3r, C3s, C3m, C3d, C3x (10 rounds) and
+P1, every staged order proved with `pg_blocking_pids`. **Its in-memory controls** (`serve-pg.js
+--mutant`, the files on disk unchanged): `no-class-row-lock` 34/48, `bulk-lock-without-of` 9/13
+(C3d's lock `500` with one `40P01`; C3x two deadlocks), `no-ack-on-conflict` 11/14 (C1 `201` +
+`500` again) — each FAILS as designed. `p4b-rollback.js` 35/35; `p4b-reconnect.js` 25/25 (N7 the
+same LOW finding, F-3). **The regression (R1), the 37 `test:*` aliases and
+`verify:grading-seed`, one at a time, each on a fresh `db:setup`, the API on 5010 for the 24 HTTP
+suites: 38 runs, 2,955 assertions, every figure at its baseline below, every exit 0** — with two
+documented conditions: `test:privacy` 85 with the seeded admin's contact stamped first on the
+disposable database (without it the run stops at its fixture teacher, `403`), and
+`test:activity-log` 98 with `CORS_ORIGIN` set. The SSR proofs that read `routes/grades.js`:
+`ssr-grade-locks` 34/34, `ssr-grade-acknowledgement` 38/38. No client or mobile file changed, so
+no browser sweep. Production was only READ, once: `grade_acknowledgements`' index and
+constraint definitions through the read-only connector, equal to the schema.
+
 **P4 Part B, 2026-11-05 23:40 → 2026-11-06 00:29 (Asia/Manila), `feature/p4-part-b` in the
 worktree `Parents_Portal-p4b` (`main` `b1ecb97` + test files only; the owner's D-261), on the
 disposable `parents_portal_p4b` on the loopback cluster, dropped at the end. The report:
@@ -38,7 +63,8 @@ disposable `parents_portal_p4b` on the loopback cluster, dropped at the end. The
 because from a sibling worktree `migration/lib/paths.js` resolves to the MAIN checkout's
 `server/.env`. **`p4b-preflight.js`: PREFLIGHT OK; `--controls` 16/16.** New proofs, each on a
 fresh `db:setup`, every result read on the observer's own READ ONLY connection (content hashes,
-sequences, sessions): **`p4b-concurrency.js` 19/19** (findings F-1 MEDIUM, F-2 LOW),
+sequences, sessions): **`p4b-concurrency.js` 19/19** (findings F-1 MEDIUM, F-2 LOW; **61/61
+since D-267**, the paragraph above),
 **`p4b-rollback.js` 35/35**, **`p4b-restore.js` 59/59**, **`p4b-reconnect.js` 25/25 and
 `--real-restart` 35/35** (finding F-3 LOW; the operator restarted the cluster when it waited).
 Existing: `restore-e2e.js` OK (the `no-running-log` mutant fails, 2 for 3);

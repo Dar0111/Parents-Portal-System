@@ -200,6 +200,10 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 - **`routes/grades.js` — the subject/student grade-level mismatch check runs
   AFTER the scope check on purpose. Do not reorder it:** an out-of-scope
   teacher must not learn a grade level by probing with a wrong `subject_id`.
+- **`routes/grades.js` — `PUT /class-record` locks its class's grade rows
+  `FOR UPDATE`, in id order, BEFORE every lock check; `POST /locks` reads them
+  in the same order `FOR UPDATE OF g`.** Do not move a check above the lock or
+  drop `OF g`: `p4b-concurrency.js` C3r/C3s and C3d prove both (D-267).
 - **`routes/gradingModes.js` — the `grading_mode` wrapper is an OBJECT here
   and a STRING on the report card. Do not flatten either to match.**
 - **`utils/jwt.js` — with `NODE_ENV` production (trimmed, any case) a
@@ -1490,7 +1494,7 @@ gate in full on its `POST /api/users/parents` row.
 | **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only K** — added 2026-11-03 (Module 15; in force since the reset, 22:20; K since 2026-11-05 23:41, D-259) | `docs/ACTIVITY_RESET.md` → The run | K is `parents_portal_2026-11-05_234112.zip`, made after H was restored to undo the Nov 4–5 demo. H, G and older are rollback points only |
 | **On the VPS, laptop-era backups list as "Missing from disk"; never copy one onto the VPS** — added 2026-11-04 (M16) | `routes/backups.js:183` | Every one is older than H. Full row: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
-| **Three P4 Part B findings, recorded, not fixed (none CRITICAL or HIGH)** — added 2026-11-06 | `routes/grades.js:1505`, `:2249`; any committing route | F-1 MEDIUM: an HPS change can land on a class locked mid-save (no locked grade value changes); F-2 LOW: a duplicate grade confirmation answers 500, one row; F-3 LOW: a lost COMMIT reply answers 500 though it committed. Tests: `docs/P4_REPORT.md` §10 |
+| **P4's F-3 stays open (LOW): a lost COMMIT reply answers 500 though it committed** — added 2026-11-06; F-1 (HIGH by its tests-only run) and F-2 fixed (D-267) | any committing route; `routes/excuses.js:508–553` | The review stands with no activity rows and no parent notification; the error text stays. Two LOW rows from D-267's survey: a confirmation racing an unlock; the four per-row grade writers. `docs/P4_REPORT.md` §15 |
 | **After a restore the result panel can be skipped: the tab goes straight to Login** — added 2026-11-06 (D-259; LOW) | `admin/BackupsPage.jsx:630–665` + `middleware/auth.js:48` | Another request answered `401` first, not traced. Nothing is lost: the safety copy is the newest `pre_restore_*` row, the result is in the Activity log. Full row: `docs/KNOWN_ISSUES.md` |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in

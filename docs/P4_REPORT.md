@@ -19,6 +19,9 @@ afterwards. Nothing in Part B touched production, and nothing in §2 is a Part B
 **This report is not a guarantee that future failures are impossible.** It records what was
 tested, how, and what was found; §10 and §12 record what remains.
 
+> **Addendum, 2026-11-06 (D-267): F-1 was found HIGH by the fix's tests-only run and fixed
+> with F-2; F-3 is unchanged. See §15.** The sections below are as dated.
+
 ---
 
 ## 0. Verdict and defense readiness
@@ -475,6 +478,36 @@ unchanged.
 | Backup recoverability established | **met** — isolated by Part B; on production by the owner's restore of H on 2026-11-05 (D-259, an owner operation, not a P4 test): the checks passed, one transaction, the sessions ended, every counted table equal to H on an independent read-only re-check; the new restore point K made and hashed | §9, §2c |
 | No significant regression hidden by passing tests | **met** | §11, the controls and mutants |
 | Every remaining limitation documented | **met** | §10, §12, `docs/KNOWN_ISSUES.md` |
+
+## 15. Addendum, 2026-11-06 — F-1 found HIGH and fixed, F-2 fixed, F-3 unchanged (D-267)
+
+The sections above are as dated; this records what followed, on the owner's PLAN APPROVED
+D-267 (branch `feature/p4-findings`, the worktree `Parents_Portal-p4b`, the same isolation as
+§3: a rebuilt launcher outside the repository, PREFLIGHT OK, controls 16/16, loopback only).
+
+- **Tests first.** `6f1c8e5` changed tests only: C1 and C3 became specifications, C3 was
+  re-staged in both orders for all three save paths, each order proved with
+  `pg_blocking_pids` before the release, and C3d and the C3x burst were added. On that commit
+  (the application code `3d2e7bb`'s) `p4b-concurrency.js` was **44/61**.
+- **F-1 is HIGH, not MEDIUM.** C3r and C3s (the lock first, holding the rows, then an HPS
+  change and a score) each answered `200` and changed locked grade values; C3m did the same
+  through the Summative maxima. §10's "no locked grade value changed" held only for the order
+  §7 staged. On Josh's Phase 5 scale a transaction-integrity defect is HIGH (the owner's Q1).
+- **F-1 fixed in `366e692`:** the class record takes its class's grade rows `FOR UPDATE`, in
+  id order, before any lock check; the bulk lock reads its rows in the same order and
+  `FOR UPDATE OF g`, so it no longer locks students rows (with them, C3d deadlocked: `40P01`).
+  §10's proposed `FOR SHARE` was not used: two saves of one class would deadlock on it.
+- **F-2 fixed in `c7c04c0`:** the confirmation inserts `ON CONFLICT (student_id, school_year,
+  term) DO NOTHING`; a second confirmation is the `200` repeat. Production's
+  `uq_grade_ack_term` was read through the read-only connector and matches the schema.
+- **After the fixes:** `p4b-concurrency.js` **61/61**; each fix's in-memory control fails
+  (`no-class-row-lock` 34/48, `bulk-lock-without-of` 9/13 with a `40P01`, `no-ack-on-conflict`
+  11/14); `p4b-rollback.js` 35/35; `p4b-reconnect.js` 25/25. The regression figures are in
+  `docs/TESTING.md`.
+- **F-3 stays a documented limitation** (the owner's Q3), its row now noting that a lost reply
+  also skips the review's activity rows and the parent's notification. Two new LOW rows from
+  the fix's survey are recorded, not fixed (`docs/KNOWN_ISSUES.md`, 2026-11-06).
+- **Not deployed by this addendum:** the VPS runs `3d2e7bb` until the owner's deploy.
 
 ---
 

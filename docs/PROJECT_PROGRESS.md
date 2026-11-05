@@ -19,11 +19,14 @@ and the restore's safety copy are deleted (`docs/CHANGELOG.md`). Data-gathering
 respondents use only pre-confirmed demo accounts (D-260); the demo data stays until
 the demo undo just before the pilot (`docs/DEMO_DATA.md`). The VPS has the four apt
 security updates of 2026-11-05. The SMSGate pair is not rotated. `main` adds after
-`3d2e7bb` docs only. **P4 Part B is done on a disposable local database, and the
-consolidated P4 report is `docs/P4_REPORT.md`, on `feature/p4-part-b`** (test files and
-docs only, nothing to deploy); the code it tested is `3d2e7bb`'s. Three findings are open
-as known limitations, none CRITICAL or HIGH (`docs/KNOWN_ISSUES.md`, 2026-11-06): F-1
-MEDIUM, F-2 and F-3 LOW.
+`3d2e7bb` docs and P4's test files only. **P4 is done; its report is `docs/P4_REPORT.md`.**
+**F-1 (reclassified HIGH by the fix's tests-only run) and F-2 are fixed on
+`feature/p4-findings` (D-267), gated on loopback, pushed, not merged, not deployed**:
+`PUT /api/grades/class-record` locks its class's grade rows before its lock checks,
+`POST /api/grades/locks` takes them in the same order, and a simultaneous confirmation
+is the `200` repeat. F-3 (LOW) stays a documented limitation, and two LOW rows from the
+fix's survey are recorded (`docs/KNOWN_ISSUES.md`, 2026-11-06). Until the deploy the VPS
+still has F-1 and F-2.
 
 **Previous snapshot, 2026-11-05: the VPS ran `main` `3d2e7bb` (M18, deployed 2026-11-05
 20:13: `JWT_SECRET` rotated in place, one `pm2 reload`; the laptop has its own value),
