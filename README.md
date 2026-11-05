@@ -56,7 +56,9 @@ Nine features ship. Feature 7 (Contributions/Fees) was built and
 ## What you need before running
 
 1. **Node.js** — [https://nodejs.org](https://nodejs.org) (LTS version)
-2. **MySQL Workbench** — for the database (`parents_portal`)
+2. **PostgreSQL** — a local (loopback) cluster for development and the suites;
+   this laptop's is on port 54329, database `parents_portal_pg`. The hosted app
+   runs on PostgreSQL on Supabase since 2026-10-27
 3. **CMD** or **PowerShell** — to run the servers and tests
 4. **The machine's clock: Asia/Manila.** The current term is taken from the
    server's date today — see `docs/SETUP_NOTES.md`
@@ -65,10 +67,12 @@ Nine features ship. Feature 7 (Contributions/Fees) was built and
 
 ## First-time setup (do this once)
 
-### Step 1 — Connect MySQL Workbench
+### Step 1 — A local PostgreSQL cluster
 
-- Open MySQL Workbench → connect to **localhost** (user: `root`)
-- Your MySQL server must be running before you run `npm run db:setup`
+- `npm run db:setup` runs only when `PG_HOST` is loopback, never against Supabase;
+  it creates the database `PG_DATABASE` names if it is missing
+- The cluster must be running, with its `portal_app` role, before you run
+  `npm run db:setup` (`migration/scripts/apply-schema.js` creates the role locally)
 
 ### Step 2 — Backend environment file
 
@@ -98,8 +102,7 @@ npm install
 npm run db:setup
 ```
 
-When it succeeds, Workbench shows the database **`parents_portal`** with
-**26 tables**.
+When it succeeds, schema **`portal`** of that database holds **26 tables**.
 
 > **`db:setup` is for a new machine only.** It wipes `activity_logs` and the
 > `backups` rows. On a database that already has data, a new seed row arrives
@@ -149,7 +152,7 @@ Open **http://localhost:3000**.
 > **Both must be running.** With only the backend, the pages are blank — all
 > the data comes from the API. With only the client, you cannot log in.
 > Quick check that the backend is alive: `curl http://localhost:5000/api/health`
-> — `"db":"ok"` when MySQL is up, `503` when it is not.
+> — `"db":"ok"` when the database answers, `503` when it does not.
 
 In dev, a `LiveStatus` strip ("Live updates paused") appears at the top of
 every page when the Socket.io connection is down — that is deliberate, so
@@ -296,17 +299,17 @@ are in `seed.sql`.
 ## Database
 
 ```
-parents_portal
+portal
 ```
 
-Shown in MySQL Workbench under **SCHEMAS** → `parents_portal`. **26 tables.**
+The PostgreSQL schema `portal` — locally in `parents_portal_pg`, hosted on
+Supabase. **26 tables.**
 
-Quick check in the Query tab:
+Quick check in `psql` or any PostgreSQL client, as `portal_app`:
 
 ```sql
-USE parents_portal;
-SELECT login_id, role, status, name FROM users;
-SELECT lrn, first_name, last_name, grade_level, section FROM students;
+SELECT login_id, role, status, name FROM portal.users;
+SELECT lrn, first_name, last_name, grade_level, section FROM portal.students;
 ```
 
 ---
@@ -379,10 +382,10 @@ Parents_Portal/
 │   ├── routes/      ← one file per module
 │   ├── utils/       ← shared helpers (scoping, rules, calendar, mailer, …)
 │   ├── middleware/  ← authenticate + authorize
-│   ├── config/      ← MySQL pool (with resetPool for restore)
+│   ├── config/      ← the PostgreSQL pool (`pg`; there is no resetPool)
 │   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, probe-sms-gateway, proof-backup-loop, every test:*
 │   ├── tmp/         ← the test transport's mail/SMS codes (gitignored)
-│   └── backups/     ← .sql dumps (gitignored) — this is the DB backup
+│   └── backups/     ← .zip archives, one CSV per table (gitignored) — this is the DB backup; a .sql there is MySQL-era
 ├── client/          ← React + Vite + Tailwind (port 3000)
 │   ├── src/         ← api, auth, components, format, layout, realtime, pages
 │   ├── scripts/     ← render proofs (ssr-*), lint:tokens, lint:contrast, smoke:isolated
@@ -454,8 +457,8 @@ so it is history only.)
 | Problem | What to do |
 |----------|-----------|
 | `ECONNREFUSED` in the client | The backend is not running. Terminal 1 → `npm run dev` |
-| `Access denied for user 'root'` | `DB_PASSWORD` in `server\.env` is wrong |
-| "Can't reach the school server" + `Database unreachable.` | MySQL is down. **You were not logged out** — start MySQL, then Try again |
+| `password authentication failed for user` | `PG_PASSWORD` (or, for `db:setup`, `PG_MIGRATE_PASSWORD`) in `server\.env` is wrong |
+| "Can't reach the school server" + `Database unreachable.` | The database is down (locally: the cluster is not running). **You were not logged out** — start it, then Try again |
 | Blank page, an error in the console | Open the browser console — that is where this kind of bug shows, not in the build |
 | A failing test that looks like an account/status issue | First check the Seeded baseline in `CLAUDE.md` and clean up what was left behind following the cleanup protocol (health → backup → delete through the API). **Never `db:setup`** on a database with real data |
 | The first test of `npm run smoke` is `ERR_CONNECTION_REFUSED` | The `--watch` API is restarting. Use `npm run smoke:isolated` |

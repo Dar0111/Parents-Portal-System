@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Web + mobile (React Native Expo) portal for parents, teachers, and the school principal (admin). Single REST API backed by MySQL. Real-time messaging via Socket.io (planned). Push notifications on Expo (planned).
+Web + mobile (React Native Expo) portal for parents, teachers, and the school principal (admin). Single REST API backed by PostgreSQL on Supabase (since 2026-10-27). Real-time messaging via Socket.io (planned). Push notifications on Expo (planned).
 
 **Build order:** Database → Auth → Backend → Web → Expo
 
@@ -34,7 +34,8 @@ Web + mobile (React Native Expo) portal for parents, teachers, and the school pr
 
 | Layer   | Technology |
 |---------|------------|
-| Backend | Node.js, Express, MySQL, JWT, bcrypt, Socket.io |
+| Backend | Node.js, Express, PostgreSQL on Supabase (`pg`; Singapore, `ap-southeast-1`), JWT, bcrypt, Socket.io |
+| Hosting | The API and the web build on the Hostinger VPS (Ubuntu 24.04), behind Nginx, the API run by PM2; two hostnames, `srv2110222.hstgr.cloud` and `chfes-main-parents-portal.online` (`deploy/README.md`) |
 | Web     | React, Tailwind CSS, Font Awesome |
 | Mobile  | React Native Expo (all roles) |
 
@@ -145,7 +146,7 @@ See `database/seed.sql` + `server/scripts/setup-db.js`.
 
 ```bash
 cd server
-cp .env.example .env    # configure MySQL + JWT_SECRET
+cp .env.example .env    # configure the PG_* keys + JWT_SECRET
 npm install
 npm run db:setup
 npm start

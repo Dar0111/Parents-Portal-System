@@ -126,7 +126,7 @@ and the updated `transfer-failures.js`.
 |---|---|
 | "HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>`…" | **`db:setup` drops the `portal` schema of the database `PG_DATABASE` names** (creating the database if it is missing), on a loopback host only; it never touches another database. Never point `PG_DATABASE` at a database whose `portal` schema matters |
 | The four "Restoring a backup taken before …" rows (Contributions, sms-transport, grade-acknowledgement, and the CR1 note in RESTORE) | One row: **a MySQL-era `.sql` backup is refused by the API (`409 MYSQL_ERA_BACKUP`)**; restoring one is the by-hand recovery procedure (`04` §2b), and those four hazards apply only there |
-| "Ten `.sql` files on disk have no `backups` row" | unchanged, plus: they list with `engine: mysql` and can never be restored through the API |
+| "Ten `.sql` files on disk have no `backups` row" | on the **laptop's** disk only (the VPS never held them), plus: they list with `engine: mysql` and can never be restored through the API — applied as `docs/KNOWN_ISSUES.md:132` |
 | "A truncated dump from the 2026-09-15 browser check is on disk as an orphan" | unchanged for the by-hand recovery procedure (check the footer before adopting any orphan); the API cannot restore it at all, and a new archive cannot be truncated silently — it is renamed from `.partial` only after `inspectArchive` read it back whole |
 
 ---

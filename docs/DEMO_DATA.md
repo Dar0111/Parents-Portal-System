@@ -173,7 +173,7 @@ Before a pilot with real data. Same terminal rules, no `DEMO_` values needed. Ta
 
 The undo finds its rows by three markers: the LRN prefix `999900`, the login prefix `DEMO-TCH-`, and the `system_settings` row `demo_load_v1`. That row holds what has no identity of its own (slots, added rows on kept teachers and learners) and the values to put back (20 advisers, contacts, names). It also deletes anything a demo teacher posted, with its notifications. A count that differs from before the load is named, not hidden: it is what happened during the demo.
 
-Backup A is the second way back, but a restore loses everything written since.
+The second way back is a restore, and the one backup to restore is K (`parents_portal_2026-11-05_234112.zip`, id 405; `docs/ACTIVITY_RESET.md:104`). Backup A is older than H, so it is a rollback point only. A restore loses everything written since.
 
 **The undo waits until just before the pilot** (D-259): the data gathering and the defense use the demo accounts. The Nov 4–5 demo's own writes were undone by restoring backup H, not by this undo.
 
