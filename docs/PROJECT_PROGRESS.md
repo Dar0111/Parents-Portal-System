@@ -11,7 +11,17 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-05: the VPS runs `main` `3d2e7bb` (M18, deployed 2026-11-05
+**Snapshot, 2026-11-06: the VPS runs `main` `3d2e7bb` (M18, deployed 2026-11-05
+20:13), and the Nov 4–5 demo's writes are undone: backup H was restored on
+2026-11-05 at 23:34 (D-259).** Backup K, `parents_portal_2026-11-05_234112.zip`, is
+the restore point: restore only K. Its hash is checked and its Drive copy made; I, J
+and the restore's safety copy are deleted (`docs/CHANGELOG.md`). Data-gathering
+respondents use only pre-confirmed demo accounts (D-260); the demo data stays until
+the demo undo just before the pilot (`docs/DEMO_DATA.md`). The VPS has the four apt
+security updates of 2026-11-05. The SMSGate pair is not rotated. `main` adds after
+`3d2e7bb` docs only.
+
+**Previous snapshot, 2026-11-05: the VPS ran `main` `3d2e7bb` (M18, deployed 2026-11-05
 20:13: `JWT_SECRET` rotated in place, one `pm2 reload`; the laptop has its own value),
 and the D-122 reset ran on production on 2026-11-03 at 22:20**
 (`docs/ACTIVITY_RESET.md` → The run). Backup H, `parents_portal_2026-11-03_222242.zip`,

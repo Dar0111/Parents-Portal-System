@@ -101,6 +101,8 @@ are listed.
 while downloading H. It is after the reset, so it is harmless; H stays the restore
 point.
 
+**2026-11-05, 23:34 (D-259):** H was restored to undo the Nov 4–5 demo's writes, and the restore rewound `activity_logs` (122 rows lost; its `restore_backup` and `restore_wiped_activity_logs` rows came after). **Backup K, `parents_portal_2026-11-05_234112.zip` (23:41), is the restore point since: restore only K.** I, J and the restore's safety copy are deleted (`docs/CHANGELOG.md`, 2026-11-06).
+
 ## The check
 
 B1–B6 run at row 10, so a failed check stops before a restore point exists. B3

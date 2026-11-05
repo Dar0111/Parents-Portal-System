@@ -23,6 +23,7 @@ Production's own counts come from the dry run, which prints the live figures. No
 - **30 learners** in one section per grade: Mabait, Masikap, Magiliw, Makatao, Masigasig, Malikhain. **10** in each of the other 17. Kept learners count towards the 30.
 - **Every name is fictional.** The kept learners with team members' names, and any guardian with a team surname, are renamed inside the load. LRNs, ids and login ids do not change, and the undo puts the names back.
 - **Term 1 complete. Term 2 partial:** every subject has two written works and one performance task, and the first half of the subjects in printed order also have a Summative, so the rest read `— Pending`. Term 3 is empty. Nothing is locked.
+- **A bulk lock with no grade or section reaches every section** (`server/routes/grades.js:2410–2417`), the browser-fixture learner's class included: on 2026-11-05 at 00:36 one lock took Term 1 in all 23 sections (2,350 rows, student 1037's included) and wrote 348 `grades_locked` notifications. Restoring backup H undid it (D-259).
 - **Attendance:** the ten class days 2026-10-19 → 2026-10-30, recorded by each section's adviser. A fixed window, so a re-run writes the same days.
 - **Added rows only.** A kept learner's existing grade is never updated, an attendance day already recorded wins, and a class that already has columns keeps them. Nino's Mathematics and Reading and Literacy are scored on their own two columns.
 
@@ -72,6 +73,8 @@ New accounts among them have no forced password change. All 14 use the one addre
 **`DEMO_CONTACT_EMAIL` must be the server's sending mailbox, `SMTP_USER`, character for character.** The load stores the value as confirmed and nothing checks that it exists: the value typed on 2026-11-01 was mistyped, and every reset code bounced (F3, `docs/KNOWN_ISSUES.md`).
 
 Everyone else goes through the normal first sign-in. No `policy_acceptances` row is written for anybody (the owner's Q6), so a pre-confirmed account still sees the consent step.
+
+**D-260 (2026-11-05): data-gathering respondents sign in only to pre-confirmed demo accounts**, so no first sign-in puts a real contact on production. The Nov 4–5 demo's first sign-ins did, and restoring backup H undid them (D-259, `docs/KNOWN_ISSUES.md`).
 
 ## The production run sheet
 
@@ -171,6 +174,8 @@ Before a pilot with real data. Same terminal rules, no `DEMO_` values needed. Ta
 The undo finds its rows by three markers: the LRN prefix `999900`, the login prefix `DEMO-TCH-`, and the `system_settings` row `demo_load_v1`. That row holds what has no identity of its own (slots, added rows on kept teachers and learners) and the values to put back (20 advisers, contacts, names). It also deletes anything a demo teacher posted, with its notifications. A count that differs from before the load is named, not hidden: it is what happened during the demo.
 
 Backup A is the second way back, but a restore loses everything written since.
+
+**The undo waits until just before the pilot** (D-259): the data gathering and the defense use the demo accounts. The Nov 4–5 demo's own writes were undone by restoring backup H, not by this undo.
 
 ## Darryl's check
 
