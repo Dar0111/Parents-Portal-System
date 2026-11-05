@@ -29,6 +29,39 @@ child process only (`migration/scripts/staging-api.js` `--smoke` and
 Figures in the bullets below that name 2026-10-26 or `migration/docs/09` §5
 were measured then. This docs pass did not re-run them.
 
+**M18's VPS run, 2026-11-05 20:10–20:36 (Asia/Manila), the owner's run on production
+from the run sheet (`deploy/README.md` section 13): PASS. No value was printed at any
+step; no agent ran it.** **V1, 20:10:** the VPS on `main` `31333c3`, clean; the fetch
+`31333c3..3d2e7bb`, `origin/main` = `3d2e7bb1ea183fbeb56760cfe51d34e93ea6503f`; 22 files,
+no `server/package-lock.json`, and under `client/` only `client/scripts/ssr-avatar.jsx`,
+so section 11's steps 9–10 were skipped; pm2 id 0; pm2's environment holds no
+`JWT_SECRET` (count 0); health `db` ok. **V2, 20:11–20:12:** the backup B and the scratch
+S in `/home/portal/secrets`, mode 600; the old value's length 64; `git merge --ff-only`
+`31333c3..3d2e7bb` (22 files), HEAD `3d2e7bb`, clean. **V3, 20:12–20:13:** the generator
+piped into `env-set.sh` printed `JWT_SECRET: set`; `lines 1, length 64, hex yes`;
+`changed yes`; `SMS_CHECK_PASSWORD` count 1, deleted by the `sed`, then 0; S
+`-rw-------`; `--diff` listed `JWT_SECRET` and `SMS_CHECK_PASSWORD` only. **V4, 20:13:**
+the preflight printed `accepted`; S moved over `server/.env` (`-rw-------`); one
+`pm2 reload`, online (its "Use --update-env to update environment variables" is
+harmless: pm2's environment holds no `JWT_SECRET`); health over IPv4 `db` ok on both
+hostnames. `curl -6` from the VPS answered "Could not resolve host" for both: expected
+for the domain, which has no AAAA record; for `srv2110222` it leaves the laptop's
+one-off `000` earlier that day unexplained (open, low priority). **The checks:** C1
+(about 20:17) the ADMIN001 tab left open went to Login with "Your session has ended.
+Please log in again."; C2 (20:17) ADMIN001 signed in and the Activity log opens; C3
+DEMO-TCH-024 on the domain, Messages without "Live updates paused"; C5 DEMO-TCH-024
+signed in on `srv2110222`; C4 (20:36) the Tecno, Expo Go with Metro from the main
+checkout at `3d2e7bb`, on the hotspot: a parent (Elena Kalinaw) signed in, the Dashboard
+loads, Messages without "Live updates paused", signed out. **20:24:** B shredded;
+`/home/portal/secrets` holds only `prod-ca-2021.crt`. **The laptop, Git Bash,
+20:25–20:26:** L2 its own fresh `JWT_SECRET` (`set`; `lines 1, length 64, hex yes`); L1
+`loopback no` (the laptop's `server/.env` points at the production database); L4
+`SMS_CHECK_PASSWORD` 1, then 0, and Git Bash's `sed -i` rewrote the file's line endings
+to LF (CR 28 → 0, LF 33 → 32; the file was already mixed); 23 keys; dotenv still loads
+`JWT_SECRET`, `PG_HOST`, `PG_PASSWORD`, `SMTP_PASS` and `SMS_GATEWAY_PASS`. The main
+checkout fast-forwarded `ddb8586..3d2e7bb` at 20:26. **Unchanged:** `client/e2e/.env.e2e`
+(the seeded default, M18's gate below) and the SMSGate pair (`docs/KNOWN_ISSUES.md`).
+
 **M18's gate, 2026-11-05, `ops/m18-secrets` (`utils/jwt.js`'s two production refusals
 and their test, a comment in `routes/students.js`; no client, mobile, schema or env
 file), run in the worktree `Parents_Portal-m18`, in `parents_portal_pg` on the loopback

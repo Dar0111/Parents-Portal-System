@@ -786,7 +786,10 @@ The running API reads `server/.env` only when it starts, so the order is:
 holds dead passwords. Delete the backup once the checks pass, with `shred -u`.
 
 **Then set the same new values in the laptop's `server\.env`** with `env-set.sh`
-in Git Bash, one key at a time (on 2026-11-03 it took four keys).
+in Git Bash, one key at a time (on 2026-11-03 it took four keys). A `sed -i` on
+that file in Git Bash rewrites its CRLF line endings to LF, which is harmless for
+dotenv: after M18's `SMS_CHECK_PASSWORD` delete on 2026-11-05 it still loaded every
+key checked.
 
 | Credential | Keys | The other side | What proves it |
 |---|---|---|---|

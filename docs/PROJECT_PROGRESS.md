@@ -11,15 +11,16 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-11-05: the VPS runs `main` `31333c3` (Module 15, deployed 2026-11-03
-13:51), and the D-122 reset ran on production on 2026-11-03 at 22:20**
+**Snapshot, 2026-11-05: the VPS runs `main` `3d2e7bb` (M18, deployed 2026-11-05
+20:13: `JWT_SECRET` rotated in place, one `pm2 reload`; the laptop has its own value),
+and the D-122 reset ran on production on 2026-11-03 at 22:20**
 (`docs/ACTIVITY_RESET.md` → The run). Backup H, `parents_portal_2026-11-03_222242.zip`,
 is the restore point: restore only H. Its hash is checked and its Drive copy made.
 `https://chfes-main-parents-portal.online` serves beside
 `https://srv2110222.hstgr.cloud`, and the phone uses the domain since 2026-11-05
-15:37 (D-246). The Nov 4 school demo is done (2026-11-04). `main` adds after
-`31333c3` only files the VPS neither runs nor serves: docs, `.gitignore`,
-`server/.env.example` and two test files (M17).
+15:37 (D-246). The Nov 4 school demo is done (2026-11-04); its writes stay on
+production until the demo undo (`docs/KNOWN_ISSUES.md`). The SMSGate pair is not
+rotated. `main` adds after `3d2e7bb` docs only.
 
 **Previous snapshot, 2026-11-03: the VPS ran `main` `68b5ce9`; Module 13's sitting
 was done and Module 14 deployed, its check on production passed.** `portal_app`,
