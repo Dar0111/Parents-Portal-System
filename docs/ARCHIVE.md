@@ -8303,3 +8303,34 @@ stood until it closed (the demo runs on the Hostinger VPS since 2026-10-30):
 CURRENT STATE → Last verified, the sentence as it stood:
 
 > The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382);
+
+## Moved from CLAUDE.md on 2026-11-05 (M18)
+
+Moved verbatim from `CLAUDE.md` under the REFILL RULE (a completed BUILD ORDER
+stage leaves permanently), as the M18 trim. `CLAUDE.md` keeps the heading and a
+pointer to this block. Both rules the block carried live elsewhere in `CLAUDE.md`:
+Excuse Letters under BLOCKED / RESOLVED, and "Why Stage 2 came before Stage 3"
+at the end of BUILD ORDER.
+
+BUILD ORDER → Stages 1–3, as it stood:
+
+> ### Stages 1–3 ✅ ALL CLOSED — one line each
+>
+> Full checkbox lists are verbatim in `docs/ARCHIVE.md` → BUILD ORDER (Stage 3
+> under the 2026-09-18 heading, Stages 1 and 2 under the 2026-09-22 third-trim
+> heading). Nothing here is outstanding.
+>
+> - [x] **Stage 1 — Foundation.** Schema, seed, auth backend, auth tests.
+> - [x] **Stage 2 — Auth frontend.** `client/` set up, the axios client with its
+>       JWT interceptor, Login, `ProtectedRoute`, three empty dashboards, the
+>       shared layout. Built before the other backend modules on purpose: one
+>       complete vertical slice beats ten invisible endpoints (see the pointer
+>       at the end of this section).
+> - [x] **Stage 3 — Backend modules, all ten.** Students · Sections ·
+>       Attendance (per day, adviser-scoped) · Announcements + Memos + Events
+>       (the Class Board needed zero new code) · **Excuse Letters — review is
+>       adviser-only, and since B8 it sets that day's attendance** (BLOCKED /
+>       RESOLVED) ·
+>       ~~Contributions, REMOVED 2026-09-13~~ · Messages + Socket.io · Settings ·
+>       User Management · Backup/Restore · **Grades, all nine stages** plus
+>       `DELETE /:id` and `GET /api/grading-modes`.

@@ -1608,26 +1608,10 @@ ready — do not let that arrive without these done.
 Work top to bottom. Do not jump ahead. Update the checkboxes in this file
 at the end of each session.
 
-### Stages 1–3 ✅ ALL CLOSED — one line each
+### Stages 1–3 ✅ ALL CLOSED
 
-Full checkbox lists are verbatim in `docs/ARCHIVE.md` → BUILD ORDER (Stage 3
-under the 2026-09-18 heading, Stages 1 and 2 under the 2026-09-22 third-trim
-heading). Nothing here is outstanding.
-
-- [x] **Stage 1 — Foundation.** Schema, seed, auth backend, auth tests.
-- [x] **Stage 2 — Auth frontend.** `client/` set up, the axios client with its
-      JWT interceptor, Login, `ProtectedRoute`, three empty dashboards, the
-      shared layout. Built before the other backend modules on purpose: one
-      complete vertical slice beats ten invisible endpoints (see the pointer
-      at the end of this section).
-- [x] **Stage 3 — Backend modules, all ten.** Students · Sections ·
-      Attendance (per day, adviser-scoped) · Announcements + Memos + Events
-      (the Class Board needed zero new code) · **Excuse Letters — review is
-      adviser-only, and since B8 it sets that day's attendance** (BLOCKED /
-      RESOLVED) ·
-      ~~Contributions, REMOVED 2026-09-13~~ · Messages + Socket.io · Settings ·
-      User Management · Backup/Restore · **Grades, all nine stages** plus
-      `DELETE /:id` and `GET /api/grading-modes`.
+Nothing here is outstanding. The checkbox lines, as they stood: `docs/ARCHIVE.md`
+→ "Moved from CLAUDE.md on 2026-11-05 (M18)".
 
 ### Stage 4 — Web pages
 
