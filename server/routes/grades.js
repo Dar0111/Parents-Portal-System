@@ -2270,6 +2270,16 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
       return ack ? { term: termNum, school_year: schoolYear, ...ack } : null;
     };
 
+    // The repeat's answer: absorbed, not refused (§5e), from the committed row.
+    const alreadyConfirmed = async () => {
+      const acknowledgement = await acknowledgementOf(pool);
+      return res.json({
+        success: true,
+        message: `Already confirmed on ${formatManilaDay(acknowledgement?.acknowledged_at)}. Nothing changed.`,
+        acknowledgement,
+      });
+    };
+
     conn = await pool.connect();
     await conn.beginTransaction();
 
@@ -2279,12 +2289,7 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
     );
     if (existingRows.length) {
       await conn.rollback();
-      const acknowledgement = await acknowledgementOf(pool);
-      return res.json({
-        success: true,
-        message: `Already confirmed on ${formatManilaDay(acknowledgement?.acknowledged_at)}. Nothing changed.`,
-        acknowledgement,
-      });
+      return alreadyConfirmed();
     }
 
     const state = await loadTermLockState(conn, {
@@ -2301,12 +2306,24 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
       });
     }
 
-    await conn.query('INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES (?, ?, ?, ?)', [
-      studentId,
-      schoolYear,
-      termNum,
-      req.user.id,
-    ]);
+    // TWO CONFIRMATIONS AT ONCE (F-2, D-267; p4b-concurrency.js C1). The FOR
+    // UPDATE above locks nothing while the row does not exist yet: PostgreSQL
+    // runs READ COMMITTED with no gap locks (MySQL's took one), the difference
+    // utils/excuseAttendance.js:73-85 handles for the review. So two requests
+    // can both reach this INSERT. The second waits on the first's key and,
+    // once that commits, inserts nothing: that is the repeat, answered as one
+    // (200), never the 500 its unique violation used to fall to. The conflict
+    // target is uq_grade_ack_term's own columns, in its order.
+    const { rows: inserted } = await conn.query(
+      `INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES (?, ?, ?, ?)
+       ON CONFLICT (student_id, school_year, term) DO NOTHING
+       RETURNING id`,
+      [studentId, schoolYear, termNum, req.user.id]
+    );
+    if (!inserted.length) {
+      await conn.rollback();
+      return alreadyConfirmed();
+    }
     const adviser = await excuseAdviserAudience(conn, studentId);
     const notified = await insertNotifications(conn, {
       type: 'grades_acknowledged',
