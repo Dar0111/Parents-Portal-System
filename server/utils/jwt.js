@@ -9,7 +9,17 @@ const jwt = require('jsonwebtoken');
 // (through routes/auth.js) before it listens, so the API never opens its
 // port. Outside production nothing changes — the unit suites load no .env
 // and rely on the fallback. No message ever carries a value.
+//
+// TWO MORE REFUSALS IN PRODUCTION (M18, D-137, 2026-11-05; the owner's
+// answer 1). A value that starts with the old server/.env.example's
+// placeholder prefix — the template carried it until M16, so a .env copied
+// from it unedited would sign tokens anyone with the repo could forge — and
+// a value shorter than 32 characters after trimming (HS256 wants a key at
+// least as long as its 256-bit hash). The PREFIX only: the placeholder's full
+// value is never written here, in a test or in a doc (KNOWN_ISSUES).
 const DEV_DEFAULT_SECRET = 'dev-secret-change-me';
+const TEMPLATE_PLACEHOLDER_PREFIX = 'change-this-';
+const MIN_SECRET_LENGTH = 32;
 
 function isProduction(env) {
   return String(env.NODE_ENV || '').trim().toLowerCase() === 'production';
@@ -23,6 +33,12 @@ function resolveJwtSecret(env = process.env) {
   }
   if (secret.trim() === DEV_DEFAULT_SECRET) {
     throw new Error('JWT_SECRET in server/.env is the public development default and NODE_ENV is production. The API will not start.');
+  }
+  if (secret.trim().toLowerCase().startsWith(TEMPLATE_PLACEHOLDER_PREFIX)) {
+    throw new Error('JWT_SECRET in server/.env is the old template placeholder and NODE_ENV is production. The API will not start.');
+  }
+  if (secret.trim().length < MIN_SECRET_LENGTH) {
+    throw new Error(`JWT_SECRET in server/.env is shorter than ${MIN_SECRET_LENGTH} characters and NODE_ENV is production. The API will not start.`);
   }
   return secret;
 }

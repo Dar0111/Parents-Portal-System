@@ -8,14 +8,20 @@
  * Proves, in BOTH modes:
  *   production (NODE_ENV trimmed, any case) — a missing, empty, blank or
  *   default JWT_SECRET throws a message naming the key and carrying no
- *   value; a real value is returned unchanged; loading utils/jwt.js in a
- *   child exits non-zero, and so does loading middleware/auth.js through
- *   test-auth-middleware.js, while with a real value both load and a token
- *   signs and verifies;
+ *   value; so, since M18 (D-137), does one that starts with the old
+ *   server/.env.example's placeholder prefix (trimmed, any case) or is
+ *   shorter than 32 characters after trimming; a real value is returned
+ *   unchanged; loading utils/jwt.js in a child exits non-zero, and so does
+ *   loading middleware/auth.js through test-auth-middleware.js, while with a
+ *   real value both load and a token signs and verifies;
  *   development (NODE_ENV unset, development, test) — the fallback is
- *   unchanged.
- * Negative control: the old resolver (`JWT_SECRET || default`) is caught by
- * the same production checks.
+ *   unchanged, and neither M18 check applies.
+ * Negative controls: the old resolver (`JWT_SECRET || default`) is caught by
+ * the same production checks, and Module 10's resolver (missing, blank,
+ * default) does not refuse a placeholder-shaped value, which A does.
+ *
+ * THE PLACEHOLDER'S FULL VALUE IS NEVER WRITTEN HERE (KNOWN_ISSUES): the
+ * cases use the prefix plus a filler of this file's own.
  *
  * Usage: npm run test:jwt-secret
  */
@@ -26,6 +32,14 @@ const { resolveJwtSecret, DEV_DEFAULT_SECRET } = require('../utils/jwt');
 const JWT_PATH = path.join(__dirname, '..', 'utils', 'jwt.js');
 const MIDDLEWARE_SUITE = path.join(__dirname, 'test-auth-middleware.js');
 const TEST_VALUE = 'module10-test-value-not-a-secret-0123456789';
+
+// M18's two requirements, stated here as the spec rather than imported, so a
+// change to utils/jwt.js cannot quietly move the bar the test holds it to.
+const PLACEHOLDER_PREFIX = 'change-this-';
+const MIN_LENGTH = 32;
+const PLACEHOLDER_SHAPED = `${PLACEHOLDER_PREFIX}m18-test-filler-not-the-old-value`;
+const SHORT_VALUE = 'm18-short-'.padEnd(MIN_LENGTH - 1, '0');
+const EXACT_MIN_VALUE = 'm18-exact-'.padEnd(MIN_LENGTH, '0');
 
 let passed = 0;
 let failed = 0;
@@ -89,6 +103,10 @@ function run() {
     ['blank', '   '],
     ['the public default', DEV_DEFAULT_SECRET],
     ['the default with spaces', `  ${DEV_DEFAULT_SECRET}  `],
+    ['the old template placeholder prefix (M18)', PLACEHOLDER_SHAPED],
+    ['the placeholder prefix with spaces (M18)', `  ${PLACEHOLDER_SHAPED}  `],
+    ['the placeholder prefix in capitals (M18)', PLACEHOLDER_SHAPED.toUpperCase()],
+    [`${MIN_LENGTH - 1} characters, one short of the minimum (M18)`, SHORT_VALUE],
   ]) {
     const env = { NODE_ENV: 'production' };
     if (value !== undefined) env.JWT_SECRET = value;
@@ -103,6 +121,18 @@ function run() {
     /public development default/.test(String((thrown(() => resolveJwtSecret({ NODE_ENV: 'production', JWT_SECRET: DEV_DEFAULT_SECRET })) || {}).message)),
     'the default → the "public development default" sentence'
   );
+  assert(
+    /old template placeholder/.test(String((thrown(() => resolveJwtSecret({ NODE_ENV: 'production', JWT_SECRET: PLACEHOLDER_SHAPED })) || {}).message)),
+    'the placeholder prefix → the "old template placeholder" sentence (M18)'
+  );
+  assert(
+    new RegExp(`shorter than ${MIN_LENGTH} characters`).test(String((thrown(() => resolveJwtSecret({ NODE_ENV: 'production', JWT_SECRET: SHORT_VALUE })) || {}).message)),
+    `a short value → the "shorter than ${MIN_LENGTH} characters" sentence (M18)`
+  );
+  assert(
+    resolveJwtSecret({ NODE_ENV: 'production', JWT_SECRET: EXACT_MIN_VALUE }) === EXACT_MIN_VALUE,
+    `exactly ${MIN_LENGTH} characters → returned unchanged (M18)`
+  );
   assert(resolveJwtSecret({ NODE_ENV: 'production', JWT_SECRET: TEST_VALUE }) === TEST_VALUE, 'a real value → returned unchanged');
   for (const mode of [' Production ', 'PRODUCTION', 'production\n']) {
     assert(refusal(thrown(() => resolveJwtSecret({ NODE_ENV: mode })), undefined), `NODE_ENV ${JSON.stringify(mode)} counts as production (trimmed, any case)`);
@@ -115,6 +145,10 @@ function run() {
   }
   assert(resolveJwtSecret({ NODE_ENV: 'development', JWT_SECRET: '' }) === DEV_DEFAULT_SECRET, 'development, empty → the fallback, as before');
   assert(resolveJwtSecret({ NODE_ENV: 'development', JWT_SECRET: TEST_VALUE }) === TEST_VALUE, 'development, a set value → used as is');
+  assert(
+    resolveJwtSecret({ NODE_ENV: 'development', JWT_SECRET: PLACEHOLDER_SHAPED }) === PLACEHOLDER_SHAPED,
+    'development, the placeholder prefix → used as is (the M18 checks are production only)'
+  );
 
   console.log('\nC. Loading utils/jwt.js in a child:');
   {
@@ -127,6 +161,14 @@ function run() {
     const r = loadJwt({ NODE_ENV: 'production', JWT_SECRET: DEV_DEFAULT_SECRET });
     assert(r.status !== 0 && r.status !== null, 'production, the default → the load exits non-zero', `status ${r.status}`);
     assert(r.stderr.includes('JWT_SECRET') && !r.stderr.includes(`'${DEV_DEFAULT_SECRET}'`), 'production, the default → stderr names the key, not the value');
+  }
+  {
+    const r = loadJwt({ NODE_ENV: 'production', JWT_SECRET: PLACEHOLDER_SHAPED });
+    assert(r.status !== 0 && r.status !== null, 'production, the placeholder prefix → the load exits non-zero (M18)', `status ${r.status}`);
+    assert(
+      r.stderr.includes('JWT_SECRET') && !r.stderr.includes(PLACEHOLDER_SHAPED) && !r.stdout.includes('ok'),
+      'production, the placeholder prefix → stderr names the key, not the value, and nothing was signed (M18)'
+    );
   }
   {
     const r = loadJwt({ NODE_ENV: 'production', JWT_SECRET: TEST_VALUE });
@@ -154,6 +196,19 @@ function run() {
   assert(
     !refusal(thrown(() => oldResolver({ NODE_ENV: 'production', JWT_SECRET: DEV_DEFAULT_SECRET })), DEV_DEFAULT_SECRET),
     'the old resolver, production + the default → NOT refused (A would catch it)'
+  );
+  // Module 10's resolver, as it stood before M18: missing, blank and the
+  // default only.
+  const module10Resolver = (env) => {
+    const secret = env.JWT_SECRET;
+    if (String(env.NODE_ENV || '').trim().toLowerCase() !== 'production') return secret || DEV_DEFAULT_SECRET;
+    if (typeof secret !== 'string' || secret.trim() === '') throw new Error('JWT_SECRET is missing and NODE_ENV is production.');
+    if (secret.trim() === DEV_DEFAULT_SECRET) throw new Error('JWT_SECRET is the public development default and NODE_ENV is production.');
+    return secret;
+  };
+  assert(
+    !refusal(thrown(() => module10Resolver({ NODE_ENV: 'production', JWT_SECRET: PLACEHOLDER_SHAPED })), PLACEHOLDER_SHAPED),
+    "Module 10's resolver, production + the placeholder prefix → NOT refused (A would catch it, M18)"
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
