@@ -7,6 +7,8 @@
 
 ## 1. Overview
 
+> Pre-build design text (2026-11-06); the built behaviour is in `CLAUDE.md:574` (messaging over Socket.io, built) and `CLAUDE.md:1676` (notifications in-app only, via Socket.io; no push).
+
 Web + mobile (React Native Expo) portal for parents, teachers, and the school principal (admin). Single REST API backed by PostgreSQL on Supabase (since 2026-10-27). Real-time messaging via Socket.io (planned). Push notifications on Expo (planned).
 
 **Build order:** Database → Auth → Backend → Web → Expo
@@ -26,7 +28,7 @@ Web + mobile (React Native Expo) portal for parents, teachers, and the school pr
 - Email + phone collected; login uses `login_id` only
 - Password change optional via profile
 
-**Example:** Same guardian (Ashley), two accounts — Marwin `13567454`, Jea `1234567`.
+**Example:** Same guardian (Ashley), two accounts — one logs in with Marwin's LRN, the other with Jea's.
 
 ---
 
@@ -55,6 +57,8 @@ Web + mobile (React Native Expo) portal for parents, teachers, and the school pr
 ---
 
 ## 5. Grading Rules
+
+> Pre-build design text (2026-11-06); the built behaviour is in `docs/GRADING_SPEC.md:534` (three terms), `docs/GRADING_SPEC.md:51` and `:230` (the weights; Grade 1's letter) and `CLAUDE.md:1395` (attendance per day, not per subject).
 
 - Quarters: Q1–Q4
 - **G1–G3 weights:** Quiz 30% · Activity 50% · Exam 20%
@@ -97,7 +101,7 @@ Admin creates teacher → status: active → teacher can login immediately
 {
   "id": 1,
   "role": "parent|teacher|admin",
-  "login_id": "13567454",
+  "login_id": "<the child's LRN>",
   "student_id": 1
 }
 ```
@@ -105,6 +109,8 @@ Admin creates teacher → status: active → teacher can login immediately
 ---
 
 ## 9. Database Schema
+
+> Pre-build design text (2026-11-06); the built schema is `migration/schema/001_portal_schema.sql:1` (PostgreSQL, schema `portal`; the table count is `CLAUDE.md:32`).
 
 See `database/schema.sql`. Tables:
 
@@ -135,10 +141,10 @@ See `database/seed.sql` + `server/scripts/setup-db.js`.
 
 | Account | Login ID | Password | Status |
 |---------|----------|----------|--------|
-| Admin | ADMIN001 | Admin@2026 | active |
-| Teacher | TCH-001 | Teacher@2026 | active |
-| Parent (Marwin) | 13567454 | Parent@2026 | active |
-| Parent (Jea) | 1234567 | Parent@2026 | pending |
+| Admin | ADMIN001 | the seeded default (set by the seed script, `server/scripts/setup-db.js`; never written in docs) | active |
+| Teacher | TCH-001 | the seeded default | active |
+| Parent (Marwin) | the child's LRN | the seeded default | active |
+| Parent (Jea) | the child's LRN | the seeded default | pending |
 
 ---
 
@@ -156,5 +162,7 @@ npm run test:auth       # in another terminal
 ---
 
 ## 12. Timeline
+
+> Pre-build design text (2026-11-06); September 7, 2026 was the proposal checkpoint, not the defense (`CLAUDE.md:33`), and the final defense is 2026-11-11 through 2026-11-13 (`AGENTS.md:58`).
 
 **Deadline:** September 7, 2026 | Solo developer
