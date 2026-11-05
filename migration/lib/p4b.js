@@ -25,7 +25,10 @@
 //               LRNs, held in memory and never printed; the seeded sign-ins
 //               are not used.
 //   API         spawnApi(): server/server.js in a child, refused unless the
-//               database is this run's and the port is 5010 or 5030.
+//               database is this run's and the port is 5010 or 5030; with
+//               `mutant`, serve-pg.js --mutant (one route changed in memory).
+//   LOCKS       apiBackends() / waitBlockedBy(): which API session waits on
+//               which (pg_blocking_pids), so a staged order is proved.
 //   RELAY       makeRelay(): a TCP relay in front of the cluster that can cut
 //               every connection, refuse new ones, and drop the reply to the
 //               next COMMIT.
@@ -529,19 +532,68 @@ async function waitingOnLock(c, app = 'parents-portal-api') {
   return rows[0].n;
 }
 
+// The API's sessions, each with whether it waits on a lock and WHICH sessions
+// block it (pg_blocking_pids). D-267, addition 3: a staged order is proved, not
+// assumed. The statement text is kept for matching only — never printed.
+async function apiBackends(c, app = 'parents-portal-api') {
+  const { rows } = await c.query(
+    `SELECT pid, coalesce(query, '') AS query, coalesce(wait_event_type, '') AS wait,
+            pg_catalog.pg_blocking_pids(pid) AS blockers
+       FROM pg_catalog.pg_stat_activity
+      WHERE datname = current_database() AND application_name = $1 AND backend_type = 'client backend'`,
+    [app]
+  );
+  return rows.map((r) => ({
+    pid: Number(r.pid),
+    query: r.query,
+    waiting: r.wait === 'Lock',
+    blockers: (r.blockers || []).map(Number),
+  }));
+}
+
+// Wait until one API session waits on a lock that `blockerPid` holds (not one
+// of `exclude`). { ok, pid, ms }: pid is the waiting session's.
+async function waitBlockedBy(c, blockerPid, { exclude = [], timeoutMs = 10000 } = {}) {
+  const r = await waitFor(
+    async () => {
+      const hit = (await apiBackends(c)).find(
+        (b) => b.waiting && b.blockers.includes(Number(blockerPid)) && !exclude.includes(b.pid)
+      );
+      return hit ? hit.pid : false;
+    },
+    { timeoutMs, intervalMs: 50 }
+  );
+  return { ok: r.ok, pid: r.ok ? r.value : null, ms: r.ms };
+}
+
 // ---------------------------------------------------------------------------
 // the API in a child process
 // ---------------------------------------------------------------------------
-function spawnApi({ port = 5010, pgPort = LOCAL_PG.port, env: extra = {} } = {}) {
+// `mutant` (D-267): the API through migration/scripts/serve-pg.js --mutant
+// <name>, which compiles ONE route file with one change made IN MEMORY (the
+// file on disk is never written) — the negative control for a fix. serve-pg
+// listens on 5010 only. `count(re)` counts the API's masked output lines that
+// match (the whole run, not only the 40-line tail).
+function spawnApi({ port = 5010, pgPort = LOCAL_PG.port, env: extra = {}, mutant = null } = {}) {
   const env = { ...process.env, ...extra, PORT: String(port), PG_PORT: String(pgPort) };
   if (!API_PORTS.has(port)) throw new Error('spawnApi: the API port must be 5010 or 5030');
   if (!LOOPBACK.has(String(env.PG_HOST))) throw new Error('spawnApi: PG_HOST is not loopback');
   if (!ALLOWED_DB.test(String(env.PG_DATABASE || ''))) throw new Error('spawnApi: not this run\'s database');
   if (!/p4b-net-guard\.js/.test(String(env.NODE_OPTIONS || ''))) throw new Error('spawnApi: the guard is not inherited');
-  const child = spawn(process.execPath, [path.join(SERVER, 'server.js')], { cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (mutant && port !== 5010) throw new Error('spawnApi: a mutant runs through serve-pg.js, which listens on 5010 only');
+  const entry = mutant
+    ? [path.join(ROOT, 'migration', 'scripts', 'serve-pg.js'), '--mutant', String(mutant)]
+    : [path.join(SERVER, 'server.js')];
+  const child = spawn(process.execPath, entry, { cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const tail = [];
+  const log = [];
   const take = (chunk) => {
-    for (const line of String(chunk).split(/\r?\n/)) if (line) tail.push(mask(line).slice(0, 300));
+    for (const line of String(chunk).split(/\r?\n/)) {
+      if (!line) continue;
+      const m = mask(line).slice(0, 300);
+      tail.push(m);
+      if (log.length < 20000) log.push(m);
+    }
     while (tail.length > 40) tail.shift();
   };
   let listening = false;
@@ -552,7 +604,16 @@ function spawnApi({ port = 5010, pgPort = LOCAL_PG.port, env: extra = {} } = {})
   child.stderr.on('data', take);
   const exited = new Promise((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
   const ready = waitFor(() => listening, { timeoutMs: 20000, intervalMs: 100 });
-  return { child, pid: child.pid, port, ready, exited, tail, alive: () => child.exitCode === null && child.signalCode === null };
+  return {
+    child,
+    pid: child.pid,
+    port,
+    ready,
+    exited,
+    tail,
+    count: (re) => log.filter((l) => re.test(l)).length,
+    alive: () => child.exitCode === null && child.signalCode === null,
+  };
 }
 
 async function killApi(api) {
@@ -717,6 +778,8 @@ module.exports = {
   sleep,
   waitFor,
   waitingOnLock,
+  apiBackends,
+  waitBlockedBy,
   spawnApi,
   killApi,
   makeRelay,
