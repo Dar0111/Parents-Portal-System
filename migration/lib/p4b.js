@@ -86,10 +86,17 @@ function say(text = '') {
   process.stdout.write(`${mask(text)}\n`);
 }
 
+// check()   an invariant the run depends on (integrity, isolation, cleanup):
+//           a FAIL makes the script exit 1.
+// expect()  the documented behaviour (API_REFERENCE, CLAUDE.md): when it does
+//           not hold it is a FINDING with a proposed severity, recorded and
+//           reported, and the script carries on (the owner's answer 5:
+//           CRITICAL / HIGH stop the module; MEDIUM / LOW are limitations).
 function makeChecks(name) {
   let passed = 0;
   let failed = 0;
   const results = [];
+  const findings = [];
   return {
     check(label, condition, detail) {
       const ok = Boolean(condition);
@@ -99,6 +106,14 @@ function makeChecks(name) {
       say(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail !== undefined ? ` — ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`);
       return ok;
     },
+    expect(label, condition, detail, severity = 'LOW') {
+      const ok = Boolean(condition);
+      results.push({ label, ok, spec: true, severity: ok ? null : severity });
+      if (!ok) findings.push({ label, severity, detail });
+      say(`  ${ok ? 'SPEC' : `FINDING(${severity})`}  ${label}${detail !== undefined ? ` — ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`);
+      return ok;
+    },
+    findings,
     note(label, value) {
       results.push({ label, note: value });
       say(`  info  ${label}: ${typeof value === 'string' ? value : JSON.stringify(value)}`);
@@ -108,8 +123,8 @@ function makeChecks(name) {
     },
     results,
     summary() {
-      say(`P4B ${name} ${failed ? 'FAIL' : 'OK'} ${passed}/${passed + failed}`);
-      return { name, passed, failed, results };
+      say(`P4B ${name} ${failed ? 'FAIL' : 'OK'} ${passed}/${passed + failed}; findings ${findings.length}${findings.length ? ` (${findings.map((f) => f.severity).join(', ')})` : ''}`);
+      return { name, passed, failed, results, findings };
     },
   };
 }
