@@ -19,7 +19,11 @@ and the restore's safety copy are deleted (`docs/CHANGELOG.md`). Data-gathering
 respondents use only pre-confirmed demo accounts (D-260); the demo data stays until
 the demo undo just before the pilot (`docs/DEMO_DATA.md`). The VPS has the four apt
 security updates of 2026-11-05. The SMSGate pair is not rotated. `main` adds after
-`3d2e7bb` docs only.
+`3d2e7bb` docs only. **P4 Part B is done on a disposable local database, and the
+consolidated P4 report is `docs/P4_REPORT.md`, on `feature/p4-part-b`** (test files and
+docs only, nothing to deploy); the code it tested is `3d2e7bb`'s. Three findings are open
+as known limitations, none CRITICAL or HIGH (`docs/KNOWN_ISSUES.md`, 2026-11-06): F-1
+MEDIUM, F-2 and F-3 LOW.
 
 **Previous snapshot, 2026-11-05: the VPS ran `main` `3d2e7bb` (M18, deployed 2026-11-05
 20:13: `JWT_SECRET` rotated in place, one `pm2 reload`; the laptop has its own value),

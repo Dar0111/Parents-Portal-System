@@ -1490,6 +1490,7 @@ gate in full on its `POST /api/users/parents` row.
 | **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only K** — added 2026-11-03 (Module 15; in force since the reset, 22:20; K since 2026-11-05 23:41, D-259) | `docs/ACTIVITY_RESET.md` → The run | K is `parents_portal_2026-11-05_234112.zip`, made after H was restored to undo the Nov 4–5 demo. H, G and older are rollback points only |
 | **On the VPS, laptop-era backups list as "Missing from disk"; never copy one onto the VPS** — added 2026-11-04 (M16) | `routes/backups.js:183` | Every one is older than H. Full row: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
+| **Three P4 Part B findings, recorded, not fixed (none CRITICAL or HIGH)** — added 2026-11-06 | `routes/grades.js:1505`, `:2249`; any committing route | F-1 MEDIUM: an HPS change can land on a class locked mid-save (no locked grade value changes); F-2 LOW: a duplicate grade confirmation answers 500, one row; F-3 LOW: a lost COMMIT reply answers 500 though it committed. Tests: `docs/P4_REPORT.md` §10 |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1694,6 +1695,8 @@ The run), the phone on the domain (D-246, 2026-11-05) and `JWT_SECRET`
 ### Stage 6 — Integration
 
 - [ ] End-to-end testing across web and mobile
+- [x] **P4, both parts:** `docs/P4_REPORT.md` (2026-11-06, `feature/p4-part-b`; Part B on a
+      disposable local database, `migration/scripts/p4b-*.js`)
 - [x] **Deployment: the Hostinger VPS** since 2026-10-30, the domain beside it
       since 2026-11-03 (`deploy/README.md`). **The API never runs `--watch`**
       (decided 2026-09-30; pm2 starts `server.js`, `deploy/pm2/`)

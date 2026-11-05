@@ -7,7 +7,8 @@
 //   node scripts/p4b-observe.js snapshot <label> [--compare <earlier.json>]
 //       Writes <DATA_DIR>/rehearsal/p4b_observe-<label>_<stamp>.json and prints
 //       the row counts, the sequence check and the sessions; with --compare,
-//       the tables that differ from the earlier snapshot.
+//       the tables that differ from the earlier snapshot. --database <name>
+//       observes the other of this run's two databases (the reconstruction).
 const fs = require('fs');
 const h = require('../lib/p4b');
 
@@ -19,7 +20,15 @@ async function main() {
     return;
   }
   h.assertIsolation();
-  const c = await h.superClient(process.env.PG_DATABASE, 'p4b-observer');
+  // --database: the other of this run's two databases (the reconstruction)
+  const dbAt = rest.indexOf('--database');
+  const database = dbAt >= 0 ? rest[dbAt + 1] : process.env.PG_DATABASE;
+  if (!h.ALLOWED_DB.test(String(database))) {
+    h.say('REFUSED: DATABASE_NOT_DISPOSABLE');
+    process.exitCode = 2;
+    return;
+  }
+  const c = await h.superClient(database, 'p4b-observer');
   let snap;
   try {
     snap = await h.observe(c, label);

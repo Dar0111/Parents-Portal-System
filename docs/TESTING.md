@@ -29,6 +29,34 @@ child process only (`migration/scripts/staging-api.js` `--smoke` and
 Figures in the bullets below that name 2026-10-26 or `migration/docs/09` §5
 were measured then. This docs pass did not re-run them.
 
+**P4 Part B, 2026-11-05 23:40 → 2026-11-06 00:29 (Asia/Manila), `feature/p4-part-b` in the
+worktree `Parents_Portal-p4b` (`main` `b1ecb97` + test files only; the owner's D-261), on the
+disposable `parents_portal_p4b` on the loopback cluster, dropped at the end. The report:
+`docs/P4_REPORT.md`.** Every node process under `migration/scripts/p4b-net-guard.js`
+(`NODE_OPTIONS=--require`: `test-loopback-guard.js` plus loopback ports 5000, 3000, 3306 and
+8081 refused); `MIGRATION_APP_TREE` the worktree and `MIGRATION_SOURCE_ENV` a missing file,
+because from a sibling worktree `migration/lib/paths.js` resolves to the MAIN checkout's
+`server/.env`. **`p4b-preflight.js`: PREFLIGHT OK; `--controls` 16/16.** New proofs, each on a
+fresh `db:setup`, every result read on the observer's own READ ONLY connection (content hashes,
+sequences, sessions): **`p4b-concurrency.js` 19/19** (findings F-1 MEDIUM, F-2 LOW),
+**`p4b-rollback.js` 35/35**, **`p4b-restore.js` 59/59**, **`p4b-reconnect.js` 25/25 and
+`--real-restart` 35/35** (finding F-3 LOW; the operator restarted the cluster when it waited).
+Existing: `restore-e2e.js` OK (the `no-running-log` mutant fails, 2 for 3);
+`restore-commit-drop.js` 3 of 3 OK (needs an empty table whose sequence is past 1: one
+announcement inserted and deleted first; `--mutant setval` fails); `backup-during-restore.js`
+OK (`--mutant no-lock` fails, 0 rows); `reconstruct-archive.js` write / verify / load into
+`parents_portal_p4b_reconstruct`, every content hash equal but the new cutoff. **The
+regression, all 37 `test:*` aliases and `verify:grading-seed`, one at a time, unfiltered
+(masked), each database suite on a fresh `db:setup`: 38 runs, 2,955 assertions, every figure at
+its baseline below, every exit 0, none ending 0xC0000409** — the first full run under the
+network preload. `login_attempts` again left above 0 by `test:auth` (4), `test:users` (2) and
+`test:recovery` (1). **The browser sweep, 20 passed (5.7 min),** through
+`migration/scripts/smoke-pg.js` (accounts derived in memory; the worktree has no
+`client/e2e/.env.e2e`) on the launcher's API 5010 and Vite 3010. Local cluster: PostgreSQL
+17.10, `portal_migrate` its superuser; its schema fingerprint equals backup H's. Node v24.14.1.
+Teardown: both databases dropped, `pg-local.js stop`, its node host stopped; no node or
+postgres process; 3010, 5010, 5030, 54329 closed; the main checkout clean at `b1ecb97`.
+
 **M18's VPS run, 2026-11-05 20:10–20:36 (Asia/Manila), the owner's run on production
 from the run sheet (`deploy/README.md` section 13): PASS. No value was printed at any
 step; no agent ran it.** **V1, 20:10:** the VPS on `main` `31333c3`, clean; the fetch
