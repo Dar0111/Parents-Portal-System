@@ -309,10 +309,11 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     //
     // ADMIN IS KEPT, deliberately. The school's "only the adviser, not the
     // admin" describes the process, and the client offers an admin no enrol
-    // form. But 20 of 23 sections have no adviser and no screen assigns one
-    // (KNOWN ISSUES) — an admin POST is the only way a learner reaches any
-    // of those sections, and the only way a test fixture does. Excluding
-    // admin here would make most of the school unenrollable.
+    // form. But a section has no adviser until an admin sets one on Admin →
+    // Assignments (Module 11, FRONTEND §37), and most have none after
+    // db:setup (CLAUDE.md → Seeded baseline) — an admin POST is the only way
+    // a learner reaches such a section, and the only way a test fixture
+    // does. Excluding admin here would make those sections unenrollable.
     if (req.user.role === 'teacher' && sectionRow.adviser_id !== req.user.id) {
       return res.status(403).json({
         success: false,
