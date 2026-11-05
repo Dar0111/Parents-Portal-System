@@ -8297,3 +8297,9 @@ stood until it closed (the demo runs on the Hostinger VPS since 2026-10-30):
 
 > - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
 >   Undecided; blocks the Figure 1 hardware requirements in the manuscript.
+
+## Moved from CLAUDE.md on 2026-11-05 (M17)
+
+CURRENT STATE → Last verified, the sentence as it stood:
+
+> The 2026-10-25 snapshot was `main` `3d1521b` (the post-merge docs) — `feat/privacy-text` merged fast-forward from `6beae15` by the ref move (five commits: the texts `c3d2330`, the docs `68b2137`, the gate `a613e1a`, the merge-ready docs `b9a28d4`, the withdrawn finding `3d1521b`): the owner's draft-2 notice and terms, gated after backup 383, device-checked 2026-10-25 on the web, cleaned up by id after backup 389; before it `6beae15`, the post-merge docs of `feat/sms-e2e-code-purge` (`5eb2127`: P-19 and the SMS end-to-end encryption, device-checked 2026-10-25, cleaned up by id after backup 382);

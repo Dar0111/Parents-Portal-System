@@ -160,6 +160,7 @@ async function main() {
     const c = await db.connect();
     const pid = (await c.query('SELECT pg_backend_pid() AS p')).rows[0].p;
     const sleeping = c.query('SELECT pg_sleep(5)');
+    sleeping.catch(() => {}); // handled from creation; the await below still gets the rejection (D-185)
     await sleep(400);
     await killer.query('SELECT pg_terminate_backend($1)', [pid]);
     let err = null;

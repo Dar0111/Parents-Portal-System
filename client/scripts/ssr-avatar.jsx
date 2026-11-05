@@ -22,6 +22,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Avatar, { PersonCell } from '../src/components/Avatar.jsx';
 import DataTable from '../src/components/DataTable.jsx';
 import { photoUrl } from '../src/format/photoUrl.js';
+import { API_BASE_URL } from '../src/api/apiBase.js';
 
 let passed = 0;
 let failed = 0;
@@ -61,7 +62,8 @@ assert(photoUrl(GOOD, '') === null && photoUrl(GOOD, undefined) === null, 'no ba
 console.log('\nAvatar:\n');
 const withPhoto = render(<Avatar name="Maria Santos" photo={GOOD} />);
 assert(/<img\b/.test(withPhoto), 'a good name renders an <img>');
-assert(withPhoto.includes(`src="http://localhost:5000/uploads/avatars/${GOOD}"`), 'CONTROL: its src is the built address (the name reaches the markup)');
+const expectedSrc = photoUrl(GOOD, API_BASE_URL);
+assert(expectedSrc !== null && withPhoto.includes(`src="${expectedSrc}"`), 'CONTROL: its src is the built address (the name reaches the markup)');
 assert(/alt=""/.test(withPhoto) && /aria-hidden="true"/.test(withPhoto), 'alt="" and aria-hidden — the name is beside it as text');
 assert(/rounded-full/.test(withPhoto) && /object-cover/.test(withPhoto), 'a round, cropped image');
 assert(!/>MS</.test(withPhoto), 'no initials when the photo shows');
