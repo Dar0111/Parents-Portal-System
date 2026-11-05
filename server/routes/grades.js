@@ -1479,6 +1479,33 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     conn = await pool.connect();
     await conn.beginTransaction();
 
+    // THE CLASS'S GRADE ROWS, LOCKED BEFORE ANY CHECK (F-1, D-267; P4 Part B).
+    // Every lock check below — the HPS freeze, the Summative fan-out's skip, a
+    // score's refusal and the recompute's is_locked = 0 — is a plain read, and a
+    // lock (bulk or single) that committed between that read and this save's
+    // write was not seen: the save then wrote over a locked learner, a locked
+    // VALUE included (migration/scripts/p4b-concurrency.js C3r, C3s, C3m).
+    // Taking every grade row of this class, subject, term and year FOR UPDATE
+    // first makes the two serial: a lock in progress is waited for and then
+    // seen (409, or the learner skipped), and a lock that comes later waits for
+    // this save and locks what it saved. Every existing row this save can write
+    // is in this set — the fan-out, the entries and the recompute stay inside
+    // the class, subject, term and year — and a row it creates is its own until
+    // it commits. ONE statement, in id order: POST /locks takes the same rows in
+    // the same order, so the two cannot deadlock. FOR UPDATE, not FOR SHARE: two
+    // saves of one class (a preview and a Save) would each share the rows and
+    // then wait on the other's share to write them. Learners of any status, as
+    // the HPS check below. A dry run takes them too, for its few milliseconds.
+    await conn.query(
+      `SELECT g.id
+         FROM grades g
+         JOIN students st ON st.id = g.student_id
+        WHERE st.grade_level = ? AND st.section = ? AND g.subject_id = ? AND g.term = ? AND g.school_year = ?
+        ORDER BY g.id
+          FOR UPDATE OF g`,
+      [key.gradeLevel, key.section, key.subjectId, key.term, key.schoolYear]
+    );
+
     // ---- slots: upsert, and guard the two HPS rules ----
     const existingSlots = await loadSlots(conn, key);
     const slotByKey = new Map(existingSlots.map((s) => [`${s.type}-${s.slot_no}`, s]));
@@ -2347,7 +2374,14 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
 //
 // Rows are read FOR UPDATE inside the transaction, so the counts the write
 // acts on are the counts it reports — a preview taken earlier can be stale,
-// and the screens show these numbers, not the preview's.
+// and the screens show these numbers, not the preview's. IN ID ORDER AND OF g
+// ONLY (D-267): PUT /class-record takes its class's grade rows the same way
+// before its checks, so the two serialize and cannot deadlock. Without OF the
+// lock also took FOR UPDATE on the students row of every grade row it held,
+// and a save's new grades row needs FOR KEY SHARE on that learner's students
+// row (its foreign key): the lock then held the learner while it waited for
+// the save, and the save waited for the lock (p4b-concurrency.js C3d, 40P01).
+// Nothing here needs a students row locked; the learners are a plain read.
 router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
   const { lock, term, grade_level: gradeLevelIn, section: sectionIn, dry_run: dryRunIn } = req.body || {};
 
@@ -2435,7 +2469,8 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
          FROM grades g
          JOIN students st ON st.id = g.student_id
         WHERE g.term = ? AND g.school_year = ? AND ${scopeSql}
-        ${dryRun ? '' : 'FOR UPDATE'}`,
+        ORDER BY g.id
+        ${dryRun ? '' : 'FOR UPDATE OF g'}`,
       [termNum, schoolYear, ...scopeParams]
     );
     const rowsByLearner = new Map();
