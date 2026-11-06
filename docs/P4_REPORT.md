@@ -508,6 +508,9 @@ D-267 (branch `feature/p4-findings`, the worktree `Parents_Portal-p4b`, the same
   also skips the review's activity rows and the parent's notification. Two new LOW rows from
   the fix's survey are recorded, not fixed (`docs/KNOWN_ISSUES.md`, 2026-11-06).
 - **Not deployed by this addendum:** the VPS runs `3d2e7bb` until the owner's deploy.
+- **Merged and deployed, 2026-11-06** (noted after Josh's review, 2026-11-06): `f2b75e4` was
+  merged to `main` at 06:09 and deployed to the VPS at 06:14, a fast-forward from `3d2e7bb`
+  (D-271, D-272). F-1's and F-2's fixes are live on production.
 
 ---
 
