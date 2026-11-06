@@ -49,6 +49,82 @@ function wholeNumberMessage(field, value) {
   return `${field} must be a whole number — the school does not award half points (got ${value}).`;
 }
 
+// WHAT THE COLUMNS CAN HOLD (D-273, the Nov 4 error). Every score, every
+// highest possible score and every value a recompute stores — the
+// percentages, the weighted parts, the Initial Grade and the term grade — is
+// numeric(5,2), and PostgreSQL refuses a value that ROUNDS to 1000 or more
+// (22003, "must round to an absolute value less than 10^3"). Until this, a
+// typed 1000, or a score ten times its HPS, reached the database and came
+// back as a 500.
+//
+// THIS IS THE COLUMNS' OWN LIMIT, NOT A CAP. A score above its HPS is still
+// allowed and never clamped (the school awards bonus points,
+// docs/GRADING_SPEC.md), and gradeComputation.js still clamps nothing: the
+// limit refuses only what the database would refuse anyway, as a 400 the
+// screens can show, before anything is written. 999.995 is PostgreSQL's own
+// rounding line, so 999.994 fits (it is stored as 999.99) and 999.995 does
+// not. A TYPED value is a whole number, so for a teacher the limit is 999.
+const COLUMN_LIMIT = 999.995;
+const MAX_TYPED_VALUE = 999;
+
+function fitsScoreColumn(value) {
+  return Math.abs(Number(value)) < COLUMN_LIMIT;
+}
+
+// One sentence in the class record's own words: "The score", "The highest
+// possible score of Written Work 2", "The ST1 highest possible score". No
+// dash of its own: the web's preview strip already prints "Live totals are
+// out of date —" before it.
+function typedLimitMessage(what, value) {
+  return `${what} must be ${MAX_TYPED_VALUE} or less (you entered ${value}).`;
+}
+
+// The Summative fields as the grid names them: ST1 / ST2 / TE, and
+// "highest possible score" for a maximum (ClassRecordPage.jsx's header).
+function examFieldLabel(field) {
+  const [part, kind] = String(field).split('_');
+  return kind === 'max' ? `The ${part.toUpperCase()} highest possible score` : `The ${part.toUpperCase()} score`;
+}
+
+// The values recomputeGrade stores, in the order they are checked, named as
+// the class record shows them. A percentage is checked before what is
+// derived from it, so the sentence names the cause: the weighted parts, the
+// Initial Grade and the term grade cannot pass 1000 unless a percentage has
+// (the weights sum to 100).
+const COMPUTED_VALUES = [
+  ['ww_percentage', 'Written Work', '%'],
+  ['pt_percentage', 'Performance Task', '%'],
+  ['ex_percentage', 'Summative', '%'],
+  ['ww_weighted', 'WW WS', ''],
+  ['pt_weighted', 'PT WS', ''],
+  ['ex_weighted', 'ST WS', ''],
+  ['initial_grade', 'The Initial grade', ''],
+  ['term_grade', 'The Term grade', ''],
+];
+
+// Thrown by recomputeGrade, inside a transaction, BEFORE its UPDATE; each of
+// the five handlers that recompute rolls back and answers it with a 400 and
+// this message, never a 500 and never a log line (it is a refusal, not a
+// fault).
+class GradeRangeError extends Error {
+  constructor({ label, unit, value, learner }) {
+    super(
+      `${label} for ${learner} would be ${Number(value).toFixed(2)}${unit}, more than the class record can hold. Check the scores and the HPS.`
+    );
+    this.name = 'GradeRangeError';
+  }
+}
+
+// `values` is keyed by the column names above. Returns the first value that
+// does not fit, or null. A null value (not yet computable) always fits.
+function firstComputedOverflow(values) {
+  for (const [key, label, unit] of COMPUTED_VALUES) {
+    const value = values[key];
+    if (value !== null && value !== undefined && !fitsScoreColumn(value)) return { key, label, unit, value };
+  }
+  return null;
+}
+
 // A slot's display name: what the grid header and the parent breakdown
 // modal show. Resolved HERE, on the server, and never in a renderer —
 // two clients will read it (the web grid now, Expo later) and a fallback
@@ -81,4 +157,15 @@ function normalizeSlotName(name) {
   return { value: trimmed };
 }
 
-module.exports = { isWholeNumber, wholeNumberMessage, slotDisplayLabel, normalizeSlotName };
+module.exports = {
+  isWholeNumber,
+  wholeNumberMessage,
+  slotDisplayLabel,
+  normalizeSlotName,
+  MAX_TYPED_VALUE,
+  fitsScoreColumn,
+  typedLimitMessage,
+  examFieldLabel,
+  GradeRangeError,
+  firstComputedOverflow,
+};

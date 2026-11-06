@@ -17,6 +17,11 @@ const {
   wholeNumberMessage,
   slotDisplayLabel,
   normalizeSlotName,
+  fitsScoreColumn,
+  typedLimitMessage,
+  examFieldLabel,
+  GradeRangeError,
+  firstComputedOverflow,
 } = require('../utils/validateScore');
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
@@ -398,7 +403,7 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
   // exactly as they always did.
   const {
     rows: [classRow],
-  } = await conn.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [
+  } = await conn.query('SELECT grade_level, section, first_name, last_name FROM students WHERE id = ? LIMIT 1', [
     grade.student_id,
   ]);
   let requiredWw = [];
@@ -472,6 +477,31 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
   }
   if (!isDescriptive && descriptiveGrade !== null) {
     throw new Error(`recomputeGrade: refusing to write descriptive_grade on a numerical row (grade #${gradeId}).`);
+  }
+
+  // WHAT THE COLUMNS CAN HOLD (D-273). Every value below is numeric(5,2) and
+  // PostgreSQL refuses one that rounds to 1000 or more: a score ten times its
+  // HPS, or an HPS lowered under stored scores, used to reach the UPDATE and
+  // come back as a 500. Checked here, before the write, never clamped
+  // (gradeComputation.js clamps nothing); each of the five handlers that call
+  // this rolls back and answers the GradeRangeError with a 400.
+  const overflow = firstComputedOverflow({
+    ww_percentage: wwPercentage,
+    pt_percentage: ptPercentage,
+    ex_percentage: exPercentage,
+    ww_weighted: wwWeighted,
+    pt_weighted: ptWeighted,
+    ex_weighted: exWeighted,
+    initial_grade: ig,
+    term_grade: termGrade,
+  });
+  if (overflow) {
+    throw new GradeRangeError({
+      label: overflow.label,
+      unit: overflow.unit,
+      value: overflow.value,
+      learner: classRow ? `${classRow.first_name} ${classRow.last_name}` : 'this learner',
+    });
   }
 
   await conn.query(
@@ -1359,6 +1389,10 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       if (!isWholeNumber(value)) {
         return res.status(400).json({ success: false, message: wholeNumberMessage(`${part}_max`, value) });
       }
+      // What the columns can hold (D-273): utils/validateScore.js.
+      if (!fitsScoreColumn(value)) {
+        return res.status(400).json({ success: false, message: typedLimitMessage(examFieldLabel(`${part}_max`), value) });
+      }
     }
   }
 
@@ -1383,6 +1417,15 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
         return res
           .status(400)
           .json({ success: false, message: wholeNumberMessage(`${slot.type} ${slotNo} max_score`, slot.max_score) });
+      }
+      if (!fitsScoreColumn(slot.max_score)) {
+        return res.status(400).json({
+          success: false,
+          message: typedLimitMessage(
+            `The highest possible score of ${slotDisplayLabel(slot.type, slotNo, named.value)}`,
+            slot.max_score
+          ),
+        });
       }
     }
   }
@@ -1421,6 +1464,9 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       if (!isWholeNumber(item.score)) {
         return res.status(400).json({ success: false, message: wholeNumberMessage('score', item.score) });
       }
+      if (!fitsScoreColumn(item.score)) {
+        return res.status(400).json({ success: false, message: typedLimitMessage('The score', item.score) });
+      }
     }
 
     for (const field of ['st1_score', 'st1_max', 'st2_score', 'st2_max', 'te_score', 'te_max']) {
@@ -1435,6 +1481,9 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       }
       if (!isWholeNumber(value)) {
         return res.status(400).json({ success: false, message: wholeNumberMessage(field, value) });
+      }
+      if (!fitsScoreColumn(value)) {
+        return res.status(400).json({ success: false, message: typedLimitMessage(examFieldLabel(field), value) });
       }
     }
   }
@@ -1948,6 +1997,11 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
         // rollback failure is reported by the 500 below; swallowing it here
         // keeps the original error as the one the caller sees.
       }
+    }
+    // A computed value the columns cannot hold (D-273): a refusal, not a
+    // fault, so a 400 with recomputeGrade's sentence and no log line.
+    if (error instanceof GradeRangeError) {
+      return res.status(400).json({ success: false, message: error.message });
     }
     console.error('Save class record error:', error);
     return res.status(500).json({ success: false, message: 'Failed to save the class record.' });
@@ -3091,11 +3145,17 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
   if (!isWholeNumber(score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('score', score) });
   }
+  if (!fitsScoreColumn(score)) {
+    return res.status(400).json({ success: false, message: typedLimitMessage('The score', score) });
+  }
   if (!isValidMax(max_score)) {
     return res.status(400).json({ success: false, message: 'max_score must be greater than 0.' });
   }
   if (!isWholeNumber(max_score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
+  }
+  if (!fitsScoreColumn(max_score)) {
+    return res.status(400).json({ success: false, message: typedLimitMessage('The highest possible score', max_score) });
   }
   // `label` is now OPTIONAL and the column is nullable (CR1). A slot-backed
   // row leaves it NULL and renders the slot's display_label instead; it used
@@ -3168,6 +3228,9 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
         // ignore rollback failure — connection is being released regardless
       }
     }
+    if (error instanceof GradeRangeError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Add grade component error:', error);
     return res.status(500).json({ success: false, message: 'Failed to record component.' });
   } finally {
@@ -3216,11 +3279,17 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
   if (score !== undefined && !isWholeNumber(score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('score', score) });
   }
+  if (score !== undefined && !fitsScoreColumn(score)) {
+    return res.status(400).json({ success: false, message: typedLimitMessage('The score', score) });
+  }
   if (max_score !== undefined && !isValidMax(max_score)) {
     return res.status(400).json({ success: false, message: 'max_score must be greater than 0.' });
   }
   if (max_score !== undefined && !isWholeNumber(max_score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
+  }
+  if (max_score !== undefined && !fitsScoreColumn(max_score)) {
+    return res.status(400).json({ success: false, message: typedLimitMessage('The highest possible score', max_score) });
   }
   if (label !== undefined && label !== null && !String(label).trim()) {
     return res.status(400).json({ success: false, message: 'label must not be blank if it is sent.' });
@@ -3328,6 +3397,9 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
         // ignore rollback failure — connection is being released regardless
       }
     }
+    if (error instanceof GradeRangeError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Update grade component error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update component.' });
   } finally {
@@ -3403,6 +3475,9 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
         // ignore rollback failure — connection is being released regardless
       }
     }
+    if (error instanceof GradeRangeError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Delete grade component error:', error);
     return res.status(500).json({ success: false, message: 'Failed to delete component.' });
   } finally {
@@ -3470,6 +3545,9 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
   ]) {
     if (value !== undefined && value !== null && !isWholeNumber(value)) {
       return res.status(400).json({ success: false, message: wholeNumberMessage(field, value) });
+    }
+    if (value !== undefined && value !== null && !fitsScoreColumn(value)) {
+      return res.status(400).json({ success: false, message: typedLimitMessage(examFieldLabel(field), value) });
     }
   }
 
@@ -3590,6 +3668,9 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
       } catch {
         // ignore rollback failure — connection is being released regardless
       }
+    }
+    if (error instanceof GradeRangeError) {
+      return res.status(400).json({ success: false, message: error.message });
     }
     console.error('Update grade exam error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update exam scores.' });
