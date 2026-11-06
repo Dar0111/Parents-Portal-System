@@ -21,6 +21,8 @@ tested, how, and what was found; §10 and §12 record what remains.
 
 > **Addendum, 2026-11-06 (D-267): F-1 was found HIGH by the fix's tests-only run and fixed
 > with F-2; F-3 is unchanged. See §15.** The sections below are as dated.
+>
+> **P4 verification closed by Josh, 2026-11-06 (PASS): see §16.**
 
 ---
 
@@ -511,6 +513,38 @@ D-267 (branch `feature/p4-findings`, the worktree `Parents_Portal-p4b`, the same
 - **Merged and deployed, 2026-11-06** (noted after Josh's review, 2026-11-06): `f2b75e4` was
   merged to `main` at 06:09 and deployed to the VPS at 06:14, a fast-forward from `3d2e7bb`
   (D-271, D-272). F-1's and F-2's fixes are live on production.
+
+## 16. P4 verification closed (Josh, 2026-11-06)
+
+**Status: PASS**, dated 2026-11-06, after §15's merge and deploy. The reviewer closed P4's
+verification on that date; this section records its basis and its boundary.
+
+**The basis.**
+
+- F-1's and F-2's fixes were merged to `main` as `f2b75e4` and deployed to the VPS at 06:14
+  (D-271, D-272; §15). The deployed commit contains `366e692` (F-1) and `c7c04c0` (F-2).
+- The post-deploy checks were read-only, by policy.
+- The race was not reproduced on production, by policy: no concurrency test runs against the
+  hosted database.
+- The concurrency evidence is Part B's, from the loopback database on the same patch content:
+  `p4b-concurrency.js` 61/61, each fix's in-memory control failing (§15).
+
+**The boundary.** The agreed verification scope is complete. This is not a clearance for the
+pilot, and not every known issue is fixed.
+
+**The outstanding gates**, each tracked by its row in `docs/KNOWN_ISSUES.md`:
+
+| Gate | When | Row |
+|---|---|---|
+| The demo undo (`npm run demo:undo`) | before any real record | `:84` |
+| A new restore point in place of K | after that cleanup | `:77` |
+| A retention decided for `login_attempts` | before the pilot | `:280` |
+| The SMSGate pair rotated | after the defense | `:79` |
+| The seed's default credentials out of the scripts, into environment variables (D-166) | before the repo is made public | `:267` |
+| A test and a fix: a grade confirmation racing a bulk unlock | after the defense | `:67` |
+| A test and a fix: the four per-row grade writers check the lock before their transaction | after the defense | `:68` |
+| A test and a fix: after a restore, the result panel can be skipped | after the defense | `:69` |
+| F-3, a lost COMMIT reply answering `500` although it committed | an acknowledged limitation | `:72` |
 
 ---
 
