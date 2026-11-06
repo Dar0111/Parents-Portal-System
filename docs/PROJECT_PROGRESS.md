@@ -18,15 +18,17 @@ the restore point: restore only K. Its hash is checked and its Drive copy made; 
 and the restore's safety copy are deleted (`docs/CHANGELOG.md`). Data-gathering
 respondents use only pre-confirmed demo accounts (D-260); the demo data stays until
 the demo undo just before the pilot (`docs/DEMO_DATA.md`). The VPS has the four apt
-security updates of 2026-11-05. The SMSGate pair is not rotated. `main` adds after
-`3d2e7bb` docs and P4's test files only. **P4 is done; its report is `docs/P4_REPORT.md`.**
-**F-1 (reclassified HIGH by the fix's tests-only run) and F-2 are fixed on
-`feature/p4-findings` (D-267), gated on loopback, pushed, not merged, not deployed**:
+security updates of 2026-11-05. The SMSGate pair is not rotated. **The VPS is at
+`main` `f2b75e4` since 2026-11-06 06:14 (D-272).** **P4 is done; its report is `docs/P4_REPORT.md`.**
+**F-1 (reclassified HIGH by the fix's tests-only run) and F-2 are fixed (D-267), merged
+in `f2b75e4` and deployed at 06:14**:
 `PUT /api/grades/class-record` locks its class's grade rows before its lock checks,
 `POST /api/grades/locks` takes them in the same order, and a simultaneous confirmation
 is the `200` repeat. F-3 (LOW) stays a documented limitation, and two LOW rows from the
-fix's survey are recorded (`docs/KNOWN_ISSUES.md`, 2026-11-06). Until the deploy the VPS
-still has F-1 and F-2.
+fix's survey are recorded (`docs/KNOWN_ISSUES.md`, 2026-11-06). **The Nov 4 error
+(`22003`) is fixed on `fix/grade-overflow` (D-273), gated on loopback, pushed, not merged,
+not deployed:** a score or maximum over 999, or a computed value of 1000 or more, is a `400`
+in the class record's words, never a `500`. It deploys server only after its merge.
 
 **Previous snapshot, 2026-11-05: the VPS ran `main` `3d2e7bb` (M18, deployed 2026-11-05
 20:13: `JWT_SECRET` rotated in place, one `pm2 reload`; the laptop has its own value),

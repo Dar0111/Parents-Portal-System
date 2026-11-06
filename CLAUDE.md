@@ -106,7 +106,7 @@ behind is the rule and the pointer, nothing else.
 
 **PostgreSQL since the cutover of 2026-10-27 (D-157).** Where a sentence below still names MySQL, it is history. The cutover record is `migration/docs/09` §8. A golden master compares the ported API with the MySQL tree at the sync boundary, `main` `64200f7`, not an older base (`migration/docs/05_VALIDATION_MATRIX.md` §0g).
 
-**Last verified:** 2026-11-05, the VPS at `main` `3d2e7bb` since 20:13 (M18's run sheet, `deploy/README.md` section 13: `JWT_SECRET` rotated, one `pm2 reload`, its checks passed; `main` adds after it docs only), the phone on the domain since 15:37 (D-246), and the D-122 reset run on production on 2026-11-03 at 22:20, backup H the restore point (`docs/ACTIVITY_RESET.md` → The run); Module 15's deploy, Module 13's sitting and Module 14's check before it (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot and the merge before it: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-11-05 (M17)"; earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-11-06, the VPS at `main` `f2b75e4` since 06:14 (D-272: F-1 and F-2, one `pm2 reload`; `JWT_SECRET` rotated 2026-11-05, M18; the 22003 fix, D-273, deploys server only after its merge), the phone on the domain since 15:37 (D-246), and the D-122 reset run on production on 2026-11-03 at 22:20, backup H the restore point (`docs/ACTIVITY_RESET.md` → The run); Module 15's deploy, Module 13's sitting and Module 14's check before it (`docs/TESTING.md`). D-168/D-170 hid the policy version on the consent screen and in Settings → Security & policy, web and phone; `versions.json` is `1.0` for both (D-154). The 2026-10-25 snapshot and the merge before it: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-11-05 (M17)"; earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 12 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36; Assignments since Module 11, §37), and **About is last on every
@@ -216,6 +216,8 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 - **`utils/gradeComputation.js` — every function returns `null` on a missing
   input, never a partial number; percentages over 100 are deliberately NOT
   clamped.** A cap belongs in route validation as explicit policy, if ever.
+  The columns' own limit (999 typed, a computed value under 1000) is
+  `utils/validateScore.js`'s `400`, not a cap (D-273).
 - **`scripts/setup-db.js` — drops schema `portal` of the database
   `PG_DATABASE` names, and only when `PG_HOST` is loopback.** It does not
   drop another database. `backfillSectionIds()` REPORTS every row left

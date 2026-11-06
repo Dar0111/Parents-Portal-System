@@ -509,6 +509,15 @@ is a bonus, not a typing mistake" — naming the reading the school recognises.
 The behaviour was already right; only the copy changed. A cap, if the school
 ever wants one, belongs in route validation as explicit policy.
 
+**What the columns can hold is not a cap (D-273, 2026-11-06).** Every score,
+highest possible score and computed value is `numeric(5,2)`, which holds less
+than 1000, so a typed value is at most **999** and a computed one must round
+below 1000 — a score ten times its HPS (1000%) cannot be stored. The server
+refuses both with a `400` in the class record's words before anything is
+written (`utils/validateScore.js`), where the Nov 4 save answered `500`. Up to
+that line the bonus rule above is unchanged: 999 out of an HPS of 100 saves as
+999.00%, and nothing is clamped.
+
 > One consequence, stated because it is not obvious: a weighted score above
 > 100 yields no band, so a Grade 1 letter comes back `null` and renders as
 > Pending. That is the honest answer — the school's table does not define a

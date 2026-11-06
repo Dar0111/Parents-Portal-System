@@ -840,10 +840,10 @@ documented sort value does would be a contract change; only the default moved.
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
 | GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+**`term_average_descriptors`**+`general_average`+`general_average_descriptor`+**`acknowledgements`** (no `grade`/`grades` key) | `404` out-of-scope |
 | POST | `/` | `teacher(subject)`, `admin` | `student_id`*, `subject_id`*, `term`*, `school_year`* | `grade` | teacher out-of-scope → `403`; nonexistent `student_id` → `404` admin / `403` teacher |
-| POST | `/:id/components` | `teacher(subject)`, `admin` | **`slot_id`***, `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely. **`slot_id` required since CR1**; a slot of another class or the wrong type → `404` (never leaks that it exists). **`label` is now OPTIONAL** — a slot-backed row leaves it `NULL`. Non-integer `score`/`max_score` → `400` |
-| PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded`, `slot_id` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404`; **moving a row into an UNUSED slot is refused**; non-integer score/max → `400` |
-| DELETE | `/:id/components/:componentId` | `teacher(subject)`, `admin` | — | `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
-| PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split |
+| POST | `/:id/components` | `teacher(subject)`, `admin` | **`slot_id`***, `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely. **`slot_id` required since CR1**; a slot of another class or the wrong type → `404` (never leaks that it exists). **`label` is now OPTIONAL** — a slot-backed row leaves it `NULL`. Non-integer `score`/`max_score` → `400`; over 999, or a computed value of 1000 or more → `400` (D-273, below the class record's refusals) |
+| PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded`, `slot_id` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404`; **moving a row into an UNUSED slot is refused**; non-integer score/max → `400`; over 999, or a computed value of 1000 or more → `400` (D-273) |
+| DELETE | `/:id/components/:componentId` | `teacher(subject)`, `admin` | — | `grade` | same `403`/`404` split; mismatched `componentId` → `404`; a computed value of 1000 or more after the delete → `400` (D-273) |
+| PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split; over 999, or a computed value of 1000 or more → `400` (D-273) |
 | ~~PATCH~~ | ~~`/:id/descriptive`~~ | — | — | — | **RETIRED 2026-09-22 — the route is unmounted; every caller gets `404`.** See below |
 | PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split; already that value → `200` "Grade is already locked/unlocked. Nothing was changed.", no log entry (2026-09-15) |
 | DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
@@ -934,8 +934,24 @@ asserted in `test:class-record` against both `notifications` and
 | A column's HPS set, changed or cleared while ANY learner of the class (any status) has a locked row for this subject and term (fix/grade-locks, 2026-10-13) | **`409`** | `Nothing was saved. <names> has a locked grade` (one) / `have locked grades` (two or more) `for this subject and term — ask an admin to unlock before changing a highest possible score.` — every locked learner as "First Last" in name order, joined with ", "; more than three is the first three and "and N more". **A dry run gets the same sentence without "Nothing was saved."** Checked before the first write. A rename at the same HPS, an unused column sent back unchanged (empty to empty) and score-only saves are not refused by it |
 | Clearing a slot's HPS while it still holds scores | **`409`** | `<slot> cannot be cleared — N learners have scores in it. Remove the scores first.` |
 | A non-integer score or max | **`400`** | `<field> must be a whole number — the school does not award half points (got 42.5).` |
+| A typed score or maximum over 999 (D-273, 2026-11-06) | **`400`** | `The score must be 999 or less (you entered 1000).` — or `The highest possible score of Written Work 2 …`, `The TE highest possible score …`, `The ST1 score …`; before anything is loaded |
+| A computed value of 1000 or more (D-273) | **`400`** | `Written Work for <First Last> would be 1000.00%, more than the class record can hold. Check the scores and the HPS.` — the part is `Written Work`, `Performance Task` or `Summative` (or `WW WS`, `PT WS`, `ST WS`, `The Initial grade`, `The Term grade`); the same sentence for a dry run; nothing written |
 | Nothing sent | `400` | `Nothing to save — send slots, entries, or both.` |
 | A score whose slot is not in this class, or the wrong type | `400` | names the slot |
+
+**What the columns can hold (D-273, the Nov 4 error).** Every score, highest
+possible score and computed value is `numeric(5,2)`; PostgreSQL refuses a value
+that rounds to 1000 or more (`22003`), and until 2026-11-06 the save answered
+`500` "Failed to save the class record." for a typed 1000 or a score ten times
+its HPS. `utils/validateScore.js` holds the line (`fitsScoreColumn`, under
+999.995, PostgreSQL's own rounding): **the columns' limit, not a cap** — a
+score above its HPS still saves, nothing is clamped. Typed values are refused
+before anything is loaded; `recomputeGrade` checks the eight values it stores
+before its `UPDATE` (`server/routes/grades.js:488–505`; an HPS lowered under
+stored scores included) and throws `GradeRangeError`, which the class record
+and the four per-row writers (`POST`, `PUT` and `DELETE` on a component,
+`PATCH /:id/exam`) answer with `400` and that sentence, never logged as a
+fault. Proved by `test:class-record` and `test:grades`.
 
 **The locked refusal is all-or-nothing on purpose.** One locked learner
 rolls back the entire save rather than writing the other 39 — a partial save
