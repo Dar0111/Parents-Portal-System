@@ -1367,6 +1367,278 @@ async function main() {
       benAfterClear.ww_total !== null,
       `while his raw Total still shows what IS recorded (got ${benAfterClear.ww_total})`
     );
+
+    // -----------------------------------------------------------------
+    console.log('\n--- What the columns can hold: 999 typed, under 1000 computed (D-273) ---');
+    // -----------------------------------------------------------------
+    // THE NOV 4 ERROR (D-273). Every score and highest possible score column,
+    // and every percentage, weighted part and grade a save computes, is
+    // numeric(5,2): PostgreSQL refuses a value that rounds to 1000 or more
+    // (22003), and the save answered 500 "Failed to save the class record."
+    // for a typed 1000, or for a score ten times its HPS. Each is a 400 now,
+    // in the screens' own words, with nothing written, in a save and in the
+    // dry run the grid sends while a teacher types. The bonus rule stands: a
+    // score above its HPS that the columns can hold still computes.
+    //
+    // Term 2 of the same throwaway class, with two learners of its own, so
+    // nothing above is disturbed; its grade rows and slots are deleted below.
+    const columnRule = require('../utils/validateScore');
+    const fits = typeof columnRule.fitsScoreColumn === 'function' ? columnRule.fitsScoreColumn : null;
+    assert(Boolean(fits) && fits(999.99) === true, 'the column rule in process: 999.99 fits');
+    assert(Boolean(fits) && fits(999.994) === true, 'the column rule in process: 999.994 fits (PostgreSQL rounds it to 999.99)');
+    assert(Boolean(fits) && fits(999.995) === false, 'the column rule in process: 999.995 does not fit (it rounds to 1000.00)');
+    assert(Boolean(fits) && fits(1000) === false, 'the column rule in process: 1000 does not fit');
+
+    const ovKey = { ...classKey, term: 2 };
+    const ovSuffix = String(Date.now() + 1).slice(-11).padStart(11, '0');
+    const ov = [];
+    for (const [i, first] of ['Hana', 'Iko'].entries()) {
+      const res = await request('POST', '/api/students', {
+        token: adminToken,
+        body: {
+          lrn: `${8 - i}${ovSuffix}`,
+          first_name: first,
+          last_name: 'Overflow',
+          grade_level: 1,
+          section: ovKey.section,
+        },
+      });
+      requireFixture(res.status === 201, `D-273 learner ${first} enrolled`, why(res));
+      createdStudentIds.push(res.data.student.id);
+      ov.push({ id: res.data.student.id, full: `${first} Overflow` });
+    }
+    const [hana, iko] = ov;
+
+    try {
+      const ovSetup = await request('PUT', '/api/grades/class-record', {
+        token: adminToken,
+        body: {
+          ...ovKey,
+          slots: [
+            { type: 'WW', slot_no: 1, max_score: 20 },
+            { type: 'WW', slot_no: 2, max_score: 5 },
+            { type: 'PT', slot_no: 1, max_score: 50 },
+          ],
+          exam_max: { st1: 30, st2: 30, te: 40 },
+          entries: [
+            {
+              student_id: hana.id,
+              scores: [
+                { type: 'WW', slot_no: 1, score: 18 },
+                { type: 'WW', slot_no: 2, score: 4 },
+                { type: 'PT', slot_no: 1, score: 45 },
+              ],
+              st1_score: 27,
+              st2_score: 27,
+              te_score: 36,
+            },
+            {
+              student_id: iko.id,
+              scores: [
+                { type: 'WW', slot_no: 1, score: 20 },
+                { type: 'WW', slot_no: 2, score: 5 },
+                { type: 'PT', slot_no: 1, score: 50 },
+              ],
+              st1_score: 30,
+              st2_score: 30,
+              te_score: 40,
+            },
+          ],
+        },
+      });
+      requireFixture(ovSetup.status === 200, 'D-273 term 2 class record set up', why(ovSetup));
+      const ovSlot = (type, no) => ovSetup.data.slots.find((s) => s.type === type && s.slot_no === no);
+      const ovWw1 = ovSlot('WW', 1);
+      const ovWw2 = ovSlot('WW', 2);
+      const ovPt1 = ovSlot('PT', 1);
+      requireFixture(Boolean(ovWw1 && ovWw2 && ovPt1), 'D-273 term 2 columns created');
+
+      // Every score, maximum and computed value of the term 2 class, and its
+      // columns: what "nothing was written" is checked against.
+      const ovSnapshot = async () => {
+        const [gradeRows] = await withDb((conn) =>
+          conn.query(
+            `SELECT g.id, g.student_id, g.ww_percentage, g.ww_weighted, g.pt_percentage, g.pt_weighted,
+                    g.ex_st1, g.ex_st1_max, g.ex_st2, g.ex_st2_max, g.ex_te, g.ex_te_max,
+                    g.ex_percentage, g.ex_weighted, g.initial_grade, g.term_grade, g.descriptive_grade,
+                    (SELECT json_agg(json_build_array(c.slot_id, c.score, c.max_score) ORDER BY c.id)
+                       FROM grade_components c WHERE c.grade_id = g.id) AS components
+               FROM grades g
+              WHERE g.subject_id = ? AND g.term = ? AND g.school_year = ? AND g.student_id = ANY(?::int[])
+              ORDER BY g.id`,
+            [ovKey.subject_id, ovKey.term, ovKey.school_year, createdStudentIds]
+          )
+        );
+        const [slotRows] = await withDb((conn) =>
+          conn.query(
+            `SELECT id, type, slot_no, name, max_score FROM assessment_slots
+              WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?
+              ORDER BY id`,
+            [ovKey.subject_id, ovKey.grade_level, ovKey.section, ovKey.term, ovKey.school_year]
+          )
+        );
+        return JSON.stringify({ gradeRows, slotRows });
+      };
+      const ovBefore = await ovSnapshot();
+
+      // Each refusal twice: as the Save sends it and as the grid's dry run.
+      const refused = async (label, body, message) => {
+        for (const dry of [false, true]) {
+          const res = await request('PUT', '/api/grades/class-record', {
+            token: adminToken,
+            body: { ...ovKey, ...body, ...(dry ? { dry_run: true } : {}) },
+          });
+          assert(
+            res.status === 400 && res.data?.message === message,
+            `D-273 ${label}${dry ? ' (dry run)' : ''}: 400 with the screen sentence`,
+            why(res)
+          );
+        }
+      };
+
+      // Typed values: the columns hold 999.99, and a score is a whole number.
+      await refused(
+        'a score of 1000 over a stored score',
+        { entries: [{ student_id: hana.id, scores: [{ slot_id: ovWw1.id, score: 1000 }] }] },
+        'The score must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'a score of 1000 in an empty cell',
+        { entries: [{ student_id: learners[0].id, scores: [{ slot_id: ovWw1.id, score: 1000 }] }] },
+        'The score must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'a score of 1e21',
+        { entries: [{ student_id: hana.id, scores: [{ slot_id: ovWw1.id, score: 1e21 }] }] },
+        'The score must be 999 or less (you entered 1e+21).'
+      );
+      await refused(
+        'an HPS of 1000 on a used column',
+        { slots: [{ type: 'WW', slot_no: 1, max_score: 1000 }] },
+        'The highest possible score of Written Work 1 must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'an HPS of 1000 on a new column',
+        { slots: [{ type: 'WW', slot_no: 3, max_score: 1000 }] },
+        'The highest possible score of Written Work 3 must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'a TE highest possible score of 1000 for the class',
+        { exam_max: { te: 1000 } },
+        'The TE highest possible score must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'an ST1 score of 1000',
+        { entries: [{ student_id: hana.id, st1_score: 1000 }] },
+        'The ST1 score must be 999 or less (you entered 1000).'
+      );
+      await refused(
+        'an ST1 highest possible score of 1000 on one learner',
+        { entries: [{ student_id: hana.id, st1_score: 27, st1_max: 1000 }] },
+        'The ST1 highest possible score must be 999 or less (you entered 1000).'
+      );
+
+      // Computed values. Hana's Written Work: (18 + 232) / (20 + 5) = 1000.00%.
+      await refused(
+        'Written Work at ten times its HPS',
+        { entries: [{ student_id: hana.id, scores: [{ slot_id: ovWw2.id, score: 232 }] }] },
+        'Written Work for Hana Overflow would be 1000.00%, more than the class record can hold. Check the scores and the HPS.'
+      );
+      // An HPS lowered under stored scores: no score in the request at all.
+      // Iko's 50 out of 5 is 1000.00%; Hana's 45 out of 5 (900.00%) fits.
+      await refused(
+        'an HPS lowered under a stored score',
+        { slots: [{ type: 'PT', slot_no: 1, max_score: 5 }] },
+        'Performance Task for Iko Overflow would be 1000.00%, more than the class record can hold. Check the scores and the HPS.'
+      );
+      // Summative: 27/30 x 0.3 + 27/30 x 0.3 + 25/1 x 0.4 = 27 + 27 + 1000 = 1054.00%.
+      await refused(
+        'a TE score 25 times its maximum',
+        { entries: [{ student_id: hana.id, te_score: 25, te_max: 1 }] },
+        'Summative for Hana Overflow would be 1054.00%, more than the class record can hold. Check the scores and the HPS.'
+      );
+      assert(
+        (await ovSnapshot()) === ovBefore,
+        'D-273 nothing the refused saves sent was written (every score, maximum, computed value and column of the class as before)'
+      );
+
+      // What must still pass, each a dry run: the bonus rule up to the limit.
+      const allowed = async (label, body, field, expected) => {
+        const res = await request('PUT', '/api/grades/class-record', {
+          token: adminToken,
+          body: { ...ovKey, ...body, dry_run: true },
+        });
+        const row = res.data?.results?.find((r) => Number(r.student_id) === Number(hana.id));
+        assert(
+          res.status === 200 && row && row[field] === expected,
+          `D-273 ${label}: 200, ${field} ${expected}`,
+          `${why(res)}; got ${row ? row[field] : 'no row'}`
+        );
+      };
+      await allowed(
+        'Written Work just under the limit, 249 out of 25',
+        { entries: [{ student_id: hana.id, scores: [{ slot_id: ovWw2.id, score: 231 }] }] },
+        'ww_percentage',
+        996
+      );
+      await allowed(
+        'a score of 999 out of an HPS of 100 (above its HPS, the bonus rule)',
+        {
+          slots: [{ type: 'PT', slot_no: 1, max_score: 100 }],
+          entries: [{ student_id: hana.id, scores: [{ slot_id: ovPt1.id, score: 999 }] }],
+        },
+        'pt_percentage',
+        999
+      );
+      await allowed(
+        'a score of 999 out of an HPS of 999',
+        {
+          slots: [{ type: 'PT', slot_no: 1, max_score: 999 }],
+          entries: [{ student_id: hana.id, scores: [{ slot_id: ovPt1.id, score: 999 }] }],
+        },
+        'pt_percentage',
+        100
+      );
+      await allowed(
+        'nine times the HPS, 9 out of 1',
+        {
+          slots: [{ type: 'PT', slot_no: 1, max_score: 1 }],
+          entries: [
+            { student_id: hana.id, scores: [{ slot_id: ovPt1.id, score: 9 }] },
+            { student_id: iko.id, scores: [{ slot_id: ovPt1.id, score: 9 }] },
+          ],
+        },
+        'pt_percentage',
+        900
+      );
+      await allowed(
+        'every Summative maximum and score at 999',
+        {
+          exam_max: { st1: 999, st2: 999, te: 999 },
+          entries: [{ student_id: hana.id, st1_score: 999, st2_score: 999, te_score: 999 }],
+        },
+        'ex_percentage',
+        100
+      );
+      assert((await ovSnapshot()) === ovBefore, 'D-273 the dry runs wrote nothing either');
+    } finally {
+      // This block's own term 2 rows: the grades (their components cascade),
+      // then the columns they freed. The learners go with the cleanup below.
+      await withDb((conn) =>
+        conn.query('DELETE FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id = ANY(?::int[])', [
+          ovKey.subject_id,
+          ovKey.term,
+          ovKey.school_year,
+          createdStudentIds,
+        ])
+      );
+      await withDb((conn) =>
+        conn.query(
+          'DELETE FROM assessment_slots WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?',
+          [ovKey.subject_id, ovKey.grade_level, ovKey.section, ovKey.term, ovKey.school_year]
+        )
+      );
+    }
   } finally {
     await cleanup();
     await policy.cleanup();

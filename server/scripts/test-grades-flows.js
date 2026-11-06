@@ -2559,6 +2559,196 @@ async function run() {
         (termPage.data?.page?.has_more || termPage.data?.page?.total === termPage.data?.grades?.length),
       'GET /grades?term=1: every row matches and total is the filtered count'
     );
+
+    // --- D-273: the per-row writers and what the columns can hold ---
+    // The Nov 4 error came through the class record (test:class-record has
+    // those cases). These are the same limits on the four API-only writers —
+    // POST, PUT and DELETE .../components and PATCH /:id/exam — each with the
+    // computed case its catch block now answers with a 400 rather than a 500.
+    // Its own Grade 1 learner, in a class with no columns for terms 2 and 3,
+    // deleted at the end of the block (its grades and components cascade).
+    console.log('\n--- D-273: per-row writes the columns cannot hold are a 400 ---');
+    const [[ovClass]] = await withDb((conn) =>
+      conn.query(
+        `SELECT s.name AS section, sub.id AS subject_id
+           FROM sections s
+           JOIN subjects sub ON sub.grade_level = s.grade_level
+          WHERE s.grade_level = 1 AND s.school_year = ? AND s.adviser_id IS NULL
+            AND EXISTS (SELECT 1 FROM grade_weight_configs w WHERE w.subject_id = sub.id AND w.school_year = ?)
+            AND NOT EXISTS (SELECT 1 FROM assessment_slots a
+                             WHERE a.subject_id = sub.id AND a.grade_level = 1 AND a.section = s.name
+                               AND a.term IN (2, 3) AND a.school_year = ?)
+          ORDER BY s.name DESC, sub.id
+          LIMIT 1`,
+        [schoolYear, schoolYear, schoolYear]
+      )
+    );
+    requireFixture(Boolean(ovClass), 'D-273: a Grade 1 class with no columns for terms 2 and 3');
+    const ovStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `9${String(Date.now() + 7).slice(-11).padStart(11, '0')}`,
+        first_name: 'Jun',
+        last_name: 'Overflow',
+        grade_level: 1,
+        section: ovClass.section,
+      },
+    });
+    requireFixture(ovStudent.status === 201, 'D-273: the per-row learner enrolled', why(ovStudent));
+    const ovStudentId = ovStudent.data.student.id;
+    try {
+      const ovGrade = async (term) => {
+        const res = await request('POST', '/api/grades', {
+          token: adminToken,
+          body: { student_id: ovStudentId, subject_id: ovClass.subject_id, term, school_year: schoolYear },
+        });
+        requireFixture(res.status === 201, `D-273: a term ${term} grade row`, why(res));
+        return res.data.grade.id;
+      };
+      const g3 = await ovGrade(3);
+      const g2 = await ovGrade(2);
+      const ovState = async (id) => {
+        const [[row]] = await withDb((conn) =>
+          conn.query(
+            `SELECT ww_percentage, ex_st1, ex_st1_max, ex_st2, ex_st2_max, ex_te, ex_te_max, ex_percentage, initial_grade
+               FROM grades WHERE id = ?`,
+            [id]
+          )
+        );
+        const [comps] = await withDb((conn) =>
+          conn.query('SELECT id, slot_id, score, max_score FROM grade_components WHERE grade_id = ? ORDER BY id', [id])
+        );
+        return JSON.stringify({ row, comps });
+      };
+      const overflowSentence = (part, value) =>
+        `${part} for Jun Overflow would be ${value}%, more than the class record can hold. Check the scores and the HPS.`;
+      const is400 = (res, message, label) =>
+        assert(res.status === 400 && res.data?.message === message, `D-273 ${label}: 400 with the screen sentence`, why(res));
+
+      // POST .../components: the typed limits, then the computed one.
+      const slotA = await makeSlot(g3, 'WW', 1);
+      const g3Empty = await ovState(g3);
+      is400(
+        await request('POST', `/api/grades/${g3}/components`, {
+          token: adminToken,
+          body: { type: 'WW', slot_id: slotA, score: 1000, max_score: 1 },
+        }),
+        'The score must be 999 or less (you entered 1000).',
+        'POST components, a score of 1000'
+      );
+      is400(
+        await request('POST', `/api/grades/${g3}/components`, {
+          token: adminToken,
+          body: { type: 'WW', slot_id: slotA, score: 1, max_score: 1000 },
+        }),
+        'The highest possible score must be 999 or less (you entered 1000).',
+        'POST components, a highest possible score of 1000'
+      );
+      is400(
+        await request('POST', `/api/grades/${g3}/components`, {
+          token: adminToken,
+          body: { type: 'WW', slot_id: slotA, score: 10, max_score: 1 },
+        }),
+        overflowSentence('Written Work', '1000.00'),
+        'POST components, 10 out of 1'
+      );
+      assert((await ovState(g3)) === g3Empty, 'D-273 POST components: nothing written by the three refusals');
+      const nineOfOne = await request('POST', `/api/grades/${g3}/components`, {
+        token: adminToken,
+        body: { type: 'WW', slot_id: slotA, score: 9, max_score: 1 },
+      });
+      requireFixture(
+        nineOfOne.status === 201 && num(nineOfOne.data?.grade?.ww_percentage) === 900,
+        'D-273 POST components, 9 out of 1: 201, Written Work 900.00% (above its HPS, the bonus rule)',
+        why(nineOfOne)
+      );
+      const componentId = nineOfOne.data.component.id;
+
+      // PUT .../components/:componentId.
+      const g3Nine = await ovState(g3);
+      is400(
+        await request('PUT', `/api/grades/${g3}/components/${componentId}`, { token: adminToken, body: { score: 1000 } }),
+        'The score must be 999 or less (you entered 1000).',
+        'PUT component, a score of 1000'
+      );
+      is400(
+        await request('PUT', `/api/grades/${g3}/components/${componentId}`, { token: adminToken, body: { max_score: 1000 } }),
+        'The highest possible score must be 999 or less (you entered 1000).',
+        'PUT component, a highest possible score of 1000'
+      );
+      is400(
+        await request('PUT', `/api/grades/${g3}/components/${componentId}`, { token: adminToken, body: { score: 10 } }),
+        overflowSentence('Written Work', '1000.00'),
+        'PUT component, 10 out of 1'
+      );
+      assert((await ovState(g3)) === g3Nine, 'D-273 PUT component: nothing written by the three refusals');
+
+      // PATCH /:id/exam.
+      is400(
+        await request('PATCH', `/api/grades/${g3}/exam`, { token: adminToken, body: { st1_score: 1000, st1_max: 30 } }),
+        'The ST1 score must be 999 or less (you entered 1000).',
+        'PATCH exam, an ST1 score of 1000'
+      );
+      is400(
+        await request('PATCH', `/api/grades/${g3}/exam`, { token: adminToken, body: { te_score: 5, te_max: 1000 } }),
+        'The TE highest possible score must be 999 or less (you entered 1000).',
+        'PATCH exam, a TE highest possible score of 1000'
+      );
+      // 0.3 x 0 + 0.3 x 0 + 0.4 x 99900 = 39960.00%.
+      is400(
+        await request('PATCH', `/api/grades/${g3}/exam`, {
+          token: adminToken,
+          body: { st1_score: 0, st1_max: 30, st2_score: 0, st2_max: 30, te_score: 999, te_max: 1 },
+        }),
+        overflowSentence('Summative', '39960.00'),
+        'PATCH exam, TE 999 out of 1'
+      );
+      assert((await ovState(g3)) === g3Nine, 'D-273 PATCH exam: nothing written by the three refusals');
+      const examAt999 = await request('PATCH', `/api/grades/${g3}/exam`, {
+        token: adminToken,
+        body: { st1_score: 999, st1_max: 999, st2_score: 999, st2_max: 999, te_score: 999, te_max: 999 },
+      });
+      assert(
+        examAt999.status === 200 && num(examAt999.data?.grade?.ex_percentage) === 100,
+        'D-273 PATCH exam, every part 999 out of 999: 200, Summative 100.00%',
+        why(examAt999)
+      );
+
+      // DELETE .../components/:componentId. Only a row with no column can do
+      // it: deleting a scored column's mark makes the learner Pending. So two
+      // such rows are planted on the term 2 grade, 0 out of 100 and 15 out of
+      // 1 (15/101 = 14.85%), and deleting the 0 out of 100 leaves 1500.00%.
+      const [zeroOf100] = await withDb((conn) =>
+        conn.query(
+          "INSERT INTO grade_components (grade_id, slot_id, type, score, max_score) VALUES (?, NULL, 'WW', 0, 100) RETURNING id",
+          [g2]
+        )
+      );
+      const [fifteenOfOne] = await withDb((conn) =>
+        conn.query(
+          "INSERT INTO grade_components (grade_id, slot_id, type, score, max_score) VALUES (?, NULL, 'WW', 15, 1) RETURNING id",
+          [g2]
+        )
+      );
+      requireFixture(Boolean(zeroOf100.insertId && fifteenOfOne.insertId), 'D-273: the two rows with no column planted');
+      const g2Planted = await ovState(g2);
+      is400(
+        await request('DELETE', `/api/grades/${g2}/components/${zeroOf100.insertId}`, { token: adminToken }),
+        overflowSentence('Written Work', '1500.00'),
+        'DELETE component, leaving 15 out of 1'
+      );
+      assert((await ovState(g2)) === g2Planted, 'D-273 DELETE component: both rows still there, nothing recomputed');
+      const deleteFifteen = await request('DELETE', `/api/grades/${g2}/components/${fifteenOfOne.insertId}`, {
+        token: adminToken,
+      });
+      assert(
+        deleteFifteen.status === 200 && num(deleteFifteen.data?.grade?.ww_percentage) === 0,
+        'D-273 DELETE component, leaving 0 out of 100: 200, Written Work 0.00%',
+        why(deleteFifteen)
+      );
+    } finally {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [ovStudentId]));
+    }
   } finally {
     await cleanup();
     await policy.cleanup();
