@@ -13,9 +13,14 @@ Technological College, IICT · Final defense expected around November 2026.
 
 **Snapshot, 2026-11-06: the VPS runs `main` `3d2e7bb` (M18, deployed 2026-11-05
 20:13), and the Nov 4–5 demo's writes are undone: backup H was restored on
-2026-11-05 at 23:34 (D-259).** Backup K, `parents_portal_2026-11-05_234112.zip`, is
-the restore point: restore only K. Its hash is checked and its Drive copy made; I, J
-and the restore's safety copy are deleted (`docs/CHANGELOG.md`). Data-gathering
+2026-11-05 at 23:34 (D-259).** The restore point since 2026-11-07 is
+`parents_portal_2026-11-07_125434.zip`, with backup K, `parents_portal_2026-11-05_234112.zip`,
+as the last fallback; after D-312's production run, only that run's step-14 backup.
+K's hash is checked and its Drive copy made; I, J
+and the restore's safety copy are deleted (`docs/CHANGELOG.md`). **D-312, the
+account delete by id (user 1307, learner 1846): built and gated on loopback on
+`feature/d312-account-delete`, pushed, not merged, not run on production**
+(`docs/ACCOUNT_DELETE.md`). Data-gathering
 respondents use only pre-confirmed demo accounts (D-260); the demo data stays until
 the demo undo just before the pilot (`docs/DEMO_DATA.md`). The VPS has the four apt
 security updates of 2026-11-05. The SMSGate pair is not rotated. **The VPS is at

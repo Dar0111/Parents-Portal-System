@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `account-state` (masked), `proof-backup-loop`, `demoData` and the five `demo-*` scripts (Module 12, `docs/DEMO_DATA.md`), `activity-reset` (`docs/ACTIVITY_RESET.md`), the thirty-seven test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven MySQL-history migrations** — do not run `migrate-demo-grade1.js` on PostgreSQL — `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `account-state` (masked), `proof-backup-loop`, `demoData` and the five `demo-*` scripts (Module 12, `docs/DEMO_DATA.md`), `activity-reset` (`docs/ACTIVITY_RESET.md`), `account-delete` (D-312, `docs/ACCOUNT_DELETE.md`), the thirty-eight test files and `test-helpers/`, `lib/listen-loopback.js` (a gate's 127.0.0.1 preload), `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1085,12 +1085,9 @@ Attendance, excuse review and enrolment stay adviser-only. Full text: FRONTEND �
 
 ### Corrections — three claims retired here
 
-*"The first screen builds the shared components"* (~5h), *"backend is 100%
-complete"* and *"36 screens"* (~13 days) are **wrong and void, not replaced
-with a guess** — endpoints, not percentages. The screen figure is in BUILD
-ORDER → Stage 4; the counting rule, `docs/FRONTEND_CONVENTIONS.md` →
-Corrections; the paragraph as it stood, `docs/ARCHIVE.md` → "Blocks moved
-from CLAUDE.md on 2026-10-21".
+Three early estimates are **wrong and void, not replaced with a guess** —
+endpoints, not percentages. The text: `docs/ARCHIVE.md` → "Moved from
+CLAUDE.md on 2026-11-07 (D-312)".
 
 ### MEASURED BUILD TIME — data points, not a rate
 
@@ -1493,7 +1490,7 @@ gate in full on its `POST /api/users/parents` row.
 | **`test:class-record` prints fixture LRN-shaped values in an assertion label** — added 2026-11-03 (Module 14) | `scripts/test-class-record-flows.js:231` | Run-made and fictional. Read its totals, never its preview |
 | **A new adviser is not told about a class's Pending excuse letters** — added 2026-11-02 (Module 11; accepted, the owner's Q5) | `routes/notifications.js:145–149` + the adviser dialog on Admin → Assignments | The letters show in the new adviser's Excuse Letters list, with no notification and no badge: the `excuse_submitted` row belongs to the old adviser and stops listing. The dialog says so before Save |
 | **A backup older than F (`parents_portal_2026-11-03_044104.zip`) restores the exposed hashes; never restore an older `.env`** — added 2026-11-03 | `deploy/README.md` section 13 | Full row, and the SMSGate pair, still not rotated: `docs/KNOWN_ISSUES.md` |
-| **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only K** — added 2026-11-03 (Module 15; in force since the reset, 22:20; K since 2026-11-05 23:41, D-259) | `docs/ACTIVITY_RESET.md` → The run | K is `parents_portal_2026-11-05_234112.zip`, made after H was restored to undo the Nov 4–5 demo. H, G and older are rollback points only |
+| **A backup older than H (`parents_portal_2026-11-03_222242.zip`) brings the old activity rows back: restore only `parents_portal_2026-11-07_125434.zip`, K as the last fallback** — added 2026-11-03 (Module 15; in force since the reset, 22:20); the restore point since 2026-11-07 (D-312's approval) | `docs/ACTIVITY_RESET.md` → The run; `docs/ACCOUNT_DELETE.md` | K is `parents_portal_2026-11-05_234112.zip`, made after H was restored to undo the Nov 4–5 demo. H, G and older are rollback points only. **After D-312's production run, only its step-14 backup:** every older one brings user 1307 and learner 1846 back |
 | **On the VPS, laptop-era backups list as "Missing from disk"; never copy one onto the VPS** — added 2026-11-04 (M16) | `routes/backups.js:183` | Every one is older than H. Full row: `docs/KNOWN_ISSUES.md` |
 | **The sidebar's pinned Messages row covers the row behind it in a short window** — added 2026-11-02 (F1, Module 11's check; pre-existing) | `layout/Shell.jsx:633`, `sticky bottom-0`, since `9141390` (2026-10-06) | At about 1366×720 it covers half a row on the admin sidebar, and the teacher's shows the same pin; 1920×1032 fits. The pin is deliberate (the badge stays on screen), so a fix must keep that. Goes to the UI-changes module after 2026-11-04, web and phone |
 | **P4's F-3 stays open (LOW): a lost COMMIT reply answers 500 though it committed** — added 2026-11-06; F-1 (HIGH by its tests-only run) and F-2 fixed (D-267) | any committing route; `routes/excuses.js:508–553` | The review stands with no activity rows and no parent notification; the error text stays. Two LOW rows from D-267's survey: a confirmation racing an unlock; the four per-row grade writers. `docs/P4_REPORT.md` §15 |
@@ -1684,9 +1681,6 @@ Rules: M9–M26. **Notifications stay in-app only, via Socket.io**
 decision). The block: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 moved from
 CLAUDE.md on 2026-10-10".
 
-Merged after the close, each device-checked, with their item pointers:
-`docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
-
 **NEXT is done** — `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
 2026-11-04 (M16)". **Never read live contact or acceptance state while a
 suite or the smoke runs** (KNOWN_ISSUES). **#3 (Marwin's parent) stays as
@@ -1694,10 +1688,11 @@ the demo's first-sign-in account** — no confirmed contact, no acceptance.
 
 **Remaining, each its own module:** the UI changes; the SMSGate pair, not
 rotated (KNOWN ISSUES). The learner transfer is off the list (D-230,
-2026-11-04). The manuscript delta list stays with the team. Done: hosting
-(`deploy/README.md` section 14), the D-122 reset (`docs/ACTIVITY_RESET.md` →
-The run), the phone on the domain (D-246, 2026-11-05) and `JWT_SECRET`
-(M18's run sheet, `deploy/README.md` section 13, 2026-11-05).
+2026-11-04). The manuscript delta list stays with the team. **D-312, the
+account delete by id:** `docs/ACCOUNT_DELETE.md` (built on
+`feature/d312-account-delete`; its production run waits for the merge). What
+is done, and the merges after the close: `docs/ARCHIVE.md` → "Moved from
+CLAUDE.md on 2026-11-07 (D-312)".
 
 ### Stage 6 — Integration
 
@@ -1748,19 +1743,11 @@ before.
 
 ## MANUSCRIPT — audit complete, do not re-audit
 
-All 81 pages read. **113 items found.** Two documents exist for the team:
-a Correction Sheet with ready-to-paste replacement text, and a Revision
-Request covering the 5 items awaiting adviser approval.
-
-**Key finding: the manuscript contradicts itself.** Figure 5 (DFD Level 1)
-and Figure 9.1 state that the admin creates teacher accounts and teachers
-create parent accounts — which is exactly what was built. Figures 11, 12,
-and 13 show open self-registration. **The build followed the DFD.** Do not
-flag the auth flow as a deviation.
-
-**Caution:** Figure 4 (DFD Level 0) lists "registration details" as a parent
-input, contradicting Figure 5. When citing the DFD in any explanation,
-always say **Figure 5** specifically.
+**The build followed Figure 5** (DFD Level 1: the admin creates teachers,
+teachers create parents). Figures 11–13 show self-registration and Figure 4
+lists "registration details", so **always cite Figure 5**, and do not flag
+the auth flow as a deviation. The audit as it stood: `docs/ARCHIVE.md` →
+"Moved from CLAUDE.md on 2026-11-07 (D-312)".
 
 ---
 
@@ -1910,19 +1897,11 @@ questions.
 - **Parent demo — data:** real names and LRNs need the school's answer on
   consent (RA 10173 — see BEFORE THE PARENT DEMO). **Parent demo —
   logistics:** how many parents, when, is there a PTA meeting to join?
-**Closed — one line each, full text in the same ARCHIVE block as the answered
-school questions:**
-
-- **2026-10-30** — the demo runs on the Hostinger VPS (`deploy/README.md`),
-  not localhost or Railway + Vercel + Cloudinary; Figure 1's hardware
-  requirements are the team's to write. The bullet as it stood: `docs/ARCHIVE.md`
-  → "Blocks moved from CLAUDE.md on 2026-11-04 (M16)". Do not re-ask.
-- **2026-10-03** — the report card's header, info row and legend moved to container units with feat/ui-refresh (`ReportCard.jsx:712–718`); nothing in it reads the viewport. Full text: `docs/ARCHIVE.md` → "Closed engineering bullet moved from CLAUDE.md on 2026-10-04". Do not re-ask.
-- **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
-- **2026-09-26** — `Manage Templates` (Figure 23, undefined in the manuscript; likely the grade weight display): not built, and the manuscript drops it. This line is its full text. Do not re-ask.
-- **2026-09-06/07** — read scopes widened to assigned OR adviser (TCH-002 is that account); **`routes/grades.js` is deliberately NOT widened** — encoding is the subject teacher's. Do not re-ask.
-- **2026-09-18** — `Account is not active.` is `401` (login keeps `403` + `status`). Do not re-derive.
-- **2026-09-07** — endpoint audit, all three buckets empty; **re-run it after any dispatch that adds or removes an endpoint.**
+**Closed:** seven engineering bullets, each "do not re-ask", are verbatim in
+`docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-11-07 (D-312)". Two rules
+among them stay here: **`routes/grades.js` encoding is deliberately NOT
+widened to advisers**, and **re-run the endpoint audit after any dispatch that
+adds or removes an endpoint.**
 
 ---
 

@@ -173,9 +173,11 @@ Before a pilot with real data. Same terminal rules, no `DEMO_` values needed. Ta
 
 The undo finds its rows by three markers: the LRN prefix `999900`, the login prefix `DEMO-TCH-`, and the `system_settings` row `demo_load_v1`. That row holds what has no identity of its own (slots, added rows on kept teachers and learners) and the values to put back (20 advisers, contacts, names). It also deletes anything a demo teacher posted, with its notifications. A count that differs from before the load is named, not hidden: it is what happened during the demo.
 
-The second way back is a restore, and the one backup to restore is K (`parents_portal_2026-11-05_234112.zip`, id 405; `docs/ACTIVITY_RESET.md:104`). Backup A is older than H, so it is a rollback point only. A restore loses everything written since.
+The second way back is a restore. The backup to restore is `parents_portal_2026-11-07_125434.zip` (since 2026-11-07, D-312's approval), with K (`parents_portal_2026-11-05_234112.zip`, id 405; `docs/ACTIVITY_RESET.md:104`) as the last fallback; **after D-312's production run, only that run's step-14 backup** (`docs/ACCOUNT_DELETE.md`). Backup A is older than H, so it is a rollback point only. A restore loses everything written since.
 
 **The undo waits until just before the pilot** (D-259): the data gathering and the defense use the demo accounts. The Nov 4–5 demo's own writes were undone by restoring backup H, not by this undo.
+
+**After D-312's production run, row 3's last line will not read `Every count equals the count before the load.` — expected.** The run deletes learner 1846 and parent 1307 (the "TEST" pair, `docs/ACCOUNT_DELETE.md`), and with them 9 grades and 9 attendance days the load added to that learner, so the undo deletes 9 fewer of each. Its closing comparison will name `users` −1, `students` −1, `grades` −1, `grade_components` −6, `attendance` −1 and `policy_acceptances` −2 (and `notifications`) as differing from the manifest's `before` — the pair's own rows from before the load. Not a fault of the undo; the manifest is not edited.
 
 ## Darryl's check
 

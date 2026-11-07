@@ -8334,3 +8334,69 @@ BUILD ORDER → Stages 1–3, as it stood:
 >       ~~Contributions, REMOVED 2026-09-13~~ · Messages + Socket.io · Settings ·
 >       User Management · Backup/Restore · **Grades, all nine stages** plus
 >       `DELETE /:id` and `GET /api/grading-modes`.
+
+---
+
+## Moved from CLAUDE.md on 2026-11-07 (D-312)
+
+The trim the approval asked for before D-312's own lines (its item 6):
+CLAUDE.md stood at 137,496 bytes on disk (135,461 in git), 504 under the
+138,000 trigger. Four finished passages moved here verbatim; CLAUDE.md keeps
+each one's rule and a pointer here.
+
+### CURRENT STATE → Corrections, as it stood
+
+> ### Corrections — three claims retired here
+>
+> *"The first screen builds the shared components"* (~5h), *"backend is 100%
+> complete"* and *"36 screens"* (~13 days) are **wrong and void, not replaced
+> with a guess** — endpoints, not percentages. The screen figure is in BUILD
+> ORDER → Stage 4; the counting rule, `docs/FRONTEND_CONVENTIONS.md` →
+> Corrections; the paragraph as it stood, `docs/ARCHIVE.md` → "Blocks moved
+> from CLAUDE.md on 2026-10-21".
+
+### BUILD ORDER → Stage 5, two passages as they stood
+
+> Merged after the close, each device-checked, with their item pointers:
+> `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
+
+> **Remaining, each its own module:** the UI changes; the SMSGate pair, not
+> rotated (KNOWN ISSUES). The learner transfer is off the list (D-230,
+> 2026-11-04). The manuscript delta list stays with the team. Done: hosting
+> (`deploy/README.md` section 14), the D-122 reset (`docs/ACTIVITY_RESET.md` →
+> The run), the phone on the domain (D-246, 2026-11-05) and `JWT_SECRET`
+> (M18's run sheet, `deploy/README.md` section 13, 2026-11-05).
+
+### MANUSCRIPT, as it stood
+
+> ## MANUSCRIPT — audit complete, do not re-audit
+>
+> All 81 pages read. **113 items found.** Two documents exist for the team:
+> a Correction Sheet with ready-to-paste replacement text, and a Revision
+> Request covering the 5 items awaiting adviser approval.
+>
+> **Key finding: the manuscript contradicts itself.** Figure 5 (DFD Level 1)
+> and Figure 9.1 state that the admin creates teacher accounts and teachers
+> create parent accounts — which is exactly what was built. Figures 11, 12,
+> and 13 show open self-registration. **The build followed the DFD.** Do not
+> flag the auth flow as a deviation.
+>
+> **Caution:** Figure 4 (DFD Level 0) lists "registration details" as a parent
+> input, contradicting Figure 5. When citing the DFD in any explanation,
+> always say **Figure 5** specifically.
+
+### OPEN QUESTIONS → Engineering, manuscript, and logistics → Closed, as it stood
+
+> **Closed — one line each, full text in the same ARCHIVE block as the answered
+> school questions:**
+>
+> - **2026-10-30** — the demo runs on the Hostinger VPS (`deploy/README.md`),
+>   not localhost or Railway + Vercel + Cloudinary; Figure 1's hardware
+>   requirements are the team's to write. The bullet as it stood: `docs/ARCHIVE.md`
+>   → "Blocks moved from CLAUDE.md on 2026-11-04 (M16)". Do not re-ask.
+> - **2026-10-03** — the report card's header, info row and legend moved to container units with feat/ui-refresh (`ReportCard.jsx:712–718`); nothing in it reads the viewport. Full text: `docs/ARCHIVE.md` → "Closed engineering bullet moved from CLAUDE.md on 2026-10-04". Do not re-ask.
+> - **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
+> - **2026-09-26** — `Manage Templates` (Figure 23, undefined in the manuscript; likely the grade weight display): not built, and the manuscript drops it. This line is its full text. Do not re-ask.
+> - **2026-09-06/07** — read scopes widened to assigned OR adviser (TCH-002 is that account); **`routes/grades.js` is deliberately NOT widened** — encoding is the subject teacher's. Do not re-ask.
+> - **2026-09-18** — `Account is not active.` is `401` (login keeps `403` + `status`). Do not re-derive.
+> - **2026-09-07** — endpoint audit, all three buckets empty; **re-run it after any dispatch that adds or removes an endpoint.**
