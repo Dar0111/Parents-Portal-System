@@ -163,6 +163,9 @@ const GROUPS = [
       ['demo_messages_clear', 'Cleared the messages before the demo data'],
       ['demo_passwords_set', 'Set the demo passwords'],
       ['activity_log_reset', 'Reset the activity log'],
+      // Written by scripts/account-delete.js (D-312), never by a route: one row
+      // for one parent account and its learner deleted by id.
+      ['account_deleted_by_id', 'Deleted an account by id'],
     ],
   },
   {

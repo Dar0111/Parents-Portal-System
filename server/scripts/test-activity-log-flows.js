@@ -76,7 +76,7 @@ const policy = createPolicyFixture();
 
 const ENTRY_KEYS = ['action', 'action_group', 'action_label', 'actor_name', 'actor_role', 'created_at', 'id'];
 const RETIRED = ['create_contribution', 'update_contribution', 'delete_contribution', 'update_contribution_record', 'record_descriptive_grade'];
-const SCRIPT_ONLY = ['seed', 'demo_data_load', 'demo_data_undo', 'demo_messages_clear', 'demo_passwords_set', 'activity_log_reset'];
+const SCRIPT_ONLY = ['seed', 'demo_data_load', 'demo_data_undo', 'demo_messages_clear', 'demo_passwords_set', 'activity_log_reset', 'account_deleted_by_id'];
 const UNKNOWN_CODE = 'zz_suite_unknown_code';
 const SENTINEL = `suite-sentinel-${crypto.randomBytes(8).toString('hex')}`;
 const CSV_HEADER = '"Entry","Date","Time (Philippine time)","Account","Role","Group","Action","Action code"';

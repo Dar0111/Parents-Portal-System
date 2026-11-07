@@ -26,6 +26,7 @@
     "demo:logins": "node scripts/demo-logins.js",
     "demo:passwords": "node scripts/demo-passwords.js",
     "activity:reset": "node scripts/activity-reset.js",
+    "account:delete": "node scripts/account-delete.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:auth-middleware": "node scripts/test-auth-middleware.js",
@@ -63,6 +64,7 @@
     "test:fixture-guard": "node scripts/test-fixture-guard.js",
     "test:demo-data": "node scripts/test-demo-data.js",
     "test:activity-reset": "node scripts/test-activity-reset.js",
+    "test:account-delete": "node scripts/test-account-delete.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {
